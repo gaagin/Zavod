@@ -98,6 +98,8 @@ interface FactoryContextType {
   setIsBackupOpen: (open: boolean) => void;
   isEventLogsOpen: boolean;
   setIsEventLogsOpen: (open: boolean) => void;
+  isProjectPanelOpen: boolean;
+  setIsProjectPanelOpen: (open: boolean) => void;
   gridSnap: boolean;
   setGridSnap: (snap: boolean) => void;
 
@@ -213,11 +215,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [linkDraftType, setLinkDraftType] = useState<LinkType>('power');
   const [gridSnap, setGridSnap] = useState<boolean>(true);
 
-  // Modals
+  // Modals & Panels
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isEventLogsOpen, setIsEventLogsOpen] = useState(false);
+  const [isProjectPanelOpen, setIsProjectPanelOpen] = useState(false);
 
   // In-app Toasts
   const [toasts, setToasts] = useState<AppToast[]>([]);
@@ -1178,6 +1181,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsBackupOpen,
         isEventLogsOpen,
         setIsEventLogsOpen,
+        isProjectPanelOpen,
+        setIsProjectPanelOpen,
         gridSnap,
         setGridSnap,
         autoSaveConfig,

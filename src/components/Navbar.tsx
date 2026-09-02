@@ -3,39 +3,23 @@ import {
   useFactory 
 } from '../context/FactoryContext';
 import { UserRole } from '../types';
-import { exportToCSV, exportToPDF, exportToJSON, copyProjectJSONToClipboard } from '../utils/exportUtils';
 import { 
   Factory, 
   Search, 
-  FileText, 
-  Activity, 
-  Cloud, 
-  Download, 
   Sun, 
   Moon, 
-  ShieldAlert, 
   Users, 
   Radio, 
   ChevronDown, 
   Check, 
-  FileSpreadsheet, 
-  Upload,
-  Layers,
-  Copy,
-  FolderDown,
-  Settings,
   Save,
-  FolderOpen,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
+  ChevronRight,
   ShieldCheck,
-  History
+  RefreshCw
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { 
-    state, 
     currentUser, 
     setCurrentUserRole, 
     setCurrentUserName,
@@ -44,29 +28,19 @@ export const Navbar: React.FC = () => {
     isDarkMode, 
     toggleDarkMode,
     setIsSearchOpen,
-    setIsReportOpen,
-    setIsBackupOpen,
-    setIsEventLogsOpen,
-    importProject,
-    showToast,
+    isProjectPanelOpen,
+    setIsProjectPanelOpen,
     addEventLog,
     autoSaveConfig,
-    setAutoSaveConfig,
     saveStatus,
     lastSavedTime,
-    forceSave,
   } = useFactory();
 
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
-  const [autoSaveMenuOpen, setAutoSaveMenuOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const roleMenuRef = useRef<HTMLDivElement>(null);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
   const usersMenuRef = useRef<HTMLDivElement>(null);
-  const autoSaveMenuRef = useRef<HTMLDivElement>(null);
 
   const [timeAgoText, setTimeAgoText] = useState('только что');
 
@@ -91,47 +65,19 @@ export const Navbar: React.FC = () => {
       if (roleMenuRef.current && !roleMenuRef.current.contains(e.target as Node)) {
         setRoleMenuOpen(false);
       }
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
-        setExportMenuOpen(false);
-      }
       if (usersMenuRef.current && !usersMenuRef.current.contains(e.target as Node)) {
         setUsersMenuOpen(false);
-      }
-      if (autoSaveMenuRef.current && !autoSaveMenuRef.current.contains(e.target as Node)) {
-        setAutoSaveMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const criticalAlarmsCount = state.equipment.filter(e => e.status === 'critical').length;
-  const warningCount = state.equipment.filter(e => e.status === 'warning').length;
-
   const roleLabels: Record<UserRole, { label: string; desc: string; badgeColor: string }> = {
     admin: { label: 'Главный инженер', desc: 'Полный доступ к схеме, оборудованию и бэкапам', badgeColor: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40' },
     operator: { label: 'Диспетчер смены', desc: 'Переключение режимов работы и регистрация инцидентов', badgeColor: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' },
     maintenance: { label: 'Сервисный техник', desc: 'Проведение ТО, калибровка датчиков и наряды', badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
     viewer: { label: 'Аудитор (Просмотр)', desc: 'Только чтение, аналитика и экспорт документов', badgeColor: 'bg-slate-500/20 text-slate-400 border-slate-500/40' },
-  };
-
-  const handleJSONImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await importProject(file);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleCopyJSON = async () => {
-    const ok = await copyProjectJSONToClipboard(state);
-    if (ok) {
-      showToast('JSON скопирован', 'Схема проекта помещена в буфер обмена', 'success');
-    } else {
-      showToast('Ошибка', 'Не удалось скопировать данные в буфер обмена', 'error');
-    }
-    setExportMenuOpen(false);
   };
 
   return (
@@ -245,337 +191,32 @@ export const Navbar: React.FC = () => {
           <Search className="w-4 h-4" />
         </button>
 
-        {/* Report Generator Button */}
+        {/* Project & Files Right Panel Toggle Button */}
         <button
-          id="report-generator-btn"
-          onClick={() => setIsReportOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
-          title="Генерация аналитического отчета по оборудованию"
-        >
-          <FileText className="w-3.5 h-3.5 text-blue-400" />
-          <span className="hidden sm:inline">Отчеты</span>
-        </button>
-
-        {/* Event Logs & Alarms Drawer Toggle */}
-        <button
-          id="event-logs-btn"
-          onClick={() => setIsEventLogsOpen(true)}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors relative ${
-            criticalAlarmsCount > 0 
-              ? 'bg-red-500/10 text-red-400 border-red-500/30' 
-              : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border-white/10'
+          id="open-project-panel-btn"
+          onClick={() => setIsProjectPanelOpen(!isProjectPanelOpen)}
+          className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+            isProjectPanelOpen
+              ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/25 ring-1 ring-blue-400/40'
+              : 'bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white border-white/10 hover:border-white/20'
           }`}
-          title="Журнал событий и аварий"
+          title="Открыть панель: сохранение, открытие файлов, экспорт и бэкапы"
         >
-          <Activity className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">Логи</span>
-          {criticalAlarmsCount > 0 ? (
-            <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px] font-bold animate-pulse">
-              {criticalAlarmsCount}
-            </span>
-          ) : warningCount > 0 ? (
-            <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white text-[10px] font-bold">
-              {warningCount}
-            </span>
-          ) : null}
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                saveStatus === 'saving'
+                  ? 'bg-amber-400 animate-pulse'
+                  : autoSaveConfig.enabled
+                  ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]'
+                  : 'bg-slate-500'
+              }`}
+            />
+            <Save className="w-3.5 h-3.5 text-blue-400" />
+          </div>
+          <span className="font-medium">Файлы и проект</span>
+          <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isProjectPanelOpen ? 'rotate-90' : ''}`} />
         </button>
-
-        {/* Auto-Save Indicator & Dropdown */}
-        <div className="relative" ref={autoSaveMenuRef}>
-          <button
-            id="autosave-menu-btn"
-            onClick={() => setAutoSaveMenuOpen(!autoSaveMenuOpen)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all ${
-              saveStatus === 'saving'
-                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 ring-1 ring-amber-500/30'
-                : autoSaveConfig.enabled
-                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
-                : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-400'
-            }`}
-            title="Статус автосохранения (нажмите для управления параметрами)"
-          >
-            {saveStatus === 'saving' ? (
-              <>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                <span className="hidden sm:inline text-amber-300 font-medium">Сохранение...</span>
-              </>
-            ) : autoSaveConfig.enabled ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline text-emerald-300 font-medium">Автосохранение</span>
-                <span className="text-[10px] text-emerald-400/80 font-mono hidden md:inline">({timeAgoText})</span>
-              </>
-            ) : (
-              <>
-                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline text-slate-400">Автосохранение: ВЫКЛ</span>
-              </>
-            )}
-            <ChevronDown className="w-3 h-3 opacity-60 ml-0.5" />
-          </button>
-
-          {/* Auto-Save Popover Menu */}
-          {autoSaveMenuOpen && (
-            <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-white/10 rounded-xl shadow-2xl z-50 p-4 space-y-3.5 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150">
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span className="font-semibold text-xs text-white uppercase tracking-wider">Параметры автосохранения</span>
-                </div>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium ${
-                  autoSaveConfig.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-slate-400'
-                }`}>
-                  {autoSaveConfig.enabled ? 'АКТИВНО' : 'ОТКЛЮЧЕНО'}
-                </span>
-              </div>
-
-              {/* Status info */}
-              <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-[11px] space-y-1.5 text-slate-300">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Состояние:</span>
-                  <span className="text-emerald-400 font-medium flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Сохранение на лету (Real-time)
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Последняя запись:</span>
-                  <span className="text-white font-mono text-[10px]">
-                    {new Date(lastSavedTime).toLocaleTimeString('ru-RU')} ({timeAgoText})
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Хранилище:</span>
-                  <span className="text-slate-200">Кэш браузера + Файл сервера</span>
-                </div>
-              </div>
-
-              {/* Toggles */}
-              <div className="space-y-2.5 text-xs">
-                <label className="flex items-start justify-between cursor-pointer group gap-2">
-                  <div>
-                    <div className="font-medium text-white group-hover:text-emerald-300 transition-colors">
-                      Непрерывное автосохранение
-                    </div>
-                    <div className="text-[10px] text-slate-400 leading-snug">
-                      Мгновенно сохраняет каждое перемещение, изменение свойств и связи
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={autoSaveConfig.enabled}
-                    onChange={(e) => {
-                      setAutoSaveConfig(prev => ({ ...prev, enabled: e.target.checked }));
-                      showToast(
-                        e.target.checked ? 'Автосохранение включено' : 'Автосохранение приостановлено',
-                        e.target.checked ? 'Все изменения сохраняются непрерывно.' : 'Используйте кнопку «Сохранить» или Ctrl+S.',
-                        e.target.checked ? 'success' : 'warning'
-                      );
-                    }}
-                    className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-white/20 cursor-pointer"
-                  />
-                </label>
-
-                <label className="flex items-start justify-between cursor-pointer group gap-2">
-                  <div>
-                    <div className="font-medium text-white group-hover:text-emerald-300 transition-colors">
-                      Контрольные снимки (Auto-snapshot)
-                    </div>
-                    <div className="text-[10px] text-slate-400 leading-snug">
-                      Автоматическая контрольная точка в бэкапы каждые {autoSaveConfig.snapshotIntervalMinutes || 5} мин
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={autoSaveConfig.autoSnapshots}
-                    onChange={(e) => {
-                      setAutoSaveConfig(prev => ({ ...prev, autoSnapshots: e.target.checked }));
-                    }}
-                    className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-white/20 cursor-pointer"
-                  />
-                </label>
-              </div>
-
-              {/* Quick Actions inside Menu */}
-              <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
-                <button
-                  onClick={() => {
-                    forceSave();
-                    setAutoSaveMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 transition-colors"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Принудительно сохранить сейчас</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setIsBackupOpen(true);
-                    setAutoSaveMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-medium border border-white/10 transition-colors"
-                >
-                  <History className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Открыть журнал бэкапов и снимков</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Save Project File Button */}
-        <button
-          id="save-project-file-btn"
-          onClick={() => {
-            forceSave();
-            exportToJSON(state);
-            showToast('Файл проекта сохранен', 'Файл .json загружен. Все данные синхронизированы.', 'success');
-          }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 transition-colors"
-          title="Сохранить и скачать файл проекта (.json) для открытия на другом ПК (Ctrl+S)"
-        >
-          <Save className="w-3.5 h-3.5" />
-          <span>Сохранить</span>
-        </button>
-
-        {/* Open Project File Button */}
-        <button
-          id="open-project-file-btn"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 hover:text-white border border-emerald-500/40 transition-colors"
-          title="Открыть файл проекта (.json) с компьютера"
-        >
-          <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="hidden sm:inline">Открыть файл</span>
-        </button>
-
-        {/* Cloud Backups Button */}
-        <button
-          id="cloud-backup-btn"
-          onClick={() => setIsBackupOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
-          title="Облачные снимки и точки восстановления"
-        >
-          <Cloud className="w-3.5 h-3.5 text-blue-400" />
-          <span className="hidden xl:inline">Бэкапы</span>
-        </button>
-
-        {/* Export Dropdown Button */}
-        <div className="relative" ref={exportMenuRef}>
-          <button
-            id="export-dropdown-btn"
-            onClick={() => setExportMenuOpen(!exportMenuOpen)}
-            className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition-colors font-medium"
-            title="Экспорт схемы и документации"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Экспорт</span>
-            <span className="opacity-60 text-[10px] hidden sm:inline font-mono">JSON/PDF</span>
-            <ChevronDown className="w-3 h-3 opacity-60 ml-0.5" />
-          </button>
-
-          {exportMenuOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-[#111318] border border-white/10 rounded-xl shadow-2xl py-2 z-50 text-xs text-slate-300">
-              <div className="px-3 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
-                Экспорт проекта
-              </div>
-
-              <button
-                id="menu-export-json-btn"
-                onClick={() => {
-                  exportToJSON(state);
-                  showToast('Проект экспортирован', 'Файл .json сохранен на диск', 'success');
-                  setExportMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
-              >
-                <Download className="w-4 h-4 text-blue-400 shrink-0" />
-                <div>
-                  <div className="font-medium">Экспорт проекта (JSON)</div>
-                  <div className="text-[10px] text-slate-400">Полный переносимый файл схемы</div>
-                </div>
-              </button>
-
-              <button
-                id="menu-copy-json-btn"
-                onClick={handleCopyJSON}
-                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
-              >
-                <Copy className="w-4 h-4 text-indigo-400 shrink-0" />
-                <div>
-                  <div className="font-medium">Скопировать JSON в буфер</div>
-                  <div className="text-[10px] text-slate-400">Для быстрой передачи на другое устройство</div>
-                </div>
-              </button>
-
-              <div className="my-1 border-t border-white/10" />
-
-              <div className="px-3 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
-                Техническая документация
-              </div>
-
-              <button
-                id="menu-export-pdf-btn"
-                onClick={() => {
-                  exportToPDF(state);
-                  showToast('PDF формируется', 'Паспорт предприятия готов к загрузке', 'success');
-                  setExportMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
-              >
-                <FileText className="w-4 h-4 text-rose-400 shrink-0" />
-                <div>
-                  <div className="font-medium">Паспорт завода в PDF</div>
-                  <div className="text-[10px] text-slate-400">Официальный отчет, сводка и аварии</div>
-                </div>
-              </button>
-
-              <button
-                id="menu-export-csv-btn"
-                onClick={() => {
-                  exportToCSV(state);
-                  showToast('CSV реестр выгружен', 'Файл совместим с Excel и 1С', 'success');
-                  setExportMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
-                <div>
-                  <div className="font-medium">Реестр оборудования в CSV</div>
-                  <div className="text-[10px] text-slate-400">Для Excel / 1С / ERP систем</div>
-                </div>
-              </button>
-
-              <div className="my-1 border-t border-white/10" />
-
-              <button
-                id="menu-open-report-modal-btn"
-                onClick={() => {
-                  setIsReportOpen(true);
-                  setExportMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-blue-400 font-medium"
-              >
-                <Layers className="w-4 h-4 shrink-0" />
-                <div>
-                  <div>Менеджер экспорта & Облако...</div>
-                  <div className="text-[10px] text-slate-400">Фильтры по цехам, облачные точки и вставка</div>
-                </div>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Hidden file input for JSON import */}
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          accept=".json,application/json" 
-          className="hidden" 
-          onChange={handleJSONImport} 
-        />
 
         {/* Theme Toggle */}
         <button

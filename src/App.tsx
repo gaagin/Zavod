@@ -4,6 +4,7 @@ import { Navbar } from './components/Navbar';
 import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
 import { InspectorPanel } from './components/InspectorPanel';
+import { ProjectPanel } from './components/ProjectPanel';
 import { SearchModal } from './components/SearchModal';
 import { ReportModal } from './components/ReportModal';
 import { ToastContainer } from './components/ToastContainer';
@@ -198,6 +199,7 @@ const AppContent: React.FC = () => {
           <Toolbar />
         </div>
         <InspectorPanel />
+        <ProjectPanel />
       </main>
 
       {/* Modals & Dialogs */}

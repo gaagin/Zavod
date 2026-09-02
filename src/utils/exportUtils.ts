@@ -145,6 +145,308 @@ export function exportToCSV(factory: FactoryState, targetContainerId?: string): 
 }
 
 /**
+ * Export equipment registry to native Excel XML Spreadsheet format (.xls)
+ */
+export function exportToExcel(factory: FactoryState, targetContainerId?: string): boolean {
+  const filteredEquipment = (factory.equipment || []).filter(eq => {
+    if (!targetContainerId || targetContainerId === 'all') return true;
+    let currentParent = eq.parentId;
+    while (currentParent) {
+      if (currentParent === targetContainerId) return true;
+      const parentCont = (factory.containers || []).find(c => c.id === currentParent);
+      currentParent = parentCont ? parentCont.parentId : null;
+    }
+    return false;
+  });
+
+  const statusLabels: Record<string, string> = {
+    normal: 'В норме',
+    warning: 'Предупреждение',
+    critical: 'Авария',
+    maintenance: 'Техобслуживание',
+  };
+
+  const escapeXML = (str: any) => {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  };
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center"/>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#1E293B"/>
+  </Style>
+  <Style ss:ID="Header">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#2563EB"/>
+   </Borders>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#1E40AF" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="StatusNormal">
+   <Alignment ss:Horizontal="Center"/>
+   <Font ss:FontName="Calibri" ss:Color="#166534" ss:Bold="1"/>
+   <Interior ss:Color="#DCFCE7" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="StatusWarning">
+   <Alignment ss:Horizontal="Center"/>
+   <Font ss:FontName="Calibri" ss:Color="#854D0E" ss:Bold="1"/>
+   <Interior ss:Color="#FEF9C3" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="StatusCritical">
+   <Alignment ss:Horizontal="Center"/>
+   <Font ss:FontName="Calibri" ss:Color="#991B1B" ss:Bold="1"/>
+   <Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="StatusMaint">
+   <Alignment ss:Horizontal="Center"/>
+   <Font ss:FontName="Calibri" ss:Color="#3730A3" ss:Bold="1"/>
+   <Interior ss:Color="#E0E7FF" ss:Pattern="Solid"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Оборудование">
+  <Table>
+   <Column ss:Width="100"/>
+   <Column ss:Width="180"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="160"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="90"/>
+   <Row ss:Height="26">
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Тэг / Инв. №</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Наименование</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Тип</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Статус</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Цех / Участок</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Мощность (кВт)</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Напряжение (В)</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Посл. ТО</Data></Cell>
+   </Row>
+   ${filteredEquipment.map(eq => {
+     let style = 'Default';
+     if (eq.status === 'normal') style = 'StatusNormal';
+     else if (eq.status === 'warning') style = 'StatusWarning';
+     else if (eq.status === 'critical') style = 'StatusCritical';
+     else if (eq.status === 'maintenance') style = 'StatusMaint';
+     const loc = eq.parentId ? getHierarchyPath(eq.parentId, factory.containers || []) : 'Главный корпус';
+     return `<Row ss:Height="20">
+      <Cell><Data ss:Type="String">${escapeXML(eq.tag)}</Data></Cell>
+      <Cell><Data ss:Type="String">${escapeXML(eq.name)}</Data></Cell>
+      <Cell><Data ss:Type="String">${escapeXML(eq.type)}</Data></Cell>
+      <Cell ss:StyleID="${style}"><Data ss:Type="String">${escapeXML(statusLabels[eq.status] || eq.status)}</Data></Cell>
+      <Cell><Data ss:Type="String">${escapeXML(loc)}</Data></Cell>
+      <Cell><Data ss:Type="${eq.powerKw ? 'Number' : 'String'}">${eq.powerKw || '—'}</Data></Cell>
+      <Cell><Data ss:Type="${eq.voltageV ? 'Number' : 'String'}">${eq.voltageV || '—'}</Data></Cell>
+      <Cell><Data ss:Type="String">${escapeXML(eq.lastMaintenanceDate || '—')}</Data></Cell>
+     </Row>`;
+   }).join('\n')}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  return triggerFileDownload(xml, `promschema_equipment_${dateStr}.xls`, 'application/vnd.ms-excel;charset=utf-8;');
+}
+
+/**
+ * Export canvas schema to high-resolution PNG image
+ */
+export function exportToPNG(factory?: FactoryState): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    const width = 1920;
+    const height = 1080;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+
+    // Background
+    ctx.fillStyle = '#090A0F';
+    ctx.fillRect(0, 0, width, height);
+
+    // Subtle grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < width; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < height; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    // Title banner
+    ctx.fillStyle = '#1E293B';
+    ctx.fillRect(0, 0, width, 60);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 20px "Segoe UI", Roboto, sans-serif';
+    ctx.fillText('ПромСхема.IO  •  Технологическая схема производства', 40, 38);
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '14px "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(`Экспортировано: ${new Date().toLocaleString('ru-RU')}`, width - 360, 38);
+
+    if (factory) {
+      // Draw containers
+      (factory.containers || []).forEach(c => {
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.5)';
+        ctx.strokeStyle = 'rgba(71, 85, 105, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(c.x, c.y + 60, c.width, c.height, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#94A3B8';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(`[${c.tag}] ${c.name}`, c.x + 12, c.y + 80);
+      });
+
+      // Draw links
+      (factory.links || []).forEach(l => {
+        const fromEq = factory.equipment.find(e => e.id === l.fromId);
+        const toEq = factory.equipment.find(e => e.id === l.toId);
+        if (fromEq && toEq) {
+          ctx.strokeStyle = l.color || '#3B82F6';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(fromEq.x + (fromEq.width || 120) / 2, fromEq.y + 60 + (fromEq.height || 80) / 2);
+          ctx.lineTo(toEq.x + (toEq.width || 120) / 2, toEq.y + 60 + (toEq.height || 80) / 2);
+          ctx.stroke();
+        }
+      });
+
+      // Draw equipment nodes
+      (factory.equipment || []).forEach(eq => {
+        const ew = eq.width || 120;
+        const eh = eq.height || 80;
+        const ey = eq.y + 60;
+
+        ctx.fillStyle = '#111827';
+        ctx.strokeStyle = eq.status === 'critical' ? '#EF4444' : eq.status === 'warning' ? '#F59E0B' : '#3B82F6';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(eq.x, ey, ew, eh, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText(eq.tag, eq.x + 10, ey + 24);
+
+        ctx.fillStyle = '#94A3B8';
+        ctx.font = '11px sans-serif';
+        const name = eq.name.length > 14 ? eq.name.slice(0, 12) + '..' : eq.name;
+        ctx.fillText(name, eq.x + 10, ey + 42);
+
+        // Status badge
+        ctx.fillStyle = eq.status === 'critical' ? '#EF4444' : eq.status === 'warning' ? '#F59E0B' : '#10B981';
+        ctx.beginPath();
+        ctx.arc(eq.x + ew - 14, ey + 14, 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `promschema_diagram_${new Date().toISOString().slice(0, 10)}.png`;
+    link.href = dataUrl;
+    link.click();
+    return true;
+  } catch (err) {
+    console.error('PNG export failed:', err);
+    return false;
+  }
+}
+
+/**
+ * Export schema to scalable vector graphics (SVG) file
+ */
+export function exportToSVG(factory?: FactoryState): boolean {
+  try {
+    const width = 1920;
+    const height = 1080;
+    const items = factory?.equipment || [];
+    const containers = factory?.containers || [];
+    const links = factory?.links || [];
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="#0B0E14" />
+  <rect width="100%" height="100%" fill="url(#grid)" />
+  
+  <!-- Header -->
+  <rect width="100%" height="60" fill="#151A23" />
+  <text x="40" y="38" fill="#FFFFFF" font-family="sans-serif" font-size="20" font-weight="bold">ПромСхема.IO — Векторная схема производства</text>
+  <text x="${width - 340}" y="38" fill="#94A3B8" font-family="sans-serif" font-size="14">Дата: ${new Date().toLocaleDateString('ru-RU')}</text>
+
+  <!-- Containers -->
+  ${containers.map(c => `
+  <g transform="translate(${c.x}, ${c.y + 60})">
+    <rect width="${c.width}" height="${c.height}" rx="8" fill="rgba(30,41,59,0.3)" stroke="rgba(100,116,139,0.5)" stroke-width="2" />
+    <text x="12" y="24" fill="#94A3B8" font-family="monospace" font-size="12" font-weight="bold">[${c.tag}] ${c.name}</text>
+  </g>`).join('')}
+
+  <!-- Links -->
+  ${links.map(l => {
+    const fromEq = items.find(e => e.id === l.fromId);
+    const toEq = items.find(e => e.id === l.toId);
+    if (!fromEq || !toEq) return '';
+    const x1 = fromEq.x + (fromEq.width || 120) / 2;
+    const y1 = fromEq.y + 60 + (fromEq.height || 80) / 2;
+    const x2 = toEq.x + (toEq.width || 120) / 2;
+    const y2 = toEq.y + 60 + (toEq.height || 80) / 2;
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${l.color || '#3B82F6'}" stroke-width="3" stroke-linecap="round" />`;
+  }).join('')}
+
+  <!-- Equipment Nodes -->
+  ${items.map(eq => {
+    const ew = eq.width || 120;
+    const eh = eq.height || 80;
+    const strokeColor = eq.status === 'critical' ? '#EF4444' : eq.status === 'warning' ? '#F59E0B' : '#3B82F6';
+    const statusColor = eq.status === 'critical' ? '#EF4444' : eq.status === 'warning' ? '#F59E0B' : '#10B981';
+    return `
+  <g transform="translate(${eq.x}, ${eq.y + 60})">
+    <rect width="${ew}" height="${eh}" rx="8" fill="#111827" stroke="${strokeColor}" stroke-width="2" />
+    <circle cx="${ew - 14}" cy="14" r="5" fill="${statusColor}" />
+    <text x="10" y="24" fill="#FFFFFF" font-family="monospace" font-size="13" font-weight="bold">${eq.tag}</text>
+    <text x="10" y="44" fill="#94A3B8" font-family="sans-serif" font-size="11">${eq.name}</text>
+  </g>`;
+  }).join('')}
+</svg>`;
+
+    return triggerFileDownload(svg, `promschema_diagram_${new Date().toISOString().slice(0, 10)}.svg`, 'image/svg+xml;charset=utf-8');
+  } catch (err) {
+    console.error('SVG export failed:', err);
+    return false;
+  }
+}
+
+/**
  * Standardized Project Export Schema format
  */
 export interface SerializedProjectFile {
@@ -160,10 +462,7 @@ export interface SerializedProjectFile {
   state: FactoryState;
 }
 
-/**
- * Export full JSON project to downloadable file
- */
-export function exportToJSON(factory: FactoryState): boolean {
+export function prepareSerializedProject(factory: FactoryState): string {
   const projectData: SerializedProjectFile = {
     format: 'PromSchema.IO',
     version: factory.version || 1,
@@ -176,11 +475,142 @@ export function exportToJSON(factory: FactoryState): boolean {
     },
     state: factory
   };
+  return JSON.stringify(projectData, null, 2);
+}
 
-  const jsonStr = JSON.stringify(projectData, null, 2);
+/**
+ * Export full JSON project to downloadable file
+ */
+export function exportToJSON(factory: FactoryState, customFilename?: string): boolean {
+  const jsonStr = prepareSerializedProject(factory);
   const dateStr = new Date().toISOString().slice(0, 10);
-  const filename = `promschema_project_${dateStr}.json`;
+  let filename = customFilename?.trim() || `promschema_project_${dateStr}.json`;
+  if (!filename.toLowerCase().endsWith('.json')) {
+    filename += '.json';
+  }
   return triggerFileDownload(jsonStr, filename, 'application/json');
+}
+
+/**
+ * Save file with native OS Save File Picker (allows user to browse and select any folder on disk)
+ */
+export async function saveWithSystemFilePicker(
+  factory: FactoryState,
+  suggestedFilename?: string
+): Promise<{ success: boolean; filename?: string; aborted?: boolean; error?: string }> {
+  const dateStr = new Date().toISOString().slice(0, 10);
+  let name = suggestedFilename?.trim() || `promschema_project_${dateStr}.json`;
+  if (!name.toLowerCase().endsWith('.json')) {
+    name += '.json';
+  }
+
+  const jsonStr = prepareSerializedProject(factory);
+
+  if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: name,
+        types: [
+          {
+            description: 'Файл схемы проекта PromSchema.IO (*.json)',
+            accept: {
+              'application/json': ['.json'],
+            },
+          },
+        ],
+      });
+
+      const writable = await handle.createWritable();
+      await writable.write(jsonStr);
+      await writable.close();
+
+      return { success: true, filename: handle.name || name };
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return { success: false, aborted: true };
+      }
+      console.warn('showSaveFilePicker encountered error, falling back to download:', err);
+      // If error occurs (e.g. iframe sandbox policy), fall back to standard download
+      const downloaded = exportToJSON(factory, name);
+      return { 
+        success: downloaded, 
+        filename: name, 
+        error: err?.message || 'Использована загрузка через браузер' 
+      };
+    }
+  }
+
+  // Fallback if API is not supported in this browser/environment
+  const downloaded = exportToJSON(factory, name);
+  return { success: downloaded, filename: name };
+}
+
+/**
+ * Open native OS Directory Picker to choose a designated target folder
+ */
+export async function selectSystemDirectory(): Promise<{
+  success: boolean;
+  handle?: any;
+  dirName?: string;
+  aborted?: boolean;
+  error?: string;
+}> {
+  if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
+    try {
+      const dirHandle = await (window as any).showDirectoryPicker({
+        mode: 'readwrite',
+      });
+      return {
+        success: true,
+        handle: dirHandle,
+        dirName: dirHandle.name,
+      };
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return { success: false, aborted: true };
+      }
+      return {
+        success: false,
+        error: err?.message || 'Не удалось получить доступ к папке',
+      };
+    }
+  }
+
+  return {
+    success: false,
+    error: 'Ваш браузер или окружение не поддерживает File System Access API. Файлы сохраняются в системную папку загрузок браузера с диалогом выбора папки.',
+  };
+}
+
+/**
+ * Save project directly into previously selected directory handle
+ */
+export async function saveProjectToDirectory(
+  dirHandle: any,
+  factory: FactoryState,
+  filename?: string
+): Promise<{ success: boolean; filename?: string; error?: string }> {
+  try {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    let name = filename?.trim() || `promschema_project_${dateStr}.json`;
+    if (!name.toLowerCase().endsWith('.json')) {
+      name += '.json';
+    }
+
+    const jsonStr = prepareSerializedProject(factory);
+    const fileHandle = await dirHandle.getFileHandle(name, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(jsonStr);
+    await writable.close();
+
+    return { success: true, filename: name };
+  } catch (err: any) {
+    console.error('saveProjectToDirectory failed:', err);
+    return {
+      success: false,
+      error: err?.message || 'Ошибка записи в выбранную папку',
+    };
+  }
 }
 
 /**
