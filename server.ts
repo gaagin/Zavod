@@ -192,9 +192,15 @@ app.get('/api/state', (req, res) => {
 });
 
 app.post('/api/state', (req, res) => {
-  if (req.body && req.body.equipment) {
+  const incoming = (req.body && req.body.state) ? req.body.state : req.body;
+  if (incoming && (incoming.equipment || incoming.containers)) {
     currentState = {
-      ...req.body,
+      ...currentState,
+      ...incoming,
+      equipment: dedupeById(incoming.equipment || currentState.equipment),
+      containers: dedupeById(incoming.containers || currentState.containers),
+      links: dedupeById(incoming.links || currentState.links),
+      eventLogs: dedupeById(incoming.eventLogs || currentState.eventLogs).slice(0, 200),
       version: (currentState.version || 1) + 1,
       lastUpdated: new Date().toISOString(),
     };
@@ -202,53 +208,73 @@ app.post('/api/state', (req, res) => {
       type: 'state_updated',
       state: currentState,
       senderId: 'api',
-      reason: 'Синхронизация через API',
+      reason: req.body.reason || 'Синхронизация через API',
     });
-    res.json({ success: true, version: currentState.version });
+    res.json({ success: true, version: currentState.version, state: currentState });
   } else {
-    res.status(400).json({ error: 'Invalid state format' });
+    res.status(400).json({ error: 'Invalid state format. Expected equipment or containers array.' });
   }
 });
 
 // Backup endpoints
 app.get('/api/backups', (req, res) => {
-  res.json(currentState.backups);
+  res.json(currentState.backups || []);
+});
+
+app.get('/api/backups/:id', (req, res) => {
+  const backup = currentState.backups.find(b => b.id === req.params.id);
+  if (!backup) {
+    return res.status(404).json({ error: 'Backup not found' });
+  }
+  try {
+    const state = backup.payloadJson ? JSON.parse(backup.payloadJson) : null;
+    res.json({ backup, state });
+  } catch (e) {
+    res.json({ backup, state: null });
+  }
 });
 
 app.post('/api/backups', (req, res) => {
-  const { service, name } = req.body;
-  const payloadStr = JSON.stringify(currentState);
-  const sizeKb = Math.round(Buffer.byteLength(payloadStr, 'utf8') / 1024);
+  const { service, provider, name, state: customState } = req.body;
+  const stateToBackup = customState || currentState;
+  const payloadStr = JSON.stringify({
+    format: 'PromSchema.IO',
+    version: stateToBackup.version || 1,
+    exportedAt: new Date().toISOString(),
+    state: stateToBackup
+  });
+  const sizeKb = Math.max(1, Math.round(Buffer.byteLength(payloadStr, 'utf8') / 1024));
+  const serviceType = service || provider || 'yandex';
 
   const newBackup: CloudBackup = {
-    id: 'bkp_' + Date.now(),
-    service: service || 'google_drive',
-    name: name || `backup_${Date.now()}.json`,
+    id: 'bkp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+    service: serviceType,
+    name: name || `Резервная копия (${new Date().toLocaleDateString('ru-RU')} ${new Date().toLocaleTimeString('ru-RU')})`,
     timestamp: new Date().toISOString(),
-    equipmentCount: currentState.equipment.length,
-    containersCount: currentState.containers.length,
-    linksCount: currentState.links.length,
+    equipmentCount: (stateToBackup.equipment || []).length,
+    containersCount: (stateToBackup.containers || []).length,
+    linksCount: (stateToBackup.links || []).length,
     fileSizeKb: sizeKb,
     status: 'synced',
     payloadJson: payloadStr,
   };
 
-  currentState.backups = [newBackup, ...currentState.backups];
+  currentState.backups = [newBackup, ...(currentState.backups || [])];
   
   // Log event
   const log = {
-    id: 'log_' + Date.now(),
+    id: 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
     timestamp: new Date().toISOString(),
     targetId: newBackup.id,
     targetName: newBackup.name,
     targetType: 'system' as const,
     eventType: 'backup' as const,
     severity: 'success' as const,
-    description: `Создана резервная копия схемы в облако (${newBackup.service.toUpperCase()})`,
-    userName: req.body.userName || 'Системный администратор',
+    description: `Создана резервная копия схемы в хранилище (${String(newBackup.service).toUpperCase()})`,
+    userName: req.body.userName || 'Инженер АСУ',
     userRole: (req.body.userRole || 'admin') as UserRole,
   };
-  currentState.eventLogs = [log, ...currentState.eventLogs];
+  currentState.eventLogs = [log, ...currentState.eventLogs].slice(0, 200);
 
   broadcast({
     type: 'state_updated',
@@ -260,6 +286,21 @@ app.post('/api/backups', (req, res) => {
   res.json({ success: true, backup: newBackup });
 });
 
+app.delete('/api/backups/:id', (req, res) => {
+  const targetId = req.params.id;
+  const beforeCount = (currentState.backups || []).length;
+  currentState.backups = (currentState.backups || []).filter(b => b.id !== targetId);
+  if (currentState.backups.length !== beforeCount) {
+    broadcast({
+      type: 'state_updated',
+      state: currentState,
+      senderId: 'api',
+      reason: 'Удалена копия',
+    });
+  }
+  res.json({ success: true, count: currentState.backups.length });
+});
+
 app.post('/api/backups/:id/restore', (req, res) => {
   const backup = currentState.backups.find(b => b.id === req.params.id);
   if (!backup || !backup.payloadJson) {
@@ -267,10 +308,16 @@ app.post('/api/backups/:id/restore', (req, res) => {
   }
 
   try {
-    const restored = JSON.parse(backup.payloadJson);
+    const rawParsed = JSON.parse(backup.payloadJson);
+    const restored = rawParsed.state || rawParsed;
     const existingBackups = currentState.backups;
     currentState = {
+      ...initialFactoryState,
       ...restored,
+      equipment: dedupeById(restored.equipment || initialFactoryState.equipment),
+      containers: dedupeById(restored.containers || initialFactoryState.containers),
+      links: dedupeById(restored.links || initialFactoryState.links),
+      eventLogs: dedupeById(restored.eventLogs || currentState.eventLogs).slice(0, 200),
       backups: existingBackups, // keep backup history
       version: (currentState.version || 1) + 1,
       lastUpdated: new Date().toISOString(),
@@ -278,7 +325,7 @@ app.post('/api/backups/:id/restore', (req, res) => {
 
     // Log restore event
     const log = {
-      id: 'log_' + Date.now(),
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       timestamp: new Date().toISOString(),
       targetId: backup.id,
       targetName: backup.name,
@@ -286,10 +333,10 @@ app.post('/api/backups/:id/restore', (req, res) => {
       eventType: 'restore' as const,
       severity: 'warning' as const,
       description: `Выполнено восстановление схемы предприятия из резервной копии "${backup.name}"`,
-      userName: req.body.userName || 'Системный администратор',
+      userName: req.body.userName || 'Инженер АСУ',
       userRole: (req.body.userRole || 'admin') as UserRole,
     };
-    currentState.eventLogs = [log, ...currentState.eventLogs];
+    currentState.eventLogs = [log, ...currentState.eventLogs].slice(0, 200);
 
     broadcast({
       type: 'state_updated',
@@ -298,7 +345,7 @@ app.post('/api/backups/:id/restore', (req, res) => {
       reason: 'Восстановление из бэкапа',
     });
 
-    res.json({ success: true, message: 'Restored successfully', version: currentState.version });
+    res.json({ success: true, message: 'Restored successfully', state: currentState, version: currentState.version });
   } catch (err) {
     res.status(500).json({ error: 'Failed to restore state from backup payload' });
   }

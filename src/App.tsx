@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FactoryProvider, useFactory } from './context/FactoryContext';
 import { Navbar } from './components/Navbar';
 import { Canvas } from './components/Canvas';
@@ -6,6 +6,8 @@ import { Toolbar } from './components/Toolbar';
 import { InspectorPanel } from './components/InspectorPanel';
 import { SearchModal } from './components/SearchModal';
 import { ReportModal } from './components/ReportModal';
+import { ToastContainer } from './components/ToastContainer';
+import { Upload, FileCode } from 'lucide-react';
 
 const AppContent: React.FC = () => {
   const {
@@ -24,7 +26,57 @@ const AppContent: React.FC = () => {
     zoomIn,
     zoomOut,
     zoomReset,
+    importProject,
   } = useFactory();
+
+  const [isWindowDragOver, setIsWindowDragOver] = useState(false);
+
+  // Global window drag and drop for .json project files
+  useEffect(() => {
+    let dragCounter = 0;
+
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter++;
+      if (e.dataTransfer?.types?.includes('Files')) {
+        setIsWindowDragOver(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) {
+        setIsWindowDragOver(false);
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    const handleDrop = async (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter = 0;
+      setIsWindowDragOver(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file && (file.name.endsWith('.json') || file.type.includes('json'))) {
+        await importProject(file);
+      }
+    };
+
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, [importProject]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -139,6 +191,33 @@ const AppContent: React.FC = () => {
       {/* Modals & Dialogs */}
       <SearchModal />
       <ReportModal />
+
+      {/* Global Toast Notifications */}
+      <ToastContainer />
+
+      {/* Window Drag & Drop Overlay */}
+      {isWindowDragOver && (
+        <div 
+          id="window-drag-drop-overlay"
+          className="fixed inset-0 z-50 bg-blue-950/80 backdrop-blur-sm flex flex-col items-center justify-center pointer-events-none border-4 border-dashed border-blue-500 m-4 rounded-3xl animate-in fade-in zoom-in-95 duration-150"
+        >
+          <div className="p-6 rounded-2xl bg-blue-900/60 border border-blue-400/30 flex flex-col items-center gap-4 text-center max-w-md shadow-2xl">
+            <div className="w-16 h-16 rounded-2xl bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-blue-400 animate-bounce">
+              <Upload className="w-8 h-8" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-xl font-bold text-white tracking-tight">Отпустите файл для импорта проекта</h3>
+              <p className="text-xs text-blue-200">
+                Схема будет загружена, валидирована и мгновенно применена на холсте SCADA
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] font-mono bg-blue-950/60 px-3 py-1.5 rounded-lg text-blue-300 border border-blue-800">
+              <FileCode className="w-3.5 h-3.5" />
+              <span>Поддерживаются файлы схемы (.json)</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

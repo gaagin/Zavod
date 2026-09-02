@@ -13,8 +13,16 @@ import {
   LinkStyle
 } from '../types';
 import { initialFactoryState } from '../data/initialFactory';
+import { parseAndValidateProject } from '../utils/exportUtils';
 
 export type CanvasTool = 'select' | 'pan' | 'add_equipment' | 'add_container' | 'connect';
+
+export interface AppToast {
+  id: string;
+  title: string;
+  message?: string;
+  type: 'success' | 'warning' | 'error' | 'info';
+}
 
 interface FactoryContextType {
   state: FactoryState;
@@ -53,11 +61,19 @@ interface FactoryContextType {
   updateLink: (id: string, partial: Partial<ConnectionLink>) => void;
   deleteLink: (id: string) => void;
   addEventLog: (log: Omit<FactoryEventLog, 'id' | 'timestamp'>) => void;
-  restoreState: (state: FactoryState) => void;
+  restoreState: (state: FactoryState, reason?: string) => void;
   
-  // Backups
+  // Backups & Project Transfer
   createBackup: (service: CloudServiceType, name?: string) => Promise<boolean>;
   restoreBackup: (backupId: string) => Promise<boolean>;
+  deleteBackup: (backupId: string) => Promise<boolean>;
+  importProject: (file: File) => Promise<{ success: boolean; message: string }>;
+  importProjectFromJSON: (jsonStr: string) => { success: boolean; message: string };
+
+  // Toasts
+  toasts: AppToast[];
+  showToast: (title: string, message?: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
+  dismissToast: (id: string) => void;
   
   // History
   undo: () => void;
@@ -193,6 +209,21 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isEventLogsOpen, setIsEventLogsOpen] = useState(false);
+
+  // In-app Toasts
+  const [toasts, setToasts] = useState<AppToast[]>([]);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const showToast = useCallback((title: string, message?: string, type: 'success' | 'warning' | 'error' | 'info' = 'info') => {
+    const id = 'toast_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    setToasts(prev => [...prev.slice(-3), { id, title, message, type }]);
+    setTimeout(() => {
+      dismissToast(id);
+    }, 4000);
+  }, [dismissToast]);
 
   // Undo/Redo Stacks
   const historyRef = useRef<{ past: FactoryState[]; future: FactoryState[] }>({ past: [], future: [] });
@@ -670,7 +701,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [state, pushHistory, currentUser]);
 
-  const restoreState = useCallback((newState: FactoryState) => {
+  const restoreState = useCallback((newState: FactoryState, reason?: string) => {
     pushHistory(state);
     const sanitized: FactoryState = {
       ...initialFactoryState,
@@ -678,10 +709,20 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       equipment: dedupeById(newState.equipment || initialFactoryState.equipment),
       containers: dedupeById(newState.containers || initialFactoryState.containers),
       links: dedupeById(newState.links || initialFactoryState.links),
-      eventLogs: dedupeById(newState.eventLogs || initialFactoryState.eventLogs),
+      eventLogs: dedupeById(newState.eventLogs || initialFactoryState.eventLogs).slice(0, 200),
+      backups: newState.backups || state.backups || [],
+      version: (state.version || 1) + 1,
+      lastUpdated: new Date().toISOString(),
     };
     setState(sanitized);
-    syncStateToServer(sanitized, 'Восстановление схемы из файла/копии');
+    syncStateToServer(sanitized, reason || 'Восстановление схемы из файла/копии');
+    
+    // Also save via HTTP API for guaranteed persistence across devices
+    fetch('/api/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: sanitized, reason: reason || 'Восстановление схемы' })
+    }).catch(err => console.warn('POST /api/state fallback failed:', err));
   }, [state, pushHistory]);
 
   const updateLink = useCallback((id: string, partial: Partial<ConnectionLink>) => {
@@ -712,7 +753,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           service,
-          name: name || `backup_${service}_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.json`,
+          name: name || `Резервная копия (${new Date().toLocaleDateString('ru-RU')} ${new Date().toLocaleTimeString('ru-RU')})`,
+          state,
           userName: currentUser.name,
           userRole: currentUser.role
         })
@@ -723,14 +765,17 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           ...prev,
           backups: [data.backup, ...prev.backups]
         }));
+        showToast('Резервная копия создана', `Сохранено в хранилище ${service.toUpperCase()}`, 'success');
         return true;
       }
+      showToast('Ошибка', 'Не удалось сохранить резервную копию', 'error');
       return false;
     } catch (e) {
       console.error('Backup creation error:', e);
+      showToast('Ошибка сети', 'Не удалось связаться с сервером бэкапов', 'error');
       return false;
     }
-  }, [currentUser]);
+  }, [currentUser, state, showToast]);
 
   const restoreBackup = useCallback(async (backupId: string): Promise<boolean> => {
     try {
@@ -743,19 +788,113 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         })
       });
       const data = await response.json();
-      if (data.success) {
-        // Fetch fresh state
-        const stateRes = await fetch('/api/state');
-        const freshState = await stateRes.json();
-        setState(freshState);
+      if (data.success && data.state) {
+        restoreState(data.state, 'Восстановление из резервной копии');
+        showToast('Схема восстановлена', 'Данные успешно загружены из снимка', 'success');
         return true;
       }
-      return false;
+      // Fallback: request full state
+      const stateRes = await fetch('/api/state');
+      const freshState = await stateRes.json();
+      restoreState(freshState, 'Восстановление из резервной копии');
+      showToast('Схема восстановлена', 'Данные успешно загружены', 'success');
+      return true;
     } catch (e) {
       console.error('Restore error:', e);
+      showToast('Ошибка восстановления', 'Не удалось восстановить схему из копии', 'error');
       return false;
     }
-  }, [currentUser]);
+  }, [currentUser, restoreState, showToast]);
+
+  const deleteBackup = useCallback(async (backupId: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`/api/backups/${backupId}`, { method: 'DELETE' });
+      if (response.ok) {
+        setState(prev => ({
+          ...prev,
+          backups: prev.backups.filter(b => b.id !== backupId)
+        }));
+        showToast('Копия удалена', 'Точка восстановления удалена из списка', 'info');
+        return true;
+      }
+      showToast('Ошибка', 'Не удалось удалить копию', 'error');
+      return false;
+    } catch (e) {
+      showToast('Ошибка', 'Не удалось связаться с сервером', 'error');
+      return false;
+    }
+  }, [showToast]);
+
+  // Import Project Handlers
+  const importProject = useCallback(async (file: File): Promise<{ success: boolean; message: string }> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          const result = parseAndValidateProject(content);
+          if (!result.success || !result.state) {
+            const err = result.error || 'Неверный формат структуры данных';
+            showToast('Ошибка импорта', err, 'error');
+            resolve({ success: false, message: err });
+            return;
+          }
+
+          restoreState(result.state, `Импорт файла ${file.name}`);
+          const msg = `Импортировано: ${result.stats?.equipmentCount || 0} ед. оборудования, ${result.stats?.containersCount || 0} цехов, ${result.stats?.linksCount || 0} связей`;
+          showToast('Проект успешно импортирован', msg, 'success');
+
+          addEventLog({
+            targetId: 'system',
+            targetName: file.name,
+            targetType: 'system',
+            eventType: 'backup_restore',
+            severity: 'success',
+            description: `Импортирован файл проекта: ${file.name} (${msg})`,
+            userName: currentUser.name,
+            userRole: currentUser.role
+          });
+
+          resolve({ success: true, message: msg });
+        } catch (err: any) {
+          const errMsg = err.message || 'Ошибка обработки данных файла';
+          showToast('Ошибка импорта', errMsg, 'error');
+          resolve({ success: false, message: errMsg });
+        }
+      };
+      reader.onerror = () => {
+        showToast('Ошибка', 'Не удалось прочитать выбранный файл', 'error');
+        resolve({ success: false, message: 'Не удалось прочитать выбранный файл' });
+      };
+      reader.readAsText(file);
+    });
+  }, [currentUser, restoreState, showToast, addEventLog]);
+
+  const importProjectFromJSON = useCallback((jsonStr: string): { success: boolean; message: string } => {
+    const result = parseAndValidateProject(jsonStr);
+    if (!result.success || !result.state) {
+      const err = result.error || 'Неверный формат структуры данных';
+      showToast('Ошибка импорта', err, 'error');
+      return { success: false, message: err };
+    }
+
+    restoreState(result.state, 'Импорт из буфера обмена');
+    const msg = `Импортировано: ${result.stats?.equipmentCount || 0} ед. оборудования, ${result.stats?.containersCount || 0} цехов, ${result.stats?.linksCount || 0} связей`;
+    showToast('Проект успешно импортирован', msg, 'success');
+
+    addEventLog({
+      targetId: 'system',
+      targetName: 'Импорт из буфера',
+      targetType: 'system',
+      eventType: 'backup_restore',
+      severity: 'success',
+      description: `Импортирована схема из JSON-текста (${msg})`,
+      userName: currentUser.name,
+      userRole: currentUser.role
+    });
+
+    return { success: true, message: msg };
+  }, [currentUser, restoreState, showToast, addEventLog]);
 
   // Viewport helper functions
   const zoomIn = () => {
@@ -899,6 +1038,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         restoreState,
         createBackup,
         restoreBackup,
+        deleteBackup,
+        importProject,
+        importProjectFromJSON,
+        toasts,
+        showToast,
+        dismissToast,
         undo,
         redo,
         canUndo,

@@ -3,7 +3,7 @@ import {
   useFactory 
 } from '../context/FactoryContext';
 import { UserRole } from '../types';
-import { exportToCSV, exportToPDF, exportToJSON } from '../utils/exportUtils';
+import { exportToCSV, exportToPDF, exportToJSON, copyProjectJSONToClipboard } from '../utils/exportUtils';
 import { 
   Factory, 
   Search, 
@@ -20,7 +20,10 @@ import {
   Check, 
   FileSpreadsheet, 
   Upload,
-  Layers
+  Layers,
+  Copy,
+  FolderDown,
+  Settings
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -37,8 +40,9 @@ export const Navbar: React.FC = () => {
     setIsReportOpen,
     setIsBackupOpen,
     setIsEventLogsOpen,
+    importProject,
+    showToast,
     addEventLog,
-    addEquipment,
   } = useFactory();
 
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
@@ -77,29 +81,23 @@ export const Navbar: React.FC = () => {
     viewer: { label: 'Аудитор (Просмотр)', desc: 'Только чтение, аналитика и экспорт документов', badgeColor: 'bg-slate-500/20 text-slate-400 border-slate-500/40' },
   };
 
-  const handleJSONImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleJSONImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    await importProject(file);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.equipment && parsed.containers) {
-          // Send to API or dispatch
-          fetch('/api/state', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(parsed)
-          }).then(() => window.location.reload());
-        } else {
-          alert('Файл не содержит корректную схему предприятия.');
-        }
-      } catch (err) {
-        alert('Ошибка при чтении JSON файла');
-      }
-    };
-    reader.readAsText(file);
+  const handleCopyJSON = async () => {
+    const ok = await copyProjectJSONToClipboard(state);
+    if (ok) {
+      showToast('JSON скопирован', 'Схема проекта помещена в буфер обмена', 'success');
+    } else {
+      showToast('Ошибка', 'Не удалось скопировать данные в буфер обмена', 'error');
+    }
+    setExportMenuOpen(false);
   };
 
   return (
@@ -253,10 +251,21 @@ export const Navbar: React.FC = () => {
           id="cloud-backup-btn"
           onClick={() => setIsBackupOpen(true)}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
-          title="Интеграция с облачными хранилищами"
+          title="Снимки состояния и резервное копирование"
         >
           <Cloud className="w-3.5 h-3.5 text-blue-400" />
           <span className="hidden xl:inline">Бэкапы</span>
+        </button>
+
+        {/* Quick Import Button */}
+        <button
+          id="quick-import-btn"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+          title="Загрузить проект из файла .json"
+        >
+          <Upload className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="hidden xl:inline">Импорт</span>
         </button>
 
         {/* Export Dropdown Button */}
@@ -265,70 +274,100 @@ export const Navbar: React.FC = () => {
             id="export-dropdown-btn"
             onClick={() => setExportMenuOpen(!exportMenuOpen)}
             className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition-colors font-medium"
-            title="Экспорт схемы и данных"
+            title="Экспорт схемы и документации"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Экспорт</span>
-            <span className="opacity-60 text-[10px] hidden sm:inline font-mono">CSV/PDF</span>
+            <span className="opacity-60 text-[10px] hidden sm:inline font-mono">JSON/PDF</span>
             <ChevronDown className="w-3 h-3 opacity-60 ml-0.5" />
           </button>
 
           {exportMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-[#0F0F12] border border-white/10 rounded-xl shadow-2xl py-1.5 z-50 text-xs text-slate-300">
+            <div className="absolute right-0 mt-2 w-64 bg-[#111318] border border-white/10 rounded-xl shadow-2xl py-2 z-50 text-xs text-slate-300">
               <div className="px-3 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
-                Экспорт документации
+                Экспорт проекта
               </div>
+
               <button
+                id="menu-export-json-btn"
                 onClick={() => {
-                  exportToPDF(state);
+                  exportToJSON(state);
+                  showToast('Проект экспортирован', 'Файл .json сохранен на диск', 'success');
                   setExportMenuOpen(false);
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
               >
-                <FileText className="w-4 h-4 text-rose-400" />
+                <Download className="w-4 h-4 text-blue-400 shrink-0" />
                 <div>
-                  <div className="font-medium">Паспорт завода в PDF</div>
-                  <div className="text-[10px] text-slate-400">Таблицы, статусы, КПЭ и аварии</div>
+                  <div className="font-medium">Экспорт проекта (JSON)</div>
+                  <div className="text-[10px] text-slate-400">Полный переносимый файл схемы</div>
                 </div>
               </button>
+
               <button
+                id="menu-copy-json-btn"
+                onClick={handleCopyJSON}
+                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
+              >
+                <Copy className="w-4 h-4 text-indigo-400 shrink-0" />
+                <div>
+                  <div className="font-medium">Скопировать JSON в буфер</div>
+                  <div className="text-[10px] text-slate-400">Для быстрой передачи на другое устройство</div>
+                </div>
+              </button>
+
+              <div className="my-1 border-t border-white/10" />
+
+              <div className="px-3 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
+                Техническая документация
+              </div>
+
+              <button
+                id="menu-export-pdf-btn"
                 onClick={() => {
-                  exportToCSV(state);
+                  exportToPDF(state);
+                  showToast('PDF формируется', 'Паспорт предприятия готов к загрузке', 'success');
                   setExportMenuOpen(false);
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                <FileText className="w-4 h-4 text-rose-400 shrink-0" />
+                <div>
+                  <div className="font-medium">Паспорт завода в PDF</div>
+                  <div className="text-[10px] text-slate-400">Официальный отчет, сводка и аварии</div>
+                </div>
+              </button>
+
+              <button
+                id="menu-export-csv-btn"
+                onClick={() => {
+                  exportToCSV(state);
+                  showToast('CSV реестр выгружен', 'Файл совместим с Excel и 1С', 'success');
+                  setExportMenuOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
                 <div>
                   <div className="font-medium">Реестр оборудования в CSV</div>
                   <div className="text-[10px] text-slate-400">Для Excel / 1С / ERP систем</div>
                 </div>
               </button>
+
               <div className="my-1 border-t border-white/10" />
+
               <button
+                id="menu-open-report-modal-btn"
                 onClick={() => {
-                  exportToJSON(state);
+                  setIsReportOpen(true);
                   setExportMenuOpen(false);
                 }}
-                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
+                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-blue-400 font-medium"
               >
-                <Download className="w-4 h-4 text-blue-400" />
+                <Layers className="w-4 h-4 shrink-0" />
                 <div>
-                  <div className="font-medium">Экспорт проекта (JSON)</div>
-                  <div className="text-[10px] text-slate-400">Полный снимок схемы завода</div>
-                </div>
-              </button>
-              <button
-                onClick={() => {
-                  fileInputRef.current?.click();
-                  setExportMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-white/5 flex items-center gap-2.5 text-slate-200"
-              >
-                <Upload className="w-4 h-4 text-indigo-400" />
-                <div>
-                  <div className="font-medium">Загрузить проект (JSON)</div>
-                  <div className="text-[10px] text-slate-400">Импорт сохраненного файла</div>
+                  <div>Менеджер экспорта & Облако...</div>
+                  <div className="text-[10px] text-slate-400">Фильтры по цехам, облачные точки и вставка</div>
                 </div>
               </button>
             </div>
@@ -339,7 +378,7 @@ export const Navbar: React.FC = () => {
         <input 
           type="file" 
           ref={fileInputRef} 
-          accept=".json" 
+          accept=".json,application/json" 
           className="hidden" 
           onChange={handleJSONImport} 
         />
