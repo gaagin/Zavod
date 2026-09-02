@@ -7,6 +7,7 @@ import { InspectorPanel } from './components/InspectorPanel';
 import { SearchModal } from './components/SearchModal';
 import { ReportModal } from './components/ReportModal';
 import { ToastContainer } from './components/ToastContainer';
+import { exportToJSON } from './utils/exportUtils';
 import { Upload, FileCode } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -27,6 +28,8 @@ const AppContent: React.FC = () => {
     zoomOut,
     zoomReset,
     importProject,
+    forceSave,
+    showToast,
   } = useFactory();
 
   const [isWindowDragOver, setIsWindowDragOver] = useState(false);
@@ -88,6 +91,15 @@ const AppContent: React.FC = () => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'л' || e.key === 'K')) {
         e.preventDefault();
         setIsSearchOpen(!isSearchOpen);
+        return;
+      }
+
+      // Save Project File: Ctrl/Cmd + S
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'ы' || e.key === 'S')) {
+        e.preventDefault();
+        forceSave();
+        exportToJSON(state);
+        showToast('Проект сохранен (Ctrl+S)', 'Файл .json сохранен на диск, данные синхронизированы.', 'success');
         return;
       }
 

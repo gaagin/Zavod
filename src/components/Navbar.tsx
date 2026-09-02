@@ -23,7 +23,14 @@ import {
   Layers,
   Copy,
   FolderDown,
-  Settings
+  Settings,
+  Save,
+  FolderOpen,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  ShieldCheck,
+  History
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -43,16 +50,40 @@ export const Navbar: React.FC = () => {
     importProject,
     showToast,
     addEventLog,
+    autoSaveConfig,
+    setAutoSaveConfig,
+    saveStatus,
+    lastSavedTime,
+    forceSave,
   } = useFactory();
 
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
+  const [autoSaveMenuOpen, setAutoSaveMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const roleMenuRef = useRef<HTMLDivElement>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const usersMenuRef = useRef<HTMLDivElement>(null);
+  const autoSaveMenuRef = useRef<HTMLDivElement>(null);
+
+  const [timeAgoText, setTimeAgoText] = useState('только что');
+
+  useEffect(() => {
+    const update = () => {
+      const diffSec = Math.floor((Date.now() - lastSavedTime) / 1000);
+      if (diffSec < 10) setTimeAgoText('только что');
+      else if (diffSec < 60) setTimeAgoText(`${diffSec}с назад`);
+      else {
+        const diffMin = Math.floor(diffSec / 60);
+        setTimeAgoText(`${diffMin}м назад`);
+      }
+    };
+    update();
+    const interval = setInterval(update, 5000);
+    return () => clearInterval(interval);
+  }, [lastSavedTime]);
 
   // Close menus on outside click
   useEffect(() => {
@@ -65,6 +96,9 @@ export const Navbar: React.FC = () => {
       }
       if (usersMenuRef.current && !usersMenuRef.current.contains(e.target as Node)) {
         setUsersMenuOpen(false);
+      }
+      if (autoSaveMenuRef.current && !autoSaveMenuRef.current.contains(e.target as Node)) {
+        setAutoSaveMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -246,26 +280,186 @@ export const Navbar: React.FC = () => {
           ) : null}
         </button>
 
+        {/* Auto-Save Indicator & Dropdown */}
+        <div className="relative" ref={autoSaveMenuRef}>
+          <button
+            id="autosave-menu-btn"
+            onClick={() => setAutoSaveMenuOpen(!autoSaveMenuOpen)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all ${
+              saveStatus === 'saving'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 ring-1 ring-amber-500/30'
+                : autoSaveConfig.enabled
+                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-400'
+            }`}
+            title="Статус автосохранения (нажмите для управления параметрами)"
+          >
+            {saveStatus === 'saving' ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                <span className="hidden sm:inline text-amber-300 font-medium">Сохранение...</span>
+              </>
+            ) : autoSaveConfig.enabled ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline text-emerald-300 font-medium">Автосохранение</span>
+                <span className="text-[10px] text-emerald-400/80 font-mono hidden md:inline">({timeAgoText})</span>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline text-slate-400">Автосохранение: ВЫКЛ</span>
+              </>
+            )}
+            <ChevronDown className="w-3 h-3 opacity-60 ml-0.5" />
+          </button>
+
+          {/* Auto-Save Popover Menu */}
+          {autoSaveMenuOpen && (
+            <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-white/10 rounded-xl shadow-2xl z-50 p-4 space-y-3.5 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="font-semibold text-xs text-white uppercase tracking-wider">Параметры автосохранения</span>
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium ${
+                  autoSaveConfig.enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-slate-400'
+                }`}>
+                  {autoSaveConfig.enabled ? 'АКТИВНО' : 'ОТКЛЮЧЕНО'}
+                </span>
+              </div>
+
+              {/* Status info */}
+              <div className="p-2.5 rounded-lg bg-white/5 border border-white/5 text-[11px] space-y-1.5 text-slate-300">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Состояние:</span>
+                  <span className="text-emerald-400 font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Сохранение на лету (Real-time)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Последняя запись:</span>
+                  <span className="text-white font-mono text-[10px]">
+                    {new Date(lastSavedTime).toLocaleTimeString('ru-RU')} ({timeAgoText})
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Хранилище:</span>
+                  <span className="text-slate-200">Кэш браузера + Файл сервера</span>
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div className="space-y-2.5 text-xs">
+                <label className="flex items-start justify-between cursor-pointer group gap-2">
+                  <div>
+                    <div className="font-medium text-white group-hover:text-emerald-300 transition-colors">
+                      Непрерывное автосохранение
+                    </div>
+                    <div className="text-[10px] text-slate-400 leading-snug">
+                      Мгновенно сохраняет каждое перемещение, изменение свойств и связи
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={autoSaveConfig.enabled}
+                    onChange={(e) => {
+                      setAutoSaveConfig(prev => ({ ...prev, enabled: e.target.checked }));
+                      showToast(
+                        e.target.checked ? 'Автосохранение включено' : 'Автосохранение приостановлено',
+                        e.target.checked ? 'Все изменения сохраняются непрерывно.' : 'Используйте кнопку «Сохранить» или Ctrl+S.',
+                        e.target.checked ? 'success' : 'warning'
+                      );
+                    }}
+                    className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-white/20 cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-start justify-between cursor-pointer group gap-2">
+                  <div>
+                    <div className="font-medium text-white group-hover:text-emerald-300 transition-colors">
+                      Контрольные снимки (Auto-snapshot)
+                    </div>
+                    <div className="text-[10px] text-slate-400 leading-snug">
+                      Автоматическая контрольная точка в бэкапы каждые {autoSaveConfig.snapshotIntervalMinutes || 5} мин
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={autoSaveConfig.autoSnapshots}
+                    onChange={(e) => {
+                      setAutoSaveConfig(prev => ({ ...prev, autoSnapshots: e.target.checked }));
+                    }}
+                    className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-white/20 cursor-pointer"
+                  />
+                </label>
+              </div>
+
+              {/* Quick Actions inside Menu */}
+              <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
+                <button
+                  onClick={() => {
+                    forceSave();
+                    setAutoSaveMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-500/20 transition-colors"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Принудительно сохранить сейчас</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsBackupOpen(true);
+                    setAutoSaveMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-medium border border-white/10 transition-colors"
+                >
+                  <History className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Открыть журнал бэкапов и снимков</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Save Project File Button */}
+        <button
+          id="save-project-file-btn"
+          onClick={() => {
+            forceSave();
+            exportToJSON(state);
+            showToast('Файл проекта сохранен', 'Файл .json загружен. Все данные синхронизированы.', 'success');
+          }}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 transition-colors"
+          title="Сохранить и скачать файл проекта (.json) для открытия на другом ПК (Ctrl+S)"
+        >
+          <Save className="w-3.5 h-3.5" />
+          <span>Сохранить</span>
+        </button>
+
+        {/* Open Project File Button */}
+        <button
+          id="open-project-file-btn"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 hover:text-white border border-emerald-500/40 transition-colors"
+          title="Открыть файл проекта (.json) с компьютера"
+        >
+          <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="hidden sm:inline">Открыть файл</span>
+        </button>
+
         {/* Cloud Backups Button */}
         <button
           id="cloud-backup-btn"
           onClick={() => setIsBackupOpen(true)}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
-          title="Снимки состояния и резервное копирование"
+          title="Облачные снимки и точки восстановления"
         >
           <Cloud className="w-3.5 h-3.5 text-blue-400" />
           <span className="hidden xl:inline">Бэкапы</span>
-        </button>
-
-        {/* Quick Import Button */}
-        <button
-          id="quick-import-btn"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
-          title="Загрузить проект из файла .json"
-        >
-          <Upload className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="hidden xl:inline">Импорт</span>
         </button>
 
         {/* Export Dropdown Button */}

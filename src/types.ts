@@ -139,3 +139,10 @@ export interface FactoryState {
   version: number;
   lastUpdated: string;
 }
+
+export interface AutoSaveConfig {
+  enabled: boolean;
+  autoSnapshots: boolean;
+  snapshotIntervalMinutes: number;
+}
+

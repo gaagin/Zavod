@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
+import fs from 'fs';
 import { WebSocketServer, WebSocket } from 'ws';
 import { initialFactoryState } from './src/data/initialFactory';
 import { FactoryState, UserPresence, UserRole, CloudBackup } from './src/types';
@@ -8,6 +9,9 @@ import { FactoryState, UserPresence, UserRole, CloudBackup } from './src/types';
 const PORT = 3000;
 const app = express();
 app.use(express.json({ limit: '10mb' }));
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const STATE_FILE_PATH = path.join(DATA_DIR, 'factory_state.json');
 
 function dedupeById<T extends { id: string }>(items?: T[]): T[] {
   if (!items || !Array.isArray(items)) return [];
@@ -22,14 +26,60 @@ function dedupeById<T extends { id: string }>(items?: T[]): T[] {
   return result;
 }
 
-// In-memory Authoritative Factory State
-let currentState: FactoryState = {
-  ...initialFactoryState,
-  equipment: dedupeById(initialFactoryState.equipment),
-  containers: dedupeById(initialFactoryState.containers),
-  links: dedupeById(initialFactoryState.links),
-  eventLogs: dedupeById(initialFactoryState.eventLogs),
-};
+// Load persisted state from disk or fallback to initial
+function loadPersistedState(): FactoryState {
+  try {
+    if (fs.existsSync(STATE_FILE_PATH)) {
+      const content = fs.readFileSync(STATE_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed && (Array.isArray(parsed.equipment) || Array.isArray(parsed.containers))) {
+        console.log('[Server] Восстановлено автосохраненное состояние схемы с диска.');
+        return {
+          ...initialFactoryState,
+          ...parsed,
+          equipment: dedupeById(parsed.equipment || initialFactoryState.equipment),
+          containers: dedupeById(parsed.containers || initialFactoryState.containers),
+          links: dedupeById(parsed.links || initialFactoryState.links),
+          eventLogs: dedupeById(parsed.eventLogs || initialFactoryState.eventLogs),
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('[Server] Не удалось загрузить автосохраненное состояние с диска:', e);
+  }
+  return {
+    ...initialFactoryState,
+    equipment: dedupeById(initialFactoryState.equipment),
+    containers: dedupeById(initialFactoryState.containers),
+    links: dedupeById(initialFactoryState.links),
+    eventLogs: dedupeById(initialFactoryState.eventLogs),
+  };
+}
+
+// In-memory & Disk Authoritative Factory State
+let currentState: FactoryState = loadPersistedState();
+
+let saveDiskTimer: NodeJS.Timeout | null = null;
+function persistStateToDisk(immediate = false) {
+  const save = () => {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(currentState, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('[Server] Ошибка автосохранения схемы на диск:', e);
+    }
+  };
+
+  if (immediate) {
+    if (saveDiskTimer) clearTimeout(saveDiskTimer);
+    save();
+  } else {
+    if (saveDiskTimer) clearTimeout(saveDiskTimer);
+    saveDiskTimer = setTimeout(save, 500);
+  }
+}
 
 // Connected clients tracking
 interface ConnectedClient {
@@ -144,6 +194,7 @@ wss.on('connection', (ws: WebSocket) => {
             senderId: clientId,
             reason: msg.reason || 'Изменение схемы',
           }, clientId);
+          persistStateToDisk();
         }
       } else if (msg.type === 'event_log') {
         if (msg.eventLog && msg.eventLog.id) {
@@ -155,6 +206,7 @@ wss.on('connection', (ws: WebSocket) => {
             type: 'event_log_added',
             eventLog: msg.eventLog,
           }, clientId);
+          persistStateToDisk();
         }
       }
     } catch (e) {
@@ -210,6 +262,7 @@ app.post('/api/state', (req, res) => {
       senderId: 'api',
       reason: req.body.reason || 'Синхронизация через API',
     });
+    persistStateToDisk();
     res.json({ success: true, version: currentState.version, state: currentState });
   } else {
     res.status(400).json({ error: 'Invalid state format. Expected equipment or containers array.' });
@@ -282,6 +335,7 @@ app.post('/api/backups', (req, res) => {
     senderId: 'api',
     reason: 'Создан бэкап',
   });
+  persistStateToDisk(true);
 
   res.json({ success: true, backup: newBackup });
 });
@@ -297,6 +351,7 @@ app.delete('/api/backups/:id', (req, res) => {
       senderId: 'api',
       reason: 'Удалена копия',
     });
+    persistStateToDisk();
   }
   res.json({ success: true, count: currentState.backups.length });
 });
@@ -344,6 +399,7 @@ app.post('/api/backups/:id/restore', (req, res) => {
       senderId: 'api',
       reason: 'Восстановление из бэкапа',
     });
+    persistStateToDisk(true);
 
     res.json({ success: true, message: 'Restored successfully', state: currentState, version: currentState.version });
   } catch (err) {

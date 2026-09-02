@@ -10,7 +10,8 @@ import {
   CloudBackup,
   CloudServiceType,
   LinkType,
-  LinkStyle
+  LinkStyle,
+  AutoSaveConfig
 } from '../types';
 import { initialFactoryState } from '../data/initialFactory';
 import { parseAndValidateProject } from '../utils/exportUtils';
@@ -99,6 +100,13 @@ interface FactoryContextType {
   setIsEventLogsOpen: (open: boolean) => void;
   gridSnap: boolean;
   setGridSnap: (snap: boolean) => void;
+
+  // Auto-Save Management
+  autoSaveConfig: AutoSaveConfig;
+  setAutoSaveConfig: React.Dispatch<React.SetStateAction<AutoSaveConfig>>;
+  saveStatus: 'saved' | 'saving' | 'error';
+  lastSavedTime: number;
+  forceSave: () => void;
 }
 
 export function dedupeById<T extends { id: string }>(items?: T[]): T[] {
@@ -126,6 +134,7 @@ const FactoryContext = createContext<FactoryContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_STATE_KEY = 'promschema_factory_state_v1';
 const LOCAL_STORAGE_THEME_KEY = 'promschema_dark_theme';
+const LOCAL_STORAGE_AUTOSAVE_KEY = 'promschema_autosave_config_v1';
 
 export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial state with fallback to initialFactoryState and sanitize duplicates
@@ -269,12 +278,44 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     syncStateToServer(next, 'Повтор изменений (Redo)');
   }, [state]);
 
-  // Sync state to backend & broadcast
+  // Autosave status & configuration
+  const [autoSaveConfig, setAutoSaveConfig] = useState<AutoSaveConfig>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_AUTOSAVE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn(e);
+    }
+    return {
+      enabled: true,
+      autoSnapshots: true,
+      snapshotIntervalMinutes: 5,
+    };
+  });
+
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+  const [lastSavedTime, setLastSavedTime] = useState<number>(Date.now());
+  const saveDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_AUTOSAVE_KEY, JSON.stringify(autoSaveConfig));
+    } catch (e) {
+      console.warn(e);
+    }
+  }, [autoSaveConfig]);
+
+  // Sync state to backend & broadcast (Auto-save)
   const syncStateToServer = (newState: FactoryState, reason: string = 'Изменение схемы') => {
+    if (autoSaveConfig.enabled) {
+      setSaveStatus('saving');
+    }
+
     try {
       localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(newState));
     } catch (e) {
       console.warn('Local storage write failed:', e);
+      setSaveStatus('error');
     }
 
     // Broadcast through BroadcastChannel for same-origin tabs
@@ -287,15 +328,69 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     }
 
-    // Send to WebSocket
+    // Send to WebSocket or fallback to HTTP
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'state_patch',
         state: newState,
         reason
       }));
+    } else {
+      fetch('/api/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: newState, reason })
+      }).catch(err => console.warn('POST /api/state sync error:', err));
     }
+
+    if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
+    saveDebounceTimerRef.current = setTimeout(() => {
+      setSaveStatus('saved');
+      setLastSavedTime(Date.now());
+    }, 350);
   };
+
+  // Force instant save to all storages
+  const forceSave = useCallback(() => {
+    setSaveStatus('saving');
+    try {
+      localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(state));
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'state_patch',
+          state,
+          reason: 'Ручное сохранение'
+        }));
+      } else {
+        fetch('/api/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state, reason: 'Ручное сохранение' })
+        }).catch(console.warn);
+      }
+      if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
+      saveDebounceTimerRef.current = setTimeout(() => {
+        setSaveStatus('saved');
+        setLastSavedTime(Date.now());
+      }, 250);
+      showToast('Сохранено', 'Проект успешно сохранен в браузере и на сервере.', 'success');
+    } catch (e) {
+      setSaveStatus('error');
+      showToast('Ошибка сохранения', 'Не удалось записать в локальное хранилище.', 'error');
+    }
+  }, [state, showToast]);
+
+  // Prevent navigation loss during active save operation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveStatus === 'saving') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saveStatus]);
 
   // Setup WebSocket connection
   useEffect(() => {
@@ -777,6 +872,28 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [currentUser, state, showToast]);
 
+  // Periodic automated recovery snapshot (if schema has nodes and changed)
+  const lastSnapshotHashRef = useRef<string>('');
+  useEffect(() => {
+    if (!autoSaveConfig.enabled || !autoSaveConfig.autoSnapshots) return;
+    const intervalMinutes = Math.max(1, autoSaveConfig.snapshotIntervalMinutes || 5);
+    const intervalMs = intervalMinutes * 60 * 1000;
+
+    const timer = setInterval(() => {
+      const currentHash = `${state.equipment.length}_${state.containers.length}_${state.links.length}_${state.version || 0}`;
+      if (
+        (state.equipment.length > 0 || state.containers.length > 0) &&
+        currentHash !== lastSnapshotHashRef.current
+      ) {
+        lastSnapshotHashRef.current = currentHash;
+        const timeStr = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        createBackup('yandex', `[Автосохранение] ${timeStr}`);
+      }
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [autoSaveConfig.enabled, autoSaveConfig.autoSnapshots, autoSaveConfig.snapshotIntervalMinutes, state.equipment.length, state.containers.length, state.links.length, state.version, createBackup]);
+
   const restoreBackup = useCallback(async (backupId: string): Promise<boolean> => {
     try {
       const response = await fetch(`/api/backups/${backupId}/restore`, {
@@ -1063,6 +1180,11 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsEventLogsOpen,
         gridSnap,
         setGridSnap,
+        autoSaveConfig,
+        setAutoSaveConfig,
+        saveStatus,
+        lastSavedTime,
+        forceSave,
       }}
     >
       {children}
