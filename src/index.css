@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.animate-\[dash_1\.5s_linear_infinite\] {
+  animation: dash 1.5s linear infinite;
+}
+
+/* Immersive UI Canvas Dot Grid */
+.bg-immersive-grid {
+  background-color: #121216;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #09090B;
+}
