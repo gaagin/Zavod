@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg-app: #FFFFFF;
+  --bg-surface: #FFFFFF;
+  --bg-canvas: #F8FAFC;
+  --grid-dot: rgba(15, 23, 42, 0.08);
+  --text-main: #0F172A;
+  --text-muted: #64748B;
+  --border-subtle: #E2E8F0;
+}
+
+html.dark {
+  --bg-app: #09090B;
+  --bg-surface: #0F0F12;
+  --bg-canvas: #09090B;
+  --grid-dot: rgba(255, 255, 255, 0.05);
+  --text-main: #F8FAFC;
+  --text-muted: #94A3B8;
+  --border-subtle: rgba(255, 255, 255, 0.12);
+}
+
 @keyframes dash {
   to {
     stroke-dashoffset: -24;
@@ -12,8 +34,8 @@
 
 /* Immersive UI Canvas Dot Grid */
 .bg-immersive-grid {
-  background-color: #121216;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-color: var(--bg-canvas);
+  background-image: radial-gradient(circle, var(--grid-dot) 1.2px, transparent 1.2px);
   background-size: 24px 24px;
 }
 
@@ -29,7 +51,8 @@ html, body, #root {
   overflow: hidden;
   position: fixed;
   inset: 0;
-  background-color: #09090B;
+  background-color: var(--bg-app);
+  color: var(--text-main);
   touch-action: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -42,3 +65,4 @@ input, textarea, select {
   -webkit-user-select: auto;
   user-select: auto;
 }
+

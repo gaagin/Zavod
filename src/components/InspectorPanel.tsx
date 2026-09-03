@@ -131,30 +131,30 @@ export const InspectorPanel: React.FC = () => {
     return (
       <aside 
         id="factory-inspector-overview"
-        className="w-80 border-l border-white/10 bg-[#0F0F12] text-slate-300 p-4 h-full overflow-y-auto select-none transition-colors hidden lg:block"
+        className="w-80 border-l border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F0F12] text-slate-700 dark:text-slate-300 p-4 h-full overflow-y-auto select-none transition-colors hidden lg:block shadow-sm"
       >
-        <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-          <Activity className="w-4 h-4 text-blue-400" />
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+        <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-white/10">
+          <Activity className="w-4 h-4 text-blue-500" />
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
             Сводка предприятия
           </h3>
         </div>
 
         {/* Operational Rate Meter */}
-        <div className="my-4 p-3 rounded-xl bg-white/5 border border-white/10">
+        <div className="my-4 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
           <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="font-semibold text-slate-400">Коэффициент готовности:</span>
-            <span className="font-mono font-bold text-emerald-400 text-sm">
+            <span className="font-semibold text-slate-500 dark:text-slate-400">Коэффициент готовности:</span>
+            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
               {operationalPercent}%
             </span>
           </div>
-          <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden flex">
+          <div className="w-full h-2 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden flex">
             <div style={{ width: `${(normalCount / totalEq) * 100}%` }} className="bg-emerald-500 h-full" />
             <div style={{ width: `${(warnCount / totalEq) * 100}%` }} className="bg-amber-500 h-full" />
             <div style={{ width: `${(critCount / totalEq) * 100}%` }} className="bg-red-500 h-full" />
             <div style={{ width: `${(maintCount / totalEq) * 100}%` }} className="bg-indigo-500 h-full" />
           </div>
-          <div className="flex justify-between text-[10px] text-slate-500 mt-1.5">
+          <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 font-medium">
             <span>Штатно: {normalCount}</span>
             <span>Аварии: {critCount}</span>
             <span>ТО: {maintCount}</span>
@@ -163,27 +163,27 @@ export const InspectorPanel: React.FC = () => {
 
         {/* Key KPIs */}
         <div className="grid grid-cols-2 gap-2 text-xs mb-4">
-          <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
-            <div className="text-[10px] text-slate-500">Всего оборудования</div>
-            <div className="text-base font-bold text-white mt-0.5">{totalEq} ед.</div>
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">Всего оборудования</div>
+            <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{totalEq} ед.</div>
           </div>
-          <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
-            <div className="text-[10px] text-slate-500">Цехов и линий</div>
-            <div className="text-base font-bold text-white mt-0.5">{state.containers.length} зон</div>
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">Цехов и линий</div>
+            <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{state.containers.length} зон</div>
           </div>
-          <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
-            <div className="text-[10px] text-slate-500">Суммарная мощность</div>
-            <div className="text-base font-bold text-white mt-0.5">{totalPower.toFixed(0)} кВт</div>
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">Суммарная мощность</div>
+            <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{totalPower.toFixed(0)} кВт</div>
           </div>
-          <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
-            <div className="text-[10px] text-slate-500">Связей в схеме</div>
-            <div className="text-base font-bold text-white mt-0.5">{state.links.length} лин.</div>
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">Связей в схеме</div>
+            <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{state.links.length} лин.</div>
           </div>
         </div>
 
         {/* Tree Navigator */}
-        <div className="pt-2 border-t border-white/10">
-          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center justify-between">
+        <div className="pt-2 border-t border-slate-200 dark:border-white/10">
+          <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
             <span>Структура цехов</span>
             <FolderTree className="w-3.5 h-3.5" />
           </div>
@@ -192,13 +192,13 @@ export const InspectorPanel: React.FC = () => {
               <div key={topCont.id} className="space-y-1">
                 <button
                   onClick={() => focusNode(topCont.id)}
-                  className="w-full text-left p-1.5 rounded-lg hover:bg-white/5 flex items-center justify-between group text-slate-300 hover:text-white"
+                  className="w-full text-left p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-between group text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
                 >
                   <div className="flex items-center gap-1.5 truncate">
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: topCont.color }} />
-                    <span className="font-semibold text-slate-200 group-hover:text-white truncate">{topCont.name}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white truncate">{topCont.name}</span>
                   </div>
-                  <ChevronRight className="w-3 h-3 text-slate-500 group-hover:text-slate-300 group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRight className="w-3 h-3 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300 group-hover:translate-x-0.5 transition-all" />
                 </button>
 
                 {/* Sub-containers */}
@@ -206,10 +206,10 @@ export const InspectorPanel: React.FC = () => {
                   <button
                     key={subCont.id}
                     onClick={() => focusNode(subCont.id)}
-                    className="w-full text-left pl-5 pr-2 py-1 rounded-lg hover:bg-white/5 flex items-center justify-between text-[11px] text-slate-400 hover:text-slate-200"
+                    className="w-full text-left pl-5 pr-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
                   >
                     <span className="truncate">↳ {subCont.name}</span>
-                    <span className="font-mono text-[10px] text-slate-500">{subCont.tag}</span>
+                    <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">{subCont.tag}</span>
                   </button>
                 ))}
               </div>
@@ -217,7 +217,7 @@ export const InspectorPanel: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-6 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-300 leading-relaxed">
+        <div className="mt-6 p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
           💡 Кликните на любой блок или контейнер на холсте для редактирования его параметров, статуса или свойств.
         </div>
       </aside>
@@ -239,26 +239,26 @@ export const InspectorPanel: React.FC = () => {
         />
         <aside 
           id="equipment-inspector"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12] lg:pb-4"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:pb-4 text-slate-700 dark:text-slate-300"
         >
           {/* Mobile Drag Indicator */}
           <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
-            <div className="w-10 h-1 rounded-full bg-white/20" />
+            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-white/20" />
           </div>
 
           {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
           <div className="flex items-center gap-2 truncate">
-            <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+            <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30">
               {selectedEquipment.tag}
             </span>
-            <span className="font-bold text-xs text-white truncate">
+            <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
               Свойства оборудования
             </span>
           </div>
           <button
             onClick={() => setSelectedId(null)}
-            className="p-1 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -271,12 +271,12 @@ export const InspectorPanel: React.FC = () => {
           </label>
           <div className="grid grid-cols-2 gap-1.5 text-xs">
             {[
-              { id: 'normal', label: 'В норме', color: 'hover:border-emerald-500/50 hover:text-emerald-400', active: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 font-semibold' },
-              { id: 'warning', label: 'Внимание', color: 'hover:border-amber-500/50 hover:text-amber-400', active: 'bg-amber-500/20 text-amber-400 border-amber-500/50 font-semibold' },
-              { id: 'critical', label: 'АВАРИЯ', color: 'hover:border-red-500/50 hover:text-red-400', active: 'bg-red-500/20 text-red-400 border-red-500/60 font-bold' },
-              { id: 'maintenance', label: 'ТО / Ремонт', color: 'hover:border-indigo-500/50 hover:text-indigo-400', active: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/50 font-semibold' },
-              { id: 'idle', label: 'Простой', color: 'hover:border-slate-500/50 hover:text-slate-300', active: 'bg-white/10 text-slate-300 border-white/20 font-semibold' },
-              { id: 'standby', label: 'Резерв', color: 'hover:border-purple-500/50 hover:text-purple-400', active: 'bg-purple-500/20 text-purple-400 border-purple-500/50 font-semibold' },
+              { id: 'normal', label: 'В норме', color: 'hover:border-emerald-500/50 hover:text-emerald-500', active: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/50 font-semibold' },
+              { id: 'warning', label: 'Внимание', color: 'hover:border-amber-500/50 hover:text-amber-500', active: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/50 font-semibold' },
+              { id: 'critical', label: 'АВАРИЯ', color: 'hover:border-red-500/50 hover:text-red-500', active: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/60 font-bold' },
+              { id: 'maintenance', label: 'ТО / Ремонт', color: 'hover:border-indigo-500/50 hover:text-indigo-500', active: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/50 font-semibold' },
+              { id: 'idle', label: 'Простой', color: 'hover:border-slate-400 hover:text-slate-700 dark:hover:text-slate-300', active: 'bg-slate-200 dark:bg-white/10 text-slate-800 dark:text-slate-300 border-slate-300 dark:border-white/20 font-semibold' },
+              { id: 'standby', label: 'Резерв', color: 'hover:border-purple-500/50 hover:text-purple-500', active: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/50 font-semibold' },
             ].map(st => (
               <button
                 key={st.id}
@@ -285,7 +285,7 @@ export const InspectorPanel: React.FC = () => {
                 className={`p-2 rounded-lg border text-left transition-all ${
                   selectedEquipment.status === st.id 
                     ? st.active + ' border' 
-                    : 'border-white/10 bg-white/5 text-slate-400 ' + st.color
+                    : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-400 ' + st.color
                 }`}
               >
                 {st.label}
@@ -297,7 +297,7 @@ export const InspectorPanel: React.FC = () => {
         {/* Basic Information */}
         <div className="space-y-2.5 my-3 text-xs">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Наименование
             </label>
             <input
@@ -305,13 +305,13 @@ export const InspectorPanel: React.FC = () => {
               disabled={!canEdit}
               value={selectedEquipment.name}
               onChange={(e) => updateEquipment(selectedEquipment.id, { name: e.target.value })}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
+              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
                 Инв. Тэг
               </label>
               <input
@@ -319,37 +319,37 @@ export const InspectorPanel: React.FC = () => {
                 disabled={!canEdit}
                 value={selectedEquipment.tag}
                 onChange={(e) => updateEquipment(selectedEquipment.id, { tag: e.target.value })}
-                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-white/10 bg-white/5 text-blue-400 font-bold focus:outline-hidden focus:border-blue-500"
+                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-blue-600 dark:text-blue-400 font-bold focus:outline-hidden focus:border-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
                 Тип
               </label>
               <select
                 disabled={!canEdit}
                 value={selectedEquipment.equipmentType}
                 onChange={(e) => updateEquipment(selectedEquipment.id, { equipmentType: e.target.value as EquipmentType })}
-                className="w-full px-2 py-1.5 rounded-lg border border-white/10 bg-[#17171C] text-slate-200 focus:outline-hidden focus:border-blue-500"
+                className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#17171C] text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
               >
-                <option value="custom" className="bg-[#0F0F12]">Другое / Свои свойства</option>
-                <option value="cnc" className="bg-[#0F0F12]">ЧПУ станок</option>
-                <option value="robot" className="bg-[#0F0F12]">Робот-манипулятор</option>
-                <option value="pump" className="bg-[#0F0F12]">Насосная станция</option>
-                <option value="transformer" className="bg-[#0F0F12]">Трансформатор</option>
-                <option value="conveyor" className="bg-[#0F0F12]">Конвейер</option>
-                <option value="cabinet" className="bg-[#0F0F12]">Шкаф АСУ (ПЛК)</option>
-                <option value="compressor" className="bg-[#0F0F12]">Компрессор</option>
-                <option value="furnace" className="bg-[#0F0F12]">Печь / Термоблок</option>
-                <option value="motor" className="bg-[#0F0F12]">Электродвигатель</option>
+                <option value="custom">Другое / Свои свойства</option>
+                <option value="cnc">ЧПУ станок</option>
+                <option value="robot">Робот-манипулятор</option>
+                <option value="pump">Насосная станция</option>
+                <option value="transformer">Трансформатор</option>
+                <option value="conveyor">Конвейер</option>
+                <option value="cabinet">Шкаф АСУ (ПЛК)</option>
+                <option value="compressor">Компрессор</option>
+                <option value="furnace">Печь / Термоблок</option>
+                <option value="motor">Электродвигатель</option>
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
                 Мощность (кВт)
               </label>
               <input
@@ -358,12 +358,12 @@ export const InspectorPanel: React.FC = () => {
                 placeholder="0"
                 value={selectedEquipment.powerKw ?? ''}
                 onChange={(e) => updateEquipment(selectedEquipment.id, { powerKw: e.target.value === '' ? undefined : Number(e.target.value) })}
-                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
+                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
                 Напряжение (В)
               </label>
               <input
@@ -372,24 +372,24 @@ export const InspectorPanel: React.FC = () => {
                 placeholder="380"
                 value={selectedEquipment.voltageV ?? ''}
                 onChange={(e) => updateEquipment(selectedEquipment.id, { voltageV: e.target.value === '' ? undefined : Number(e.target.value) })}
-                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
+                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Расположение (Вложенность в контейнер)
             </label>
             <select
               disabled={!canAdmin}
               value={selectedEquipment.parentId || ''}
               onChange={(e) => updateEquipment(selectedEquipment.id, { parentId: e.target.value || null }, `Перемещено в ${e.target.value || 'корень'}`)}
-              className="w-full px-2 py-1.5 rounded-lg border border-white/10 bg-[#17171C] text-slate-200 focus:outline-hidden focus:border-blue-500"
+              className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#17171C] text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             >
-              <option value="" className="bg-[#0F0F12]">(Без контейнера / Корень завода)</option>
+              <option value="">(Без контейнера / Корень завода)</option>
               {state.containers.map(c => (
-                <option key={c.id} value={c.id} className="bg-[#0F0F12]">
+                <option key={c.id} value={c.id}>
                   [{c.tag}] {c.name}
                 </option>
               ))}
@@ -401,7 +401,7 @@ export const InspectorPanel: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
                 Модель
               </label>
               <input
@@ -410,12 +410,12 @@ export const InspectorPanel: React.FC = () => {
                 placeholder="напр. DMU-50"
                 value={selectedEquipment.model || ''}
                 onChange={(e) => updateEquipment(selectedEquipment.id, { model: e.target.value })}
-                className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-600"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-400"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
                 Заводской №
               </label>
               <input
@@ -424,13 +424,13 @@ export const InspectorPanel: React.FC = () => {
                 placeholder="SN-001"
                 value={selectedEquipment.serialNumber || ''}
                 onChange={(e) => updateEquipment(selectedEquipment.id, { serialNumber: e.target.value })}
-                className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-600 font-mono"
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-400 font-mono"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Изготовитель / Бренд
             </label>
             <input
@@ -439,12 +439,12 @@ export const InspectorPanel: React.FC = () => {
               placeholder="Siemens, KUKA, Danfoss..."
               value={selectedEquipment.manufacturer || ''}
               onChange={(e) => updateEquipment(selectedEquipment.id, { manufacturer: e.target.value })}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-600"
+              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-400"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Примечания / Дефектная ведомость
             </label>
             <textarea
@@ -453,16 +453,16 @@ export const InspectorPanel: React.FC = () => {
               placeholder="Заметки по оборудованию, состояние..."
               value={selectedEquipment.notes || ''}
               onChange={(e) => updateEquipment(selectedEquipment.id, { notes: e.target.value })}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 resize-none text-[11px] placeholder:text-slate-600"
+              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 resize-none text-[11px] placeholder:text-slate-400"
             />
           </div>
         </div>
 
         {/* Custom Editable Properties Section */}
-        <div className="pt-3 border-t border-white/10 my-3">
+        <div className="pt-3 border-t border-slate-200 dark:border-white/10 my-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-              <Sliders className="w-3 h-3 text-blue-400" />
+              <Sliders className="w-3 h-3 text-blue-500" />
               <span>Настраиваемые свойства</span>
             </span>
             <span className="text-[10px] text-slate-500 font-mono">
@@ -488,7 +488,7 @@ export const InspectorPanel: React.FC = () => {
                     key={chip.name}
                     type="button"
                     onClick={() => handleQuickAddChip(chip.name, chip.unit, chip.val)}
-                    className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-blue-600/20 hover:text-blue-300 border border-white/10 text-[10px] text-slate-300 transition-colors flex items-center gap-0.5"
+                    className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 hover:bg-blue-100 dark:hover:bg-blue-600/20 hover:text-blue-600 dark:hover:text-blue-300 border border-slate-200 dark:border-white/10 text-[10px] text-slate-700 dark:text-slate-300 transition-colors flex items-center gap-0.5"
                   >
                     <Plus className="w-2.5 h-2.5" />
                     <span>{chip.name}</span>
@@ -500,9 +500,9 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Properties list */}
           {selectedEquipment.properties.length === 0 ? (
-            <div className="p-3 rounded-xl bg-blue-500/5 border border-dashed border-blue-500/20 text-center text-slate-400 text-xs my-2">
-              <div className="text-blue-300 font-semibold mb-0.5">Нет пользовательских свойств</div>
-              <div className="text-[10px] text-slate-500">
+            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-500/5 border border-dashed border-blue-200 dark:border-blue-500/20 text-center text-slate-500 dark:text-slate-400 text-xs my-2">
+              <div className="text-blue-600 dark:text-blue-300 font-semibold mb-0.5">Нет пользовательских свойств</div>
+              <div className="text-[10px] text-slate-400 dark:text-slate-500">
                 Используйте кнопки выше или форму ниже, чтобы добавить параметры
               </div>
             </div>
@@ -511,7 +511,7 @@ export const InspectorPanel: React.FC = () => {
               {selectedEquipment.properties.map(prop => (
                 <div 
                   key={prop.id} 
-                  className="p-2 rounded-lg bg-white/5 border border-white/10 text-xs space-y-1"
+                  className="p-2 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs space-y-1"
                 >
                   <div className="flex items-center justify-between gap-1">
                     <input
@@ -520,12 +520,12 @@ export const InspectorPanel: React.FC = () => {
                       value={prop.name}
                       onChange={(e) => handleUpdateProperty(prop.id, { name: e.target.value })}
                       placeholder="Имя параметра"
-                      className="flex-1 bg-transparent text-slate-300 text-[11px] font-medium focus:outline-hidden focus:border-b border-blue-500 px-0.5"
+                      className="flex-1 bg-transparent text-slate-800 dark:text-slate-300 text-[11px] font-medium focus:outline-hidden focus:border-b border-blue-500 px-0.5"
                     />
                     {canEdit && (
                       <button
                         onClick={() => handleDeleteProperty(prop.id)}
-                        className="p-1 text-slate-500 hover:text-red-400 rounded transition-colors"
+                        className="p-1 text-slate-400 hover:text-red-500 rounded transition-colors"
                         title="Удалить свойство"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -540,7 +540,7 @@ export const InspectorPanel: React.FC = () => {
                       value={prop.value}
                       onChange={(e) => handleUpdateProperty(prop.id, { value: e.target.value })}
                       placeholder="Значение"
-                      className="flex-1 bg-black/30 px-2 py-0.5 rounded font-mono font-bold text-white border border-white/10 focus:outline-hidden focus:border-blue-500 text-xs"
+                      className="flex-1 bg-white dark:bg-black/30 px-2 py-0.5 rounded font-mono font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 focus:outline-hidden focus:border-blue-500 text-xs"
                     />
                     <input
                       type="text"
@@ -548,7 +548,7 @@ export const InspectorPanel: React.FC = () => {
                       value={prop.unit || ''}
                       onChange={(e) => handleUpdateProperty(prop.id, { unit: e.target.value })}
                       placeholder="ед."
-                      className="w-12 bg-black/30 px-1.5 py-0.5 rounded font-mono text-slate-400 border border-white/10 focus:outline-hidden focus:border-blue-500 text-[10px] text-center"
+                      className="w-12 bg-white dark:bg-black/30 px-1.5 py-0.5 rounded font-mono text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-white/10 focus:outline-hidden focus:border-blue-500 text-[10px] text-center"
                     />
                   </div>
                 </div>
@@ -558,15 +558,15 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Add property form */}
           {canEdit && (
-            <form onSubmit={handleAddProperty} className="mt-2 p-2.5 rounded-xl bg-white/5 border border-dashed border-white/10">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Добавить параметр</div>
+            <form onSubmit={handleAddProperty} className="mt-2 p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-white/10">
+              <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Добавить параметр</div>
               <div className="space-y-1.5 text-xs">
                 <input
                   type="text"
                   placeholder="Имя (напр. Давление масла)"
                   value={newPropName}
                   onChange={(e) => setNewPropName(e.target.value)}
-                  className="w-full px-2 py-1 rounded bg-[#17171C] border border-white/10 text-slate-200 text-xs placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500"
+                  className="w-full px-2 py-1 rounded bg-white dark:bg-[#17171C] border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500"
                 />
                 <div className="flex gap-1.5">
                   <input
@@ -574,14 +574,14 @@ export const InspectorPanel: React.FC = () => {
                     placeholder="Значение"
                     value={newPropValue}
                     onChange={(e) => setNewPropValue(e.target.value)}
-                    className="flex-1 px-2 py-1 rounded bg-[#17171C] border border-white/10 text-slate-200 text-xs placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500"
+                    className="flex-1 px-2 py-1 rounded bg-white dark:bg-[#17171C] border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500"
                   />
                   <input
                     type="text"
                     placeholder="Ед. (бар)"
                     value={newPropUnit}
                     onChange={(e) => setNewPropUnit(e.target.value)}
-                    className="w-16 px-2 py-1 rounded bg-[#17171C] border border-white/10 text-slate-200 text-xs font-mono placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500"
+                    className="w-16 px-2 py-1 rounded bg-white dark:bg-[#17171C] border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200 text-xs font-mono placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500"
                   />
                 </div>
                 <button
@@ -599,13 +599,13 @@ export const InspectorPanel: React.FC = () => {
 
         {/* Delete action */}
         {canAdmin && (
-          <div className="pt-3 border-t border-white/10">
+          <div className="pt-3 border-t border-slate-200 dark:border-white/10">
             <button
               onClick={() => {
                 deleteEquipment(selectedEquipment.id);
                 setSelectedId(null);
               }}
-              className="w-full py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 hover:bg-red-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Удалить оборудование</span>
@@ -635,28 +635,28 @@ export const InspectorPanel: React.FC = () => {
         />
         <aside 
           id="container-inspector"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12] lg:pb-4"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:pb-4 text-slate-700 dark:text-slate-300"
         >
           {/* Mobile Drag Indicator */}
           <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
-            <div className="w-10 h-1 rounded-full bg-white/20" />
+            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-white/20" />
           </div>
 
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
           <div className="flex items-center gap-2 truncate">
             <span 
-              className="font-mono text-xs font-bold px-1.5 py-0.5 rounded text-white"
+              className="font-mono text-xs font-bold px-1.5 py-0.5 rounded text-white shadow-xs"
               style={{ backgroundColor: selectedContainer.color }}
             >
               {selectedContainer.tag}
             </span>
-            <span className="font-bold text-xs text-white truncate">
+            <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
               Контейнер участка/цеха
             </span>
           </div>
           <button
             onClick={() => setSelectedId(null)}
-            className="p-1 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -671,7 +671,7 @@ export const InspectorPanel: React.FC = () => {
             className={`w-full py-2.5 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 ${
               focusedContainerId === selectedContainer.id
                 ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400 shadow-blue-500/25 ring-2 ring-blue-500/40'
-                : 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-white border-blue-500/40 hover:border-blue-500/60'
+                : 'bg-blue-50 dark:bg-blue-600/20 hover:bg-blue-100 dark:hover:bg-blue-600/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/40 hover:border-blue-300 dark:hover:border-blue-500/60'
             }`}
           >
             {focusedContainerId === selectedContainer.id ? (
@@ -681,7 +681,7 @@ export const InspectorPanel: React.FC = () => {
               </>
             ) : (
               <>
-                <Maximize2 className="w-4 h-4 text-blue-400" />
+                <Maximize2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <span>Открыть цех на весь экран (F)</span>
               </>
             )}
@@ -691,10 +691,10 @@ export const InspectorPanel: React.FC = () => {
             <div className="pt-1">
               <button
                 onClick={() => fitContainerToScreen(selectedContainer.id)}
-                className="w-full py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold border border-white/10 flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full py-2 px-3 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold border border-slate-200 dark:border-white/10 flex items-center justify-center gap-1.5 transition-colors"
                 title="Подогнать элементы цеха под рабочее окно"
               >
-                <Scan className="w-3.5 h-3.5 text-blue-400" />
+                <Scan className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                 <span>По размеру рабочего окна</span>
               </button>
             </div>
@@ -705,11 +705,11 @@ export const InspectorPanel: React.FC = () => {
         <div className="mb-3">
           <button
             onClick={() => toggleContainerCollapse(selectedContainer.id)}
-            className="w-full py-2 px-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-200 flex items-center justify-between transition-colors"
+            className="w-full py-2 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between transition-colors"
           >
             <span>Состояние контейнера:</span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] ${
-              selectedContainer.isCollapsed ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
+              selectedContainer.isCollapsed ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
             }`}>
               {selectedContainer.isCollapsed ? 'Свернут (Минимизирован)' : 'Развернут (Видны станки)'}
             </span>
@@ -718,7 +718,7 @@ export const InspectorPanel: React.FC = () => {
 
         <div className="space-y-3 text-xs">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Название цеха / участка
             </label>
             <input
@@ -726,12 +726,12 @@ export const InspectorPanel: React.FC = () => {
               disabled={!canAdmin}
               value={selectedContainer.name}
               onChange={(e) => updateContainer(selectedContainer.id, { name: e.target.value })}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
+              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Код / Тэг
             </label>
             <input
@@ -739,13 +739,13 @@ export const InspectorPanel: React.FC = () => {
               disabled={!canAdmin}
               value={selectedContainer.tag}
               onChange={(e) => updateContainer(selectedContainer.id, { tag: e.target.value })}
-              className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
+              className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             />
           </div>
 
           {/* Deep nesting: Parent Container */}
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Родительский контейнер (Глубокая вложенность)
             </label>
             <select
@@ -757,13 +757,13 @@ export const InspectorPanel: React.FC = () => {
                 if (newParent === selectedContainer.id) return;
                 updateContainer(selectedContainer.id, { parentId: newParent }, `Вложенность изменена`);
               }}
-              className="w-full px-2 py-1.5 rounded-lg border border-white/10 bg-[#17171C] text-slate-200 focus:outline-hidden focus:border-blue-500"
+              className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#17171C] text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             >
-              <option value="" className="bg-[#0F0F12]">(Верхний уровень / Главный цех)</option>
+              <option value="">(Верхний уровень / Главный цех)</option>
               {state.containers
                 .filter(c => c.id !== selectedContainer.id && c.parentId !== selectedContainer.id)
                 .map(c => (
-                  <option key={c.id} value={c.id} className="bg-[#0F0F12]">
+                  <option key={c.id} value={c.id}>
                     [{c.tag}] {c.name}
                   </option>
                 ))}
@@ -772,7 +772,7 @@ export const InspectorPanel: React.FC = () => {
 
           {/* Color accent picker */}
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Цветовая маркировка
             </label>
             <div className="flex gap-2">
@@ -783,7 +783,7 @@ export const InspectorPanel: React.FC = () => {
                   onClick={() => updateContainer(selectedContainer.id, { color: clr })}
                   style={{ backgroundColor: clr }}
                   className={`w-6 h-6 rounded-full border-2 transition-transform ${
-                    selectedContainer.color === clr ? 'border-white ring-2 ring-blue-500 scale-110' : 'border-transparent opacity-75 hover:opacity-100'
+                    selectedContainer.color === clr ? 'border-white ring-2 ring-blue-500 scale-110 shadow-sm' : 'border-transparent opacity-75 hover:opacity-100'
                   }`}
                 />
               ))}
@@ -791,7 +791,7 @@ export const InspectorPanel: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Ответственный мастер / начальник
             </label>
             <input
@@ -799,12 +799,12 @@ export const InspectorPanel: React.FC = () => {
               disabled={!canAdmin}
               value={selectedContainer.manager || ''}
               onChange={(e) => updateContainer(selectedContainer.id, { manager: e.target.value })}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
+              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Описание технологической зоны
             </label>
             <textarea
@@ -812,31 +812,31 @@ export const InspectorPanel: React.FC = () => {
               disabled={!canAdmin}
               value={selectedContainer.description || ''}
               onChange={(e) => updateContainer(selectedContainer.id, { description: e.target.value })}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 resize-none text-[11px]"
+              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 resize-none text-[11px] placeholder:text-slate-400"
             />
           </div>
         </div>
 
         {/* Nested Elements List */}
-        <div className="pt-3 border-t border-white/10 my-3">
+        <div className="pt-3 border-t border-slate-200 dark:border-white/10 my-3">
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
             Вложенные элементы ({directEquipment.length} ед. / {childContainers.length} подзон)
           </div>
           <div className="space-y-1 text-xs max-h-40 overflow-y-auto">
             {childContainers.map(cc => (
               <div 
-                key={cc.id}
-                className="p-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 group/item"
+                key={cc.id} 
+                className="p-1.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-white/10 group/item transition-colors"
               >
                 <span 
                   onClick={() => focusNode(cc.id)}
-                  className="font-semibold text-blue-400 truncate cursor-pointer hover:underline flex-1"
+                  className="font-semibold text-blue-600 dark:text-blue-400 truncate cursor-pointer hover:underline flex-1"
                 >
                   📁 [{cc.tag}] {cc.name}
                 </span>
                 <button
                   onClick={() => enterFocusMode(cc.id)}
-                  className="p-1 rounded-md hover:bg-blue-500/20 text-slate-400 hover:text-blue-300 transition-colors"
+                  className="p-1 rounded-md hover:bg-blue-100 dark:hover:bg-blue-500/20 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
                   title="Войти в фокусный режим для этого цеха (на весь экран)"
                 >
                   <Maximize2 className="w-3.5 h-3.5" />
@@ -847,11 +847,11 @@ export const InspectorPanel: React.FC = () => {
               <div 
                 key={eq.id}
                 onClick={() => focusNode(eq.id)}
-                className="p-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between cursor-pointer hover:bg-white/10"
+                className="p-1.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
               >
-                <span className="text-slate-200 truncate">⚙️ [{eq.tag}] {eq.name}</span>
-                <span className={`text-[9px] px-1.5 py-0.5 rounded ${
-                  eq.status === 'critical' ? 'bg-red-500 text-white font-bold' : 'bg-emerald-500/20 text-emerald-400'
+                <span className="text-slate-700 dark:text-slate-200 truncate font-medium">⚙️ [{eq.tag}] {eq.name}</span>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
+                  eq.status === 'critical' ? 'bg-red-500 text-white font-bold' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                 }`}>
                   {eq.status}
                 </span>
@@ -861,13 +861,13 @@ export const InspectorPanel: React.FC = () => {
         </div>
 
         {canAdmin && (
-          <div className="pt-3 border-t border-white/10">
+          <div className="pt-3 border-t border-slate-200 dark:border-white/10">
             <button
               onClick={() => {
                 deleteContainer(selectedContainer.id);
                 setSelectedId(null);
               }}
-              className="w-full py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 hover:bg-red-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Удалить контейнер цеха</span>
@@ -893,41 +893,41 @@ export const InspectorPanel: React.FC = () => {
         />
         <aside 
           id="link-inspector"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12] lg:pb-4"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:pb-4 text-slate-700 dark:text-slate-300"
         >
           {/* Mobile Drag Indicator */}
           <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
-            <div className="w-10 h-1 rounded-full bg-white/20" />
+            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-white/20" />
           </div>
 
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
           <div className="flex items-center gap-2 truncate">
-            <Share2 className="w-4 h-4 text-blue-400" />
-            <span className="font-bold text-xs text-white truncate">
+            <Share2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
               Технологическая связь
             </span>
           </div>
           <button
             onClick={() => setSelectedId(null)}
-            className="p-1 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="my-3 p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs space-y-1.5">
-          <div className="text-slate-400 text-[11px]">Соединение:</div>
-          <div className="font-semibold text-slate-200">
+        <div className="my-3 p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs space-y-1.5">
+          <div className="text-slate-500 dark:text-slate-400 text-[11px]">Соединение:</div>
+          <div className="font-semibold text-slate-800 dark:text-slate-200">
             От: {fromNode?.name || selectedLink.fromId}
           </div>
-          <div className="font-semibold text-slate-200">
+          <div className="font-semibold text-slate-800 dark:text-slate-200">
             До: {toNode?.name || selectedLink.toId}
           </div>
         </div>
 
         <div className="space-y-3 text-xs">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Подпись / Назначение связи
             </label>
             <input
@@ -935,29 +935,29 @@ export const InspectorPanel: React.FC = () => {
               disabled={!canEdit}
               value={selectedLink.label || ''}
               onChange={(e) => updateLink(selectedLink.id, { label: e.target.value })}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
+              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Тип коммуникации
             </label>
             <select
               disabled={!canEdit}
               value={selectedLink.type}
               onChange={(e) => updateLink(selectedLink.id, { type: e.target.value as LinkType })}
-              className="w-full px-2 py-1.5 rounded-lg border border-white/10 bg-[#17171C] text-slate-200 focus:outline-hidden focus:border-blue-500"
+              className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#17171C] text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             >
-              <option value="power" className="bg-[#0F0F12]">⚡ Электропитание (Кабель)</option>
-              <option value="pipe" className="bg-[#0F0F12]">💧 Трубопровод (Жидкость/Газ)</option>
-              <option value="conveyor" className="bg-[#0F0F12]">📦 Материальный поток (Конвейер)</option>
-              <option value="signal" className="bg-[#0F0F12]">📶 Сигнал / АСУ ТП / Ethernet</option>
+              <option value="power">⚡ Электропитание (Кабель)</option>
+              <option value="pipe">💧 Трубопровод (Жидкость/Газ)</option>
+              <option value="conveyor">📦 Материальный поток (Конвейер)</option>
+              <option value="signal">📶 Сигнал / АСУ ТП / Ethernet</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Геометрия трассировки
             </label>
             <div className="grid grid-cols-3 gap-1.5">
@@ -972,8 +972,8 @@ export const InspectorPanel: React.FC = () => {
                   onClick={() => updateLink(selectedLink.id, { style: st.id as LinkStyle })}
                   className={`p-1.5 rounded-lg border text-center transition-all ${
                     selectedLink.style === st.id
-                      ? 'border-blue-500 bg-blue-500/20 text-blue-400 font-bold'
-                      : 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10'
+                      ? 'border-blue-500 bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold'
+                      : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10'
                   }`}
                 >
                   {st.label}
@@ -983,7 +983,7 @@ export const InspectorPanel: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Анимация движения потока
             </label>
             <button
@@ -991,24 +991,24 @@ export const InspectorPanel: React.FC = () => {
               onClick={() => updateLink(selectedLink.id, { animated: !selectedLink.animated })}
               className={`w-full py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-between transition-colors ${
                 selectedLink.animated 
-                  ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400' 
-                  : 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10'
+                  ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' 
+                  : 'border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10'
               }`}
             >
               <span>Анимация потока:</span>
-              <span>{selectedLink.animated ? 'ВКЛ' : 'ВЫКЛ'}</span>
+              <span className="font-mono font-bold">{selectedLink.animated ? 'ВКЛ' : 'ВЫКЛ'}</span>
             </button>
           </div>
         </div>
 
         {canEdit && (
-          <div className="pt-4 border-t border-white/10 mt-4">
+          <div className="pt-4 border-t border-slate-200 dark:border-white/10 mt-4">
             <button
               onClick={() => {
                 deleteLink(selectedLink.id);
                 setSelectedId(null);
               }}
-              className="w-full py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 hover:bg-red-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Удалить связь</span>

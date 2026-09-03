@@ -13,6 +13,7 @@ import {
   getNodeRect, 
   isNodeHiddenByCollapsedAncestor, 
   getAllDescendantEquipment, 
+  findAllDescendantsOfContainer,
   getBestConnectionPoints, 
   generateLinkPath,
   getAllDescendantContainerIds,
@@ -116,6 +117,15 @@ export const Canvas: React.FC = () => {
     initialDescendantContainers?: Array<{ id: string; initialX: number; initialY: number }>;
     initialDescendantEquipment?: Array<{ id: string; initialX: number; initialY: number }>;
   } | null>(null);
+  const [resizingContainer, setResizingContainer] = useState<{
+    id: string;
+    isCollapsed: boolean;
+    initialWidth: number;
+    initialHeight: number;
+    initialMouseX: number;
+    initialMouseY: number;
+    direction: 'se' | 'e' | 's';
+  } | null>(null);
   const [cursorPosOnCanvas, setCursorPosOnCanvas] = useState<{ x: number; y: number } | null>(null);
   const [connectingMousePos, setConnectingMousePos] = useState<{ x: number; y: number } | null>(null);
 
@@ -124,6 +134,7 @@ export const Canvas: React.FC = () => {
     const handleGlobalMouseUp = () => {
       setIsPanning(false);
       setDraggedNode(null);
+      setResizingContainer(null);
     };
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => {
@@ -232,6 +243,45 @@ export const Canvas: React.FC = () => {
       setConnectingMousePos(canvasPt);
     }
 
+    // Handle Container Resizing (Both expanded and collapsed modes)
+    if (resizingContainer && (currentUser.role === 'admin' || currentUser.role === 'operator')) {
+      const dx = (e.clientX - resizingContainer.initialMouseX) / viewport.zoom;
+      const dy = (e.clientY - resizingContainer.initialMouseY) / viewport.zoom;
+
+      if (resizingContainer.isCollapsed) {
+        let newW = resizingContainer.direction !== 's' 
+          ? Math.max(160, Math.round(resizingContainer.initialWidth + dx)) 
+          : resizingContainer.initialWidth;
+        let newH = resizingContainer.direction !== 'e' 
+          ? Math.max(54, Math.round(resizingContainer.initialHeight + dy)) 
+          : resizingContainer.initialHeight;
+        if (gridSnap) {
+          newW = snap(newW);
+          newH = snap(newH);
+        }
+        updateContainer(resizingContainer.id, {
+          collapsedWidth: Math.max(160, newW),
+          collapsedHeight: Math.max(54, newH),
+        }, undefined, true);
+      } else {
+        let newW = resizingContainer.direction !== 's' 
+          ? Math.max(220, Math.round(resizingContainer.initialWidth + dx)) 
+          : resizingContainer.initialWidth;
+        let newH = resizingContainer.direction !== 'e' 
+          ? Math.max(120, Math.round(resizingContainer.initialHeight + dy)) 
+          : resizingContainer.initialHeight;
+        if (gridSnap) {
+          newW = snap(newW);
+          newH = snap(newH);
+        }
+        updateContainer(resizingContainer.id, {
+          width: Math.max(220, newW),
+          height: Math.max(120, newH),
+        }, undefined, true);
+      }
+      return;
+    }
+
     if (draggedNode && (currentUser.role === 'admin' || currentUser.role === 'operator')) {
       const dx = (e.clientX - draggedNode.mouseStartX) / viewport.zoom;
       const dy = (e.clientY - draggedNode.mouseStartY) / viewport.zoom;
@@ -261,6 +311,36 @@ export const Canvas: React.FC = () => {
   const handleCanvasMouseUp = () => {
     setIsPanning(false);
     setDraggedNode(null);
+    setResizingContainer(null);
+  };
+
+  // Container Resize Start (Expanded & Collapsed)
+  const startResizeContainer = (
+    e: React.MouseEvent | React.TouchEvent,
+    containerId: string,
+    isCollapsed: boolean,
+    width: number,
+    height: number,
+    direction: 'se' | 'e' | 's' = 'se'
+  ) => {
+    if (isSpacePressed || activeTool === 'pan') return;
+    if (currentUser.role === 'viewer') return;
+    e.stopPropagation();
+
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    recordHistorySnapshot();
+    setSelectedId(containerId);
+    setResizingContainer({
+      id: containerId,
+      isCollapsed,
+      initialWidth: width,
+      initialHeight: height,
+      initialMouseX: clientX,
+      initialMouseY: clientY,
+      direction,
+    });
   };
 
   // Node Drag Start
@@ -281,16 +361,10 @@ export const Canvas: React.FC = () => {
       let initialDescendantEquipment: Array<{ id: string; initialX: number; initialY: number }> = [];
 
       if (type === 'container') {
-        const allContIds = getAllDescendantContainerIds(id, state.containers);
-        allContIds.delete(id); // Exclude self
+        const { containers: descConts, equipment: descEq } = findAllDescendantsOfContainer(id, state.containers, state.equipment);
 
-        initialDescendantContainers = state.containers
-          .filter(c => allContIds.has(c.id))
-          .map(c => ({ id: c.id, initialX: c.x, initialY: c.y }));
-
-        // All descendant equipment (inside this container OR inside any child/grandchild containers)
-        const allEquipment = getAllDescendantEquipment(id, state.containers, state.equipment);
-        initialDescendantEquipment = allEquipment.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
+        initialDescendantContainers = descConts.map(c => ({ id: c.id, initialX: c.x, initialY: c.y }));
+        initialDescendantEquipment = descEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
       }
 
       setDraggedNode({
@@ -362,12 +436,38 @@ export const Canvas: React.FC = () => {
     } else if (type === 'container') {
       const cont = state.containers.find(c => c.id === id);
       if (cont && (cont.x !== newX || cont.y !== newY)) {
+        // Find all descendants (via parentId AND geometric bounds)
+        const allDescendants = findAllDescendantsOfContainer(id, state.containers, state.equipment);
+        const descendantIds = new Set(allDescendants.containers.map(c => c.id));
+        descendantIds.add(id);
+
+        // Check if moving this container into another parent container
+        const curW = cont.isCollapsed ? cont.collapsedWidth : cont.width;
+        const curH = cont.isCollapsed ? cont.collapsedHeight : cont.height;
+        const matchingParents = state.containers.filter(c =>
+          !descendantIds.has(c.id) &&
+          !c.isCollapsed &&
+          newX >= c.x && newX + curW <= c.x + c.width &&
+          newY >= c.y && newY + curH <= c.y + c.height
+        );
+
+        let newParentId: string | null = null;
+        if (matchingParents.length > 0) {
+          matchingParents.sort((a, b) => {
+            const depthA = getContainerDepth(a.id, state.containers);
+            const depthB = getContainerDepth(b.id, state.containers);
+            if (depthB !== depthA) return depthB - depthA;
+            return (a.width * a.height) - (b.width * b.height);
+          });
+          newParentId = matchingParents[0].id;
+        }
+
         if (cachedDescendants) {
           const shiftX = newX - cachedDescendants.initialX;
           const shiftY = newY - cachedDescendants.initialY;
 
-          const containerUpdates: Array<{ id: string; x: number; y: number }> = [
-            { id, x: newX, y: newY },
+          const containerUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }> = [
+            { id, x: newX, y: newY, parentId: newParentId },
             ...cachedDescendants.containers.map(c => ({
               id: c.id,
               x: c.initialX + shiftX,
@@ -386,24 +486,16 @@ export const Canvas: React.FC = () => {
           const shiftX = newX - cont.x;
           const shiftY = newY - cont.y;
 
-          // All descendant containers (direct children and deeply nested sub-containers)
-          const allDescendantContIds = getAllDescendantContainerIds(id, state.containers);
-          allDescendantContIds.delete(id); // Exclude self
-
-          const descendantContainers = state.containers.filter(c => allDescendantContIds.has(c.id));
-          // All descendant equipment (equipment inside this container OR inside any descendant container)
-          const descendantEquipment = getAllDescendantEquipment(id, state.containers, state.equipment);
-
-          const containerUpdates: Array<{ id: string; x: number; y: number }> = [
-            { id, x: newX, y: newY },
-            ...descendantContainers.map(c => ({
+          const containerUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }> = [
+            { id, x: newX, y: newY, parentId: newParentId },
+            ...allDescendants.containers.map(c => ({
               id: c.id,
               x: c.x + shiftX,
               y: c.y + shiftY,
             }))
           ];
 
-          const equipmentUpdates: Array<{ id: string; x: number; y: number }> = descendantEquipment.map(eq => ({
+          const equipmentUpdates: Array<{ id: string; x: number; y: number }> = allDescendants.equipment.map(eq => ({
             id: eq.id,
             x: eq.x + shiftX,
             y: eq.y + shiftY,
@@ -523,15 +615,10 @@ export const Canvas: React.FC = () => {
               t.initialNodeX = cont.x;
               t.initialNodeY = cont.y;
 
-              const allContIds = getAllDescendantContainerIds(id, curSt.containers);
-              allContIds.delete(id);
+              const { containers: descConts, equipment: descEq } = findAllDescendantsOfContainer(id, curSt.containers, curSt.equipment);
 
-              t.initialDescendantContainers = curSt.containers
-                .filter(c => allContIds.has(c.id))
-                .map(c => ({ id: c.id, initialX: c.x, initialY: c.y }));
-
-              const allEq = getAllDescendantEquipment(id, curSt.containers, curSt.equipment);
-              t.initialDescendantEquipment = allEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
+              t.initialDescendantContainers = descConts.map(c => ({ id: c.id, initialX: c.x, initialY: c.y }));
+              t.initialDescendantEquipment = descEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
             }
           }
         } else {
@@ -843,6 +930,8 @@ export const Canvas: React.FC = () => {
     }
   };
 
+  const canEdit = currentUser.role === 'admin' || currentUser.role === 'operator';
+
   return (
     <div
       ref={containerRef}
@@ -856,7 +945,7 @@ export const Canvas: React.FC = () => {
         isFocusFullscreen
           ? 'fixed inset-0 z-40 w-full h-full h-[100dvh]'
           : 'relative w-full h-full'
-      } overflow-hidden bg-[#09090B] select-none transition-all touch-none ${
+      } overflow-hidden bg-white dark:bg-[#09090B] select-none transition-colors duration-200 touch-none ${
         isPanning || isSpacePressed || activeTool === 'pan' 
           ? 'cursor-grab active:cursor-grabbing' 
           : activeTool === 'connect' 
@@ -865,7 +954,7 @@ export const Canvas: React.FC = () => {
       }`}
     >
       {/* Background Dot Grid */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
+      <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20 dark:opacity-20">
         <defs>
           <pattern
             id="dot-grid"
@@ -874,7 +963,7 @@ export const Canvas: React.FC = () => {
             patternUnits="userSpaceOnUse"
             patternTransform={`translate(${viewport.panX}, ${viewport.panY})`}
           >
-            <circle cx="2" cy="2" r="1.2" className="fill-white" />
+            <circle cx="2" cy="2" r="1.2" className="fill-slate-900 dark:fill-white" />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#dot-grid)" />
@@ -1091,7 +1180,7 @@ export const Canvas: React.FC = () => {
           const totalKw = descendantEquipment.reduce((acc, e) => acc + (e.powerKw || 0), 0);
 
           if (container.isCollapsed) {
-            // Collapsed view: compact summary pill
+            // Collapsed view: compact summary pill with resize support
             return (
               <div
                 key={container.id}
@@ -1113,33 +1202,33 @@ export const Canvas: React.FC = () => {
                   enterFocusMode(container.id);
                 }}
                 onMouseDown={(e) => startDragNode(e, container.id, 'container', container.x, container.y)}
-                className={`absolute rounded-2xl border-2 bg-[#0F0F12]/95 backdrop-blur-md shadow-xl p-3 transition-all touch-none ${
+                className={`absolute rounded-2xl border-2 bg-white dark:bg-[#0F0F12]/95 backdrop-blur-md shadow-lg p-3 transition-all touch-none select-none ${
                   touchDraggingNodeId === container.id ? 'ring-4 ring-blue-400 scale-[1.02] shadow-2xl z-30' : ''
                 } ${
                   isThisFocused 
                     ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_50px_rgba(59,130,246,0.35)] z-20' 
-                    : isSelected ? 'ring-2 ring-blue-500 shadow-2xl' : 'hover:border-white/40'
+                    : isSelected ? 'ring-2 ring-blue-500 shadow-xl' : 'hover:border-slate-400 dark:hover:border-white/40'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-white/10 pb-2">
                   <div className="flex items-center gap-2 overflow-hidden">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleContainerCollapse(container.id);
                       }}
-                      className="p-1 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white"
+                      className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
                       title="Развернуть цех"
                     >
-                      <ChevronRight className="w-4 h-4 text-blue-400" />
+                      <ChevronRight className="w-4 h-4 text-blue-500" />
                     </button>
                     <span
-                      className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white"
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white shadow-xs"
                       style={{ backgroundColor: container.color }}
                     >
                       {container.tag}
                     </span>
-                    <span className="font-bold text-xs text-white truncate">
+                    <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
                       {container.name}
                     </span>
                   </div>
@@ -1149,7 +1238,7 @@ export const Canvas: React.FC = () => {
                       e.stopPropagation();
                       enterFocusMode(container.id);
                     }}
-                    className="p-1 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-300 ml-auto"
+                    className="p-1 rounded-lg hover:bg-blue-500/15 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 ml-auto transition-colors"
                     title="Развернуть в фокусный режим на весь экран (F)"
                   >
                     <Maximize2 className="w-3.5 h-3.5" />
@@ -1159,29 +1248,55 @@ export const Canvas: React.FC = () => {
                 {/* Collapsed Metrics Strip */}
                 <div className="flex items-center justify-between pt-2 text-[10px]">
                   <div className="flex items-center gap-1.5">
-                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold">
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold">
                       {okCount} ОК
                     </span>
                     {warnCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-semibold">
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold">
                         {warnCount} Вним
                       </span>
                     )}
                     {critCount > 0 && (
-                      <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-semibold animate-pulse">
+                      <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-600 dark:text-red-400 font-semibold animate-pulse">
                         {critCount} АВАРИЯ
                       </span>
                     )}
                   </div>
-                  <span className="font-mono text-slate-400">
+                  <span className="font-mono text-slate-500 dark:text-slate-400 font-medium">
                     {totalKw.toFixed(0)} кВт
                   </span>
                 </div>
+
+                {/* Resize handles for Collapsed Container */}
+                {canEdit && (
+                  <>
+                    <div
+                      onMouseDown={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 'se')}
+                      onTouchStart={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 'se')}
+                      className="absolute -bottom-1 -right-1 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
+                      title="Изменить размер свернутого цеха"
+                    >
+                      <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs hover:border-blue-500" />
+                    </div>
+                    <div
+                      onMouseDown={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 'e')}
+                      onTouchStart={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 'e')}
+                      className="absolute top-1 bottom-1 -right-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
+                      title="Изменить ширину"
+                    />
+                    <div
+                      onMouseDown={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 's')}
+                      onTouchStart={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 's')}
+                      className="absolute left-1 right-1 -bottom-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
+                      title="Изменить высоту"
+                    />
+                  </>
+                )}
               </div>
             );
           }
 
-          // Expanded view: Full container layout
+          // Expanded view: Full container layout with resize support
           return (
             <div
               key={container.id}
@@ -1199,12 +1314,12 @@ export const Canvas: React.FC = () => {
                 e.stopPropagation();
                 toggleFocusMode(container.id);
               }}
-              className={`absolute rounded-2xl border-2 transition-all bg-[#0F0F12]/30 backdrop-blur-xs ${
+              className={`absolute rounded-2xl border-2 transition-all bg-white/90 dark:bg-[#0F0F12]/30 backdrop-blur-xs shadow-md ${
                 isThisFocused
                   ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_60px_rgba(59,130,246,0.35)] z-20'
                   : isSelected 
-                  ? 'ring-2 ring-blue-500 border-blue-500/60 shadow-2xl' 
-                  : 'border-white/10 hover:border-white/20'
+                  ? 'ring-2 ring-blue-500 border-blue-500/60 shadow-xl' 
+                  : 'border-slate-300 dark:border-white/10 hover:border-slate-400 dark:hover:border-white/20'
               }`}
             >
               {/* Container Header Bar (Draggable) */}
@@ -1212,7 +1327,7 @@ export const Canvas: React.FC = () => {
                 data-node-id={container.id}
                 data-node-type="container"
                 onMouseDown={(e) => startDragNode(e, container.id, 'container', container.x, container.y)}
-                className={`h-11 px-3 flex items-center justify-between border-b border-white/10 rounded-t-2xl cursor-move bg-white/5 transition-colors touch-none ${
+                className={`h-11 px-3 flex items-center justify-between border-b border-slate-200 dark:border-white/10 rounded-t-2xl cursor-move bg-slate-50/90 dark:bg-white/5 transition-colors touch-none ${
                   touchDraggingNodeId === container.id ? 'bg-blue-500/20' : ''
                 }`}
                 style={{ borderLeft: `6px solid ${container.color}` }}
@@ -1223,32 +1338,32 @@ export const Canvas: React.FC = () => {
                       e.stopPropagation();
                       toggleContainerCollapse(container.id);
                     }}
-                    className="p-1 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white"
+                    className="p-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
                     title="Свернуть контейнер"
                   >
-                    <ChevronDown className="w-4 h-4 text-blue-400" />
+                    <ChevronDown className="w-4 h-4 text-blue-500" />
                   </button>
 
                   <span
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white tracking-wide"
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white tracking-wide shadow-xs"
                     style={{ backgroundColor: container.color }}
                   >
                     {container.tag}
                   </span>
 
-                  <span className="font-bold text-xs text-white truncate">
+                  <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
                     {container.name}
                   </span>
 
                   {isThisFocused && (
-                    <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/40 animate-pulse">
+                    <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/40 animate-pulse">
                       <Focus className="w-3 h-3" />
                       <span>В ФОКУСЕ</span>
                     </span>
                   )}
 
                   {container.manager && (
-                    <span className="text-[10px] text-slate-400 hidden sm:inline truncate">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 hidden sm:inline truncate">
                       ({container.manager})
                     </span>
                   )}
@@ -1263,7 +1378,7 @@ export const Canvas: React.FC = () => {
                     className={`p-1.5 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold ${
                       isThisFocused
                         ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30 ring-1 ring-blue-400'
-                        : 'hover:bg-blue-500/20 text-slate-400 hover:text-blue-300'
+                        : 'hover:bg-blue-500/15 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300'
                     }`}
                     title={isThisFocused ? "Выйти из фокусного режима (Esc / F)" : "Войти в фокусный режим на весь экран (F / двойной клик)"}
                   >
@@ -1274,7 +1389,7 @@ export const Canvas: React.FC = () => {
                     )}
                   </button>
 
-                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-white/10 text-slate-300">
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-white/10 text-slate-700 dark:text-slate-300">
                     {descendantEquipment.length} ед.
                   </span>
 
@@ -1284,7 +1399,7 @@ export const Canvas: React.FC = () => {
                         e.stopPropagation();
                         deleteContainer(container.id);
                       }}
-                      className="p-1 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
+                      className="p-1 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-500 transition-colors"
                       title="Удалить контейнер"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -1294,10 +1409,36 @@ export const Canvas: React.FC = () => {
               </div>
 
               {/* Quick Container status badge in bottom left */}
-              <div className="absolute bottom-2 left-3 flex items-center gap-2 pointer-events-none opacity-60 text-[10px] text-slate-400 font-mono">
+              <div className="absolute bottom-2 left-3 flex items-center gap-2 pointer-events-none opacity-80 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                 <span>Общая нагрузка: {totalKw.toFixed(1)} кВт</span>
-                {critCount > 0 && <span className="text-red-400 font-bold">⚠️ Аварий: {critCount}</span>}
+                {critCount > 0 && <span className="text-red-500 font-bold">⚠️ Аварий: {critCount}</span>}
               </div>
+
+              {/* Resize handles for Expanded Container */}
+              {canEdit && (
+                <>
+                  <div
+                    onMouseDown={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 'se')}
+                    onTouchStart={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 'se')}
+                    className="absolute -bottom-2 -right-2 w-6 h-6 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
+                    title="Изменить размер цеха"
+                  >
+                    <div className="w-3.5 h-3.5 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs group-hover:border-blue-500" />
+                  </div>
+                  <div
+                    onMouseDown={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 'e')}
+                    onTouchStart={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 'e')}
+                    className="absolute top-3 bottom-3 -right-1 w-2.5 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
+                    title="Изменить ширину цеха"
+                  />
+                  <div
+                    onMouseDown={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 's')}
+                    onTouchStart={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 's')}
+                    className="absolute left-3 right-3 -bottom-1 h-2.5 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
+                    title="Изменить высоту цеха"
+                  />
+                </>
+              )}
             </div>
           );
         })}
@@ -1328,12 +1469,12 @@ export const Canvas: React.FC = () => {
                 }
               }}
               onMouseDown={(e) => startDragNode(e, equipment.id, 'equipment', equipment.x, equipment.y)}
-              className={`absolute rounded-xl border p-3 bg-[#0F0F12] shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-300 touch-none ${
+              className={`absolute rounded-xl border p-3 bg-white dark:bg-[#0F0F12] shadow-md dark:shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-700 dark:text-slate-300 touch-none ${
                 statusStyle.border
               } ${
                 touchDraggingNodeId === equipment.id ? 'ring-4 ring-blue-400 scale-[1.03] shadow-2xl z-30' : ''
               } ${
-                isSelected ? 'ring-2 ring-blue-500 shadow-2xl scale-[1.01]' : 'hover:border-white/30'
+                isSelected ? 'ring-2 ring-blue-500 shadow-xl scale-[1.01]' : 'hover:border-slate-300 dark:hover:border-white/30'
               } ${
                 connectingSourceId === equipment.id ? 'ring-2 ring-blue-400 animate-pulse' : ''
               }`}
@@ -1342,10 +1483,10 @@ export const Canvas: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between gap-1.5 mb-1.5">
                   <div className="flex items-center gap-1.5 overflow-hidden">
-                    <div className="p-1.5 rounded-lg bg-white/5 text-slate-300">
+                    <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300">
                       {getEquipmentIcon(equipment.equipmentType)}
                     </div>
-                    <span className="font-mono text-[11px] font-bold text-white tracking-tight">
+                    <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white tracking-tight">
                       {equipment.tag}
                     </span>
                   </div>
@@ -1358,23 +1499,23 @@ export const Canvas: React.FC = () => {
                 </div>
 
                 {/* Name */}
-                <h4 className="text-xs font-bold text-white line-clamp-2 leading-snug">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug">
                   {equipment.name}
                 </h4>
 
                 {equipment.model && (
-                  <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                     {equipment.model}
                   </div>
                 )}
               </div>
 
               {/* Dynamic Telemetry / Property Chips */}
-              <div className="space-y-1 my-1.5 pt-1.5 border-t border-white/10 text-[10px]">
+              <div className="space-y-1 my-1.5 pt-1.5 border-t border-slate-100 dark:border-white/10 text-[10px]">
                 {equipment.powerKw !== undefined && (
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>Мощность:</span>
-                    <span className="font-mono font-semibold text-slate-200">
+                    <span className="font-mono font-semibold text-slate-900 dark:text-slate-200">
                       {equipment.powerKw} кВт
                     </span>
                   </div>
@@ -1382,9 +1523,9 @@ export const Canvas: React.FC = () => {
 
                 {/* Display up to 2 primary custom properties on card face */}
                 {equipment.properties.slice(0, 2).map(prop => (
-                  <div key={prop.id} className="flex items-center justify-between text-slate-400">
+                  <div key={prop.id} className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span className="truncate max-w-[90px]">{prop.name}:</span>
-                    <span className="font-mono font-medium text-slate-200">
+                    <span className="font-mono font-medium text-slate-900 dark:text-slate-200">
                       {prop.value} {prop.unit || ''}
                     </span>
                   </div>
@@ -1397,7 +1538,7 @@ export const Canvas: React.FC = () => {
                       e.stopPropagation();
                       setSelectedId(equipment.id);
                     }}
-                    className="w-full py-1 px-1.5 rounded-md bg-blue-500/10 hover:bg-blue-500/20 border border-dashed border-blue-500/30 text-[10px] text-blue-300 font-medium flex items-center justify-center gap-1 transition-colors group/btn"
+                    className="w-full py-1 px-1.5 rounded-md bg-blue-500/10 hover:bg-blue-500/20 border border-dashed border-blue-500/30 text-[10px] text-blue-600 dark:text-blue-300 font-medium flex items-center justify-center gap-1 transition-colors group/btn"
                     title="Открыть инспектор для заполнения параметров"
                   >
                     <Sliders className="w-3 h-3 group-hover/btn:rotate-45 transition-transform" />
@@ -1407,7 +1548,7 @@ export const Canvas: React.FC = () => {
               </div>
 
               {/* Card Footer: Connector Anchor Target button on hover */}
-              <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[9px] text-slate-400">
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-white/10 text-[9px] text-slate-500 dark:text-slate-400">
                 <span className="truncate">
                   {equipment.lastMaintenanceDate ? `ТО: ${equipment.lastMaintenanceDate.slice(5)}` : 'Штатно'}
                 </span>
@@ -1417,7 +1558,7 @@ export const Canvas: React.FC = () => {
                     e.stopPropagation();
                     handleNodeConnectClick(equipment.id);
                   }}
-                  className="p-1 rounded-lg bg-white/5 hover:bg-blue-600 hover:text-white text-slate-400 transition-colors"
+                  className="p-1 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-blue-600 hover:text-white text-slate-500 dark:text-slate-400 transition-colors"
                   title="Создать связь от этого блока"
                 >
                   <Share2 className="w-3 h-3" />
@@ -1427,22 +1568,22 @@ export const Canvas: React.FC = () => {
               {/* 4 Directional Connection Anchor Points */}
               <div 
                 onClick={(e) => { e.stopPropagation(); handleNodeConnectClick(equipment.id); }}
-                className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-[#09090B] opacity-0 group-hover:opacity-100 hover:scale-125 transition-all cursor-pointer shadow-sm z-10" 
+                className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white dark:border-[#09090B] opacity-0 group-hover:opacity-100 hover:scale-125 transition-all cursor-pointer shadow-sm z-10" 
                 title="Подключить сверху"
               />
               <div 
                 onClick={(e) => { e.stopPropagation(); handleNodeConnectClick(equipment.id); }}
-                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-[#09090B] opacity-0 group-hover:opacity-100 hover:scale-125 transition-all cursor-pointer shadow-sm z-10" 
+                className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white dark:border-[#09090B] opacity-0 group-hover:opacity-100 hover:scale-125 transition-all cursor-pointer shadow-sm z-10" 
                 title="Подключить снизу"
               />
               <div 
                 onClick={(e) => { e.stopPropagation(); handleNodeConnectClick(equipment.id); }}
-                className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-[#09090B] opacity-0 group-hover:opacity-100 hover:scale-125 transition-all cursor-pointer shadow-sm z-10" 
+                className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white dark:border-[#09090B] opacity-0 group-hover:opacity-100 hover:scale-125 transition-all cursor-pointer shadow-sm z-10" 
                 title="Подключить слева"
               />
               <div 
                 onClick={(e) => { e.stopPropagation(); handleNodeConnectClick(equipment.id); }}
-                className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-[#09090B] opacity-0 group-hover:opacity-100 hover:scale-125 transition-all cursor-pointer shadow-sm z-10" 
+                className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white dark:border-[#09090B] opacity-0 group-hover:opacity-100 hover:scale-125 transition-all cursor-pointer shadow-sm z-10" 
                 title="Подключить справа"
               />
             </div>

@@ -67,7 +67,7 @@ interface FactoryContextType {
   deleteEquipment: (id: string, reason?: string) => void;
   updateContainer: (id: string, partial: Partial<ContainerNode>, reason?: string, skipHistory?: boolean) => void;
   batchUpdatePositions: (
-    containerUpdates: Array<{ id: string; x: number; y: number }>,
+    containerUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }>,
     equipmentUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }>,
     reason?: string,
     skipHistory?: boolean
@@ -775,7 +775,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [state, pushHistory, currentUser]);
 
   const batchUpdatePositions = useCallback((
-    containerUpdates: Array<{ id: string; x: number; y: number }>,
+    containerUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }>,
     equipmentUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }>,
     reason?: string,
     skipHistory?: boolean
@@ -790,9 +790,18 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       let containersChanged = false;
       const nextContainers = prev.containers.map(c => {
         const u = contMap.get(c.id);
-        if (u && (c.x !== u.x || c.y !== u.y)) {
-          containersChanged = true;
-          return { ...c, x: u.x, y: u.y };
+        if (u) {
+          const hasPosChange = c.x !== u.x || c.y !== u.y;
+          const hasParentChange = u.parentId !== undefined && c.parentId !== u.parentId;
+          if (hasPosChange || hasParentChange) {
+            containersChanged = true;
+            return {
+              ...c,
+              x: u.x,
+              y: u.y,
+              ...(u.parentId !== undefined ? { parentId: u.parentId } : {})
+            };
+          }
         }
         return c;
       });

@@ -122,6 +122,132 @@ export function getAllDescendantContainerIds(
 }
 
 /**
+ * Finds all descendant containers and equipment (both by explicit parentId hierarchy
+ * AND by geometric containment within the container's bounds).
+ * This ensures that nested items ALWAYS move together with their parent container!
+ */
+export function findAllDescendantsOfContainer(
+  containerId: string,
+  containers: ContainerNode[],
+  equipment: EquipmentNode[]
+): {
+  containers: ContainerNode[];
+  equipment: EquipmentNode[];
+} {
+  const container = containers.find(c => c.id === containerId);
+  if (!container) return { containers: [], equipment: [] };
+
+  // 1. Collect all container descendants by explicit parentId hierarchy
+  const descendantContainerIds = getAllDescendantContainerIds(containerId, containers);
+  descendantContainerIds.delete(containerId); // exclude self
+
+  // Helper: check if candidateId is an ancestor of targetId
+  const isAncestor = (candidateId: string, targetId: string): boolean => {
+    let curr: string | null | undefined = targetId;
+    const visited = new Set<string>();
+    while (curr && !visited.has(curr)) {
+      visited.add(curr);
+      if (curr === candidateId) return true;
+      const c = containers.find(item => item.id === curr);
+      curr = c?.parentId;
+    }
+    return false;
+  };
+
+  const contBounds = {
+    x: container.x,
+    y: container.y,
+    w: container.isCollapsed ? container.collapsedWidth : container.width,
+    h: container.isCollapsed ? container.collapsedHeight : container.height,
+  };
+
+  // 2. Also collect any container geometrically located within this container's bounds
+  for (const c of containers) {
+    if (c.id === containerId) continue;
+    if (descendantContainerIds.has(c.id)) continue;
+    if (isAncestor(c.id, containerId)) continue; // prevent circular reference
+
+    const cW = c.isCollapsed ? c.collapsedWidth : c.width;
+    const cH = c.isCollapsed ? c.collapsedHeight : c.height;
+    const cCenterX = c.x + cW / 2;
+    const cCenterY = c.y + cH / 2;
+
+    if (
+      cCenterX >= contBounds.x &&
+      cCenterX <= contBounds.x + contBounds.w &&
+      cCenterY >= contBounds.y &&
+      cCenterY <= contBounds.y + contBounds.h
+    ) {
+      descendantContainerIds.add(c.id);
+      const subTreeIds = getAllDescendantContainerIds(c.id, containers);
+      for (const subId of subTreeIds) {
+        if (subId !== containerId) {
+          descendantContainerIds.add(subId);
+        }
+      }
+    }
+  }
+
+  const allDescendantContainers = containers.filter(c => descendantContainerIds.has(c.id));
+
+  // 3. Collect equipment (by parentId OR geometric bounds)
+  const allContIds = new Set<string>([containerId, ...descendantContainerIds]);
+  const descendantEquipment: EquipmentNode[] = [];
+  const seenEq = new Set<string>();
+
+  for (const eq of equipment) {
+    if (eq.parentId && allContIds.has(eq.parentId)) {
+      if (!seenEq.has(eq.id)) {
+        seenEq.add(eq.id);
+        descendantEquipment.push(eq);
+      }
+      continue;
+    }
+
+    const eqCenterX = eq.x + eq.width / 2;
+    const eqCenterY = eq.y + eq.height / 2;
+
+    // Check if geometrically inside target container
+    if (
+      eqCenterX >= contBounds.x &&
+      eqCenterX <= contBounds.x + contBounds.w &&
+      eqCenterY >= contBounds.y &&
+      eqCenterY <= contBounds.y + contBounds.h
+    ) {
+      if (!seenEq.has(eq.id)) {
+        seenEq.add(eq.id);
+        descendantEquipment.push(eq);
+      }
+      continue;
+    }
+
+    // Check if inside any descendant container
+    for (const dCont of allDescendantContainers) {
+      const dW = dCont.isCollapsed ? dCont.collapsedWidth : dCont.width;
+      const dH = dCont.isCollapsed ? dCont.collapsedHeight : dCont.height;
+      if (
+        eqCenterX >= dCont.x &&
+        eqCenterX <= dCont.x + dW &&
+        eqCenterY >= dCont.y &&
+        eqCenterY <= dCont.y + dH
+      ) {
+        if (!seenEq.has(eq.id)) {
+          seenEq.add(eq.id);
+          descendantEquipment.push(eq);
+        }
+        break;
+      }
+    }
+  }
+
+  return {
+    containers: allDescendantContainers,
+    equipment: descendantEquipment,
+  };
+}
+
+
+/**
  * Checks if an equipment or container is either the container itself or nested inside it
  */
 export function isNodeInContainerSubtree(

@@ -296,7 +296,7 @@ export const ProjectPanel: React.FC = () => {
         <button
           id="toggle-project-panel-floating-tab"
           onClick={() => setIsProjectPanelOpen(!isProjectPanelOpen)}
-          className={`pointer-events-auto flex items-center gap-2 py-3 px-2.5 bg-[#0E1015]/95 hover:bg-slate-800 text-white rounded-r-xl border-y border-r border-white/20 shadow-2xl backdrop-blur-md transition-all hover:pl-3 group ${
+          className={`pointer-events-auto flex items-center gap-2 py-3 px-2.5 bg-white/95 hover:bg-slate-50 dark:bg-[#0E1015]/95 dark:hover:bg-slate-800 text-slate-700 dark:text-white rounded-r-xl border-y border-r border-slate-200 dark:border-white/20 shadow-xl backdrop-blur-md transition-all hover:pl-3 group ${
             isProjectPanelOpen ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'
           }`}
           title="Открыть панель: Файлы, Сохранение, Папки и Экспорт"
@@ -306,13 +306,13 @@ export const ProjectPanel: React.FC = () => {
               saveStatus === 'saving'
                 ? 'bg-amber-400 animate-pulse'
                 : autoSaveConfig.enabled
-                ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
-                : 'bg-slate-500'
+                ? 'bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                : 'bg-slate-400 dark:bg-slate-500'
             }`} />
-            <div className="[writing-mode:vertical-rl] text-[11px] font-bold tracking-wider uppercase text-slate-300 group-hover:text-blue-400 flex items-center gap-1.5 py-1 rotate-180">
+            <div className="[writing-mode:vertical-rl] text-[11px] font-bold tracking-wider uppercase text-slate-600 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 flex items-center gap-1.5 py-1 rotate-180">
               <span>Файлы и проект</span>
             </div>
-            <Save className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+            <Save className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
           </div>
         </button>
       </div>
@@ -328,26 +328,26 @@ export const ProjectPanel: React.FC = () => {
       {/* Sliding LEFT Collapsible Panel */}
       <aside
         id="left-project-management-panel"
-        className={`fixed top-0 left-0 h-full w-84 sm:w-96 bg-[#0E1015] border-r border-white/10 z-50 shadow-2xl flex flex-col transition-transform duration-300 ease-out select-none ${
+        className={`fixed top-0 left-0 h-full w-84 sm:w-96 bg-white dark:bg-[#0E1015] border-r border-slate-200 dark:border-white/10 z-50 shadow-2xl flex flex-col transition-transform duration-300 ease-out select-none ${
           isProjectPanelOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Panel Header */}
-        <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50/80 dark:bg-white/[0.02]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
               <FolderOpen className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white tracking-tight">Файлы и проект</h2>
-              <p className="text-[11px] text-slate-400">Сохранение, выбор папки и экспорт</p>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Файлы и проект</h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Сохранение, выбор папки и экспорт</p>
             </div>
           </div>
 
           <button
             id="close-project-panel-btn"
             onClick={() => setIsProjectPanelOpen(false)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
             title="Скрыть панель (Esc)"
           >
             <X className="w-4 h-4" />
@@ -355,32 +355,32 @@ export const ProjectPanel: React.FC = () => {
         </div>
 
         {/* Panel Content (Scrollable) */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-5 text-slate-300">
+        <div className="flex-1 overflow-y-auto p-4 space-y-5 text-slate-700 dark:text-slate-300">
 
           {/* SECTION 1: Target Folder Selection (REQUESTED FEATURE) */}
-          <div className="p-3.5 rounded-xl bg-gradient-to-br from-blue-950/30 to-indigo-950/20 border border-blue-500/20 space-y-3">
+          <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-gradient-to-br dark:from-blue-950/30 dark:to-indigo-950/20 border border-blue-200 dark:border-blue-500/20 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <HardDrive className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-semibold text-white uppercase tracking-wider">
+                <HardDrive className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider">
                   Папка сохранения
                 </span>
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium ${
-                targetDirectory ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/10 text-slate-400'
+                targetDirectory ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-400'
               }`}>
                 {targetDirectory ? 'НА ДИСКЕ' : 'СТАНДАРТ'}
               </span>
             </div>
 
             {/* Folder indicator */}
-            <div className="p-2.5 rounded-lg bg-black/30 border border-white/5 space-y-1.5 text-xs">
+            <div className="p-2.5 rounded-lg bg-white dark:bg-black/30 border border-slate-200 dark:border-white/5 space-y-1.5 text-xs shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-[11px]">Место сохранения:</span>
+                <span className="text-slate-500 dark:text-slate-400 text-[11px]">Место сохранения:</span>
                 {targetDirectory && (
                   <button
                     onClick={handleClearFolder}
-                    className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1 hover:underline"
+                    className="text-[10px] text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1 hover:underline"
                     title="Сбросить выбранную папку"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -389,25 +389,25 @@ export const ProjectPanel: React.FC = () => {
                 )}
               </div>
               
-              <div className="flex items-center gap-2 text-white font-medium break-all">
+              <div className="flex items-center gap-2 text-slate-800 dark:text-white font-medium break-all">
                 {targetDirectory ? (
                   <>
-                    <FolderCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="font-mono text-xs text-emerald-300">
+                    <FolderCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="font-mono text-xs text-emerald-700 dark:text-emerald-300">
                       {targetDirectory.name}
                     </span>
                   </>
                 ) : (
                   <>
                     <FolderOpen className="w-4 h-4 text-slate-400 shrink-0" />
-                    <span className="text-slate-300 text-xs">
+                    <span className="text-slate-600 dark:text-slate-300 text-xs">
                       Папка загрузок браузера / Запрос ОС
                     </span>
                   </>
                 )}
               </div>
 
-              <div className="text-[10px] text-slate-400 pt-1 leading-snug">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 leading-snug">
                 {targetDirectory
                   ? 'Файлы проектов будут направляться в выбранную папку на вашем компьютере.'
                   : 'Нажмите «Выбрать папку», чтобы назначить конкретный каталог для схем на вашем ПК.'}
@@ -418,9 +418,9 @@ export const ProjectPanel: React.FC = () => {
             <button
               id="select-folder-btn"
               onClick={handleSelectFolder}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-white border border-blue-500/30 text-xs font-semibold transition-all hover:scale-[1.01] active:scale-95"
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-600/20 dark:hover:bg-blue-600/30 text-blue-700 dark:text-blue-300 hover:text-blue-900 dark:hover:text-white border border-blue-300 dark:border-blue-500/30 text-xs font-semibold transition-all hover:scale-[1.01] active:scale-95"
             >
-              <FolderPlus className="w-4 h-4 text-blue-400" />
+              <FolderPlus className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               <span>{targetDirectory ? 'Сменить целевую папку...' : 'Выбрать папку на диске...'}</span>
             </button>
           </div>
@@ -428,7 +428,7 @@ export const ProjectPanel: React.FC = () => {
           {/* SECTION 2: Project File Operations */}
           <div className="space-y-2.5">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1.5">
-              <FileCode className="w-3.5 h-3.5 text-blue-400" />
+              <FileCode className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
               <span>Файл проекта схемы</span>
             </div>
 
@@ -437,7 +437,7 @@ export const ProjectPanel: React.FC = () => {
               <button
                 id="panel-quick-save-btn"
                 onClick={handleQuickSave}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-95"
+                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-95"
                 title="Быстро сохранить текущую схему (Ctrl+S)"
               >
                 <Save className="w-4 h-4" />
@@ -448,10 +448,10 @@ export const ProjectPanel: React.FC = () => {
               <button
                 id="panel-save-as-btn"
                 onClick={handleOpenSaveAs}
-                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 hover:text-white border border-indigo-500/40 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95"
+                className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-600/30 hover:bg-indigo-100 dark:hover:bg-indigo-600/50 text-indigo-700 dark:text-indigo-200 hover:text-indigo-900 dark:hover:text-white border border-indigo-200 dark:border-indigo-500/40 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95"
                 title="Сохранить проект под другим именем или в другую папку"
               >
-                <FilePlus className="w-4 h-4 text-indigo-400" />
+                <FilePlus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 <span>Сохранить как...</span>
               </button>
             </div>
@@ -460,10 +460,10 @@ export const ProjectPanel: React.FC = () => {
             <button
               id="panel-open-file-btn"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 hover:text-white border border-emerald-500/40 text-xs font-semibold transition-all hover:scale-[1.01] active:scale-95"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-600/20 hover:bg-emerald-100 dark:hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white border border-emerald-200 dark:border-emerald-500/40 text-xs font-semibold transition-all hover:scale-[1.01] active:scale-95"
               title="Открыть файл проекта (.json) с диска"
             >
-              <FolderOpen className="w-4 h-4 text-emerald-400" />
+              <FolderOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>Открыть файл проекта (.json)</span>
             </button>
 
@@ -475,54 +475,54 @@ export const ProjectPanel: React.FC = () => {
               onClick={() => fileInputRef.current?.click()}
               className={`p-3 rounded-xl border-2 border-dashed text-center cursor-pointer transition-all ${
                 isDropActive
-                  ? 'border-blue-500 bg-blue-500/20 text-white'
-                  : 'border-white/15 hover:border-white/30 bg-white/[0.02] text-slate-400 hover:text-slate-200'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-white'
+                  : 'border-slate-300 dark:border-white/15 hover:border-blue-400 dark:hover:border-white/30 bg-slate-50/60 dark:bg-white/[0.02] text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
-              <Upload className="w-5 h-5 mx-auto mb-1 opacity-70" />
+              <Upload className="w-5 h-5 mx-auto mb-1 opacity-70 text-slate-500 dark:text-slate-400" />
               <div className="text-[11px] font-medium">Перетащите сюда файл .json</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">или нажмите для выбора с диска</div>
+              <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">или нажмите для выбора с диска</div>
             </div>
 
             {/* Copy JSON */}
             <button
               id="panel-copy-json-btn"
               onClick={handleCopyJSON}
-              className="w-full flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/5 text-xs transition-colors"
+              className="w-full flex items-center justify-between py-2 px-3 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/5 text-xs transition-colors"
               title="Скопировать проект в буфер обмена для быстрой пересылки"
             >
               <div className="flex items-center gap-2">
-                <Copy className="w-3.5 h-3.5 text-indigo-400" />
+                <Copy className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                 <span>Скопировать JSON схемы в буфер</span>
               </div>
-              <ChevronRight className="w-3 h-3 text-slate-500" />
+              <ChevronRight className="w-3 h-3 text-slate-400 dark:text-slate-500" />
             </button>
           </div>
 
           {/* SECTION 3: Real-time Auto-Save Status Card */}
-          <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-3">
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-semibold text-white uppercase tracking-wider">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider">
                   Автосохранение
                 </span>
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium flex items-center gap-1 ${
                 saveStatus === 'saving'
-                  ? 'bg-amber-500/20 text-amber-300'
+                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
                   : autoSaveConfig.enabled
-                  ? 'bg-emerald-500/20 text-emerald-300'
-                  : 'bg-white/10 text-slate-400'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-400'
               }`}>
                 {saveStatus === 'saving' ? (
                   <>
-                    <RefreshCw className="w-2.5 h-2.5 animate-spin text-amber-400" />
+                    <RefreshCw className="w-2.5 h-2.5 animate-spin text-amber-500 dark:text-amber-400" />
                     <span>Запись...</span>
                   </>
                 ) : autoSaveConfig.enabled ? (
                   <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
                     <span>АКТИВНО</span>
                   </>
                 ) : (
@@ -531,23 +531,23 @@ export const ProjectPanel: React.FC = () => {
               </span>
             </div>
 
-            <div className="text-[11px] space-y-1.5 text-slate-300 pt-1">
+            <div className="text-[11px] space-y-1.5 text-slate-600 dark:text-slate-300 pt-1">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Последняя запись:</span>
-                <span className="text-white font-mono text-[11px]">
+                <span className="text-slate-500 dark:text-slate-400">Последняя запись:</span>
+                <span className="text-slate-900 dark:text-white font-mono text-[11px] font-semibold">
                   {new Date(lastSavedTime).toLocaleTimeString('ru-RU')} ({timeAgoText})
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Хранилище:</span>
-                <span className="text-slate-200">Браузер + файл сервера</span>
+                <span className="text-slate-500 dark:text-slate-400">Хранилище:</span>
+                <span className="text-slate-700 dark:text-slate-200">Браузер + файл сервера</span>
               </div>
             </div>
 
             {/* Toggles */}
-            <div className="pt-2 border-t border-white/10 space-y-2 text-xs">
+            <div className="pt-2 border-t border-slate-200 dark:border-white/10 space-y-2 text-xs">
               <label className="flex items-center justify-between cursor-pointer group">
-                <span className="text-slate-300 group-hover:text-white transition-colors">
+                <span className="text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
                   Мгновенное автосохранение
                 </span>
                 <input
@@ -561,12 +561,12 @@ export const ProjectPanel: React.FC = () => {
                       e.target.checked ? 'success' : 'warning'
                     );
                   }}
-                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-white/20 cursor-pointer"
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800 border-slate-300 dark:border-white/20 cursor-pointer"
                 />
               </label>
 
               <label className="flex items-center justify-between cursor-pointer group">
-                <span className="text-slate-300 group-hover:text-white transition-colors">
+                <span className="text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
                   Периодические автоснимки (5 мин)
                 </span>
                 <input
@@ -575,7 +575,7 @@ export const ProjectPanel: React.FC = () => {
                   onChange={(e) => {
                     setAutoSaveConfig(prev => ({ ...prev, autoSnapshots: e.target.checked }));
                   }}
-                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-white/20 cursor-pointer"
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800 border-slate-300 dark:border-white/20 cursor-pointer"
                 />
               </label>
             </div>
@@ -584,7 +584,7 @@ export const ProjectPanel: React.FC = () => {
           {/* SECTION 4: Backups & Restore Points */}
           <div className="space-y-2.5">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1.5">
-              <Cloud className="w-3.5 h-3.5 text-blue-400" />
+              <Cloud className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
               <span>Резервные копии и история</span>
             </div>
 
@@ -592,20 +592,20 @@ export const ProjectPanel: React.FC = () => {
               <button
                 id="panel-open-backups-btn"
                 onClick={() => setIsBackupOpen(true)}
-                className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white border border-white/10 text-xs font-medium transition-colors"
+                className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/10 text-xs font-medium transition-colors"
                 title="История сохраненных копий и облачные снимки"
               >
-                <History className="w-3.5 h-3.5 text-blue-400" />
+                <History className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                 <span>Все бэкапы</span>
               </button>
 
               <button
                 id="panel-create-snapshot-btn"
                 onClick={handleCreateSnapshot}
-                className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white border border-white/10 text-xs font-medium transition-colors"
+                className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/10 text-xs font-medium transition-colors"
                 title="Создать контрольную точку схемы прямо сейчас"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
                 <span>Создать снимок</span>
               </button>
             </div>
@@ -614,7 +614,7 @@ export const ProjectPanel: React.FC = () => {
           {/* SECTION 5: Export Formats */}
           <div className="space-y-2">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1.5">
-              <Download className="w-3.5 h-3.5 text-blue-400" />
+              <Download className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
               <span>Экспорт документации</span>
             </div>
 
@@ -626,18 +626,18 @@ export const ProjectPanel: React.FC = () => {
                   exportToPDF(state);
                   showToast('Паспорт сформирован', 'Файл PDF готов к загрузке', 'success');
                 }}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group text-left"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 transition-colors group text-left"
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-lg bg-rose-500/20 text-rose-400">
+                  <div className="p-1.5 rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400">
                     <FileText className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-medium text-slate-200 group-hover:text-white">Паспорт предприятия (PDF)</div>
-                    <div className="text-[10px] text-slate-400">Технический паспорт со сводкой и ведомостью</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">Паспорт предприятия (PDF)</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Технический паспорт со сводкой и ведомостью</div>
                   </div>
                 </div>
-                <FileDown className="w-4 h-4 text-slate-500 group-hover:text-rose-400" />
+                <FileDown className="w-4 h-4 text-slate-400 group-hover:text-rose-600 dark:group-hover:text-rose-400" />
               </button>
 
               {/* Excel */}
@@ -647,18 +647,18 @@ export const ProjectPanel: React.FC = () => {
                   exportToExcel(state);
                   showToast('Таблица Excel создана', 'Файл .xls реестра готов', 'success');
                 }}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group text-left"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 transition-colors group text-left"
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                  <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                     <FileSpreadsheet className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-medium text-slate-200 group-hover:text-white">Реестр оборудования (Excel)</div>
-                    <div className="text-[10px] text-slate-400">Таблица параметров и мощностей для 1C/ERP</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">Реестр оборудования (Excel)</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Таблица параметров и мощностей для 1C/ERP</div>
                   </div>
                 </div>
-                <FileDown className="w-4 h-4 text-slate-500 group-hover:text-emerald-400" />
+                <FileDown className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" />
               </button>
 
               {/* PNG */}
@@ -668,18 +668,18 @@ export const ProjectPanel: React.FC = () => {
                   exportToPNG(state);
                   showToast('Изображение готово', 'Схема в формате PNG сохранена', 'success');
                 }}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group text-left"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 transition-colors group text-left"
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400">
+                  <div className="p-1.5 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400">
                     <ImageIcon className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-medium text-slate-200 group-hover:text-white">Графика схемы (PNG)</div>
-                    <div className="text-[10px] text-slate-400">Высокое разрешение FullHD для отчетов</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">Графика схемы (PNG)</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Высокое разрешение FullHD для отчетов</div>
                   </div>
                 </div>
-                <FileDown className="w-4 h-4 text-slate-500 group-hover:text-blue-400" />
+                <FileDown className="w-4 h-4 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
               </button>
 
               {/* SVG */}
@@ -689,18 +689,18 @@ export const ProjectPanel: React.FC = () => {
                   exportToSVG(state);
                   showToast('Вектор сформирован', 'Файл SVG схемы сохранен', 'success');
                 }}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group text-left"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 transition-colors group text-left"
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-400">
+                  <div className="p-1.5 rounded-lg bg-purple-500/15 text-purple-600 dark:text-purple-400">
                     <Code className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-medium text-slate-200 group-hover:text-white">Векторная графика (SVG)</div>
-                    <div className="text-[10px] text-slate-400">Масштабируемый вектор схемы для печати</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">Векторная графика (SVG)</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Масштабируемый вектор схемы для печати</div>
                   </div>
                 </div>
-                <FileDown className="w-4 h-4 text-slate-500 group-hover:text-purple-400" />
+                <FileDown className="w-4 h-4 text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400" />
               </button>
 
               {/* CSV */}
@@ -710,18 +710,18 @@ export const ProjectPanel: React.FC = () => {
                   exportToCSV(state);
                   showToast('CSV готов', 'Таблица спецификации сохранена', 'success');
                 }}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group text-left"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 transition-colors group text-left"
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+                  <div className="p-1.5 rounded-lg bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
                     <FileText className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-medium text-slate-200 group-hover:text-white">Спецификация (CSV)</div>
-                    <div className="text-[10px] text-slate-400">Для интеграции со сторонними SCADA / 1C</div>
+                    <div className="font-medium text-slate-800 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white">Спецификация (CSV)</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">Для интеграции со сторонними SCADA / 1C</div>
                   </div>
                 </div>
-                <FileDown className="w-4 h-4 text-slate-500 group-hover:text-cyan-400" />
+                <FileDown className="w-4 h-4 text-slate-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400" />
               </button>
             </div>
           </div>
@@ -729,7 +729,7 @@ export const ProjectPanel: React.FC = () => {
           {/* SECTION 6: Analytics & Logs & Preset Reset */}
           <div className="space-y-2">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-blue-400" />
+              <Sliders className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
               <span>Дополнительные модули</span>
             </div>
 
@@ -740,9 +740,9 @@ export const ProjectPanel: React.FC = () => {
                   setIsReportOpen(true);
                   setIsProjectPanelOpen(false);
                 }}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-slate-200 hover:text-white transition-colors"
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors"
               >
-                <FileText className="w-4 h-4 text-blue-400" />
+                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <span>Отчеты</span>
               </button>
 
@@ -752,10 +752,10 @@ export const ProjectPanel: React.FC = () => {
                   setIsEventLogsOpen(true);
                   setIsProjectPanelOpen(false);
                 }}
-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-slate-200 hover:text-white transition-colors"
+                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white transition-colors"
               >
                 <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-amber-400" />
+                  <Activity className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                   <span>Логи аварий</span>
                 </div>
                 {criticalAlarmsCount > 0 && (
@@ -774,7 +774,7 @@ export const ProjectPanel: React.FC = () => {
                   showToast('Схема сброшена', 'Загружен заводской типовой проект предприятия.', 'info');
                 }
               }}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-white/5 hover:bg-red-500/10 text-slate-400 hover:text-red-400 border border-white/5 hover:border-red-500/20 text-xs transition-colors mt-2"
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-red-50 dark:hover:bg-red-500/10 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 border border-slate-200 dark:border-white/5 hover:border-red-300 dark:hover:border-red-500/20 text-xs transition-colors mt-2"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Сбросить к заводскому шаблону</span>
@@ -783,9 +783,9 @@ export const ProjectPanel: React.FC = () => {
         </div>
 
         {/* Footer info */}
-        <div className="p-3 border-t border-white/10 bg-white/[0.01] text-[10px] text-slate-500 text-center flex items-center justify-between">
+        <div className="p-3 border-t border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.01] text-[10px] text-slate-500 text-center flex items-center justify-between">
           <span>Схема SCADA v{state.version || 1}</span>
-          <span className="flex items-center gap-1 text-slate-400">
+          <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             Все узлы защищены
           </span>
@@ -797,21 +797,21 @@ export const ProjectPanel: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div
             id="save-as-dialog"
-            className="w-full max-w-lg bg-slate-900 border border-white/15 rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/15 rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150 text-slate-700 dark:text-slate-300"
           >
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-600/20 border border-indigo-200 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                   <FilePlus className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Сохранить проект как...</h3>
-                  <p className="text-xs text-slate-400">Выбор имени файла, папки назначения и параметров</p>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Сохранить проект как...</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Выбор имени файла, папки назначения и параметров</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsSaveAsOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -819,7 +819,7 @@ export const ProjectPanel: React.FC = () => {
 
             <form onSubmit={handleConfirmSaveAsDownload} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Имя файла проекта:
                 </label>
                 <div className="relative">
@@ -830,7 +830,7 @@ export const ProjectPanel: React.FC = () => {
                     onChange={(e) => setCustomFilename(e.target.value)}
                     placeholder="promschema_project"
                     autoFocus
-                    className="w-full pl-3 pr-16 py-2 rounded-xl bg-slate-800/90 border border-white/20 text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-slate-500"
+                    className="w-full pl-3 pr-16 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-white/20 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-400 pointer-events-none">
                     .json
@@ -839,25 +839,25 @@ export const ProjectPanel: React.FC = () => {
               </div>
 
               {/* Destination folder options card */}
-              <div className="p-3.5 rounded-xl bg-slate-800/50 border border-white/10 space-y-2.5 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/10 space-y-2.5 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-white flex items-center gap-1.5">
-                    <HardDrive className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <HardDrive className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                     <span>Папка назначения на компьютере:</span>
                   </span>
                   {targetDirectory ? (
-                    <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono flex items-center gap-1 font-semibold">
                       <FolderCheck className="w-3 h-3" />
                       {targetDirectory.name}
                     </span>
                   ) : (
-                    <span className="text-[10px] text-slate-400 font-mono">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                       Папка загрузок / диалог ОС
                     </span>
                   )}
                 </div>
 
-                <div className="text-[11px] text-slate-400">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
                   Вы можете выбрать конкретную папку через системный проводник или сохранить в заранее назначенную.
                 </div>
 
@@ -878,32 +878,32 @@ export const ProjectPanel: React.FC = () => {
                       type="button"
                       onClick={handleSaveToSelectedDirectory}
                       disabled={isSavingInProgress}
-                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/30 text-xs font-semibold transition-colors"
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-50 dark:bg-emerald-600/30 hover:bg-emerald-100 dark:hover:bg-emerald-600/50 text-emerald-700 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-500/30 text-xs font-semibold transition-colors"
                     >
-                      <FolderCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <FolderCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       <span>В папку «{targetDirectory?.name}»</span>
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-2 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 space-y-2 text-xs">
                 <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-slate-300">Включить журнал аварий и системных событий</span>
+                  <span className="text-slate-700 dark:text-slate-300">Включить журнал аварий и системных событий</span>
                   <input
                     type="checkbox"
                     checked={includeLogsInSaveAs}
                     onChange={(e) => setIncludeLogsInSaveAs(e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-white/20"
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-white dark:bg-slate-800 border-slate-300 dark:border-white/20"
                   />
                 </label>
               </div>
 
-              <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/10">
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-white/10">
                 <button
                   type="button"
                   onClick={() => setIsSaveAsOpen(false)}
-                  className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-medium transition-colors"
+                  className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-medium transition-colors"
                 >
                   Отмена
                 </button>
@@ -911,7 +911,7 @@ export const ProjectPanel: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSavingInProgress}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white text-xs font-semibold transition-all shadow-sm"
                   title="Скачать файл через стандартный механизм загрузок браузера"
                 >
                   <Download className="w-3.5 h-3.5" />
