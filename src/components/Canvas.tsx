@@ -712,10 +712,11 @@ export const Canvas: React.FC = () => {
       onMouseDown={handleCanvasMouseDown}
       onMouseMove={handleCanvasMouseMove}
       onMouseUp={handleCanvasMouseUp}
+      style={isFocusFullscreen ? { height: 'var(--app-height, 100dvh)' } : undefined}
       className={`${
         isFocusFullscreen
-          ? 'fixed inset-0 z-40 w-screen h-screen'
-          : 'relative w-full h-[calc(100vh-3.5rem)]'
+          ? 'fixed inset-0 z-40 w-full h-full h-[100dvh]'
+          : 'relative w-full h-full'
       } overflow-hidden bg-[#09090B] select-none transition-all touch-none ${
         isPanning || isSpacePressed || activeTool === 'pan' 
           ? 'cursor-grab active:cursor-grabbing' 

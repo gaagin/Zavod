@@ -89,6 +89,32 @@ const AppContent: React.FC = () => {
     };
   }, [importProject]);
 
+  // Mobile Viewport Dynamic Height calculation (critical for Opera, Chrome & Safari mobile toolbars)
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      // visualViewport is the most accurate on mobile (excludes browser top URL bar and bottom nav bar)
+      const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty('--app-height', `${height}px`);
+    };
+
+    updateViewportHeight();
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportHeight);
+      window.visualViewport.addEventListener('scroll', updateViewportHeight);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewportHeight);
+        window.visualViewport.removeEventListener('scroll', updateViewportHeight);
+      }
+    };
+  }, []);
+
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -215,7 +241,11 @@ const AppContent: React.FC = () => {
   ]);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#09090B] font-sans text-slate-300">
+    <div 
+      id="app-root-container"
+      style={{ height: 'var(--app-height, 100dvh)' }}
+      className="flex flex-col h-full h-[100dvh] w-full overflow-hidden bg-[#09090B] font-sans text-slate-300"
+    >
       {/* Top Header Navbar */}
       <Navbar />
 

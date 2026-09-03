@@ -131,7 +131,7 @@ export const InspectorPanel: React.FC = () => {
     return (
       <aside 
         id="factory-inspector-overview"
-        className="w-80 border-l border-white/10 bg-[#0F0F12] text-slate-300 p-4 h-[calc(100vh-3.5rem)] overflow-y-auto select-none transition-colors hidden lg:block"
+        className="w-80 border-l border-white/10 bg-[#0F0F12] text-slate-300 p-4 h-full overflow-y-auto select-none transition-colors hidden lg:block"
       >
         <div className="flex items-center gap-2 pb-3 border-b border-white/10">
           <Activity className="w-4 h-4 text-blue-400" />
@@ -239,7 +239,7 @@ export const InspectorPanel: React.FC = () => {
         />
         <aside 
           id="equipment-inspector"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-[calc(100vh-3.5rem)] lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12]"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12] lg:pb-4"
         >
           {/* Mobile Drag Indicator */}
           <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
@@ -635,7 +635,7 @@ export const InspectorPanel: React.FC = () => {
         />
         <aside 
           id="container-inspector"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-[calc(100vh-3.5rem)] lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12]"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12] lg:pb-4"
         >
           {/* Mobile Drag Indicator */}
           <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
@@ -893,7 +893,7 @@ export const InspectorPanel: React.FC = () => {
         />
         <aside 
           id="link-inspector"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-[calc(100vh-3.5rem)] lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12]"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12] lg:pb-4"
         >
           {/* Mobile Drag Indicator */}
           <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">

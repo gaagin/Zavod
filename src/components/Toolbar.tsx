@@ -133,12 +133,18 @@ export const Toolbar: React.FC = () => {
   };
 
   return (
-    <aside className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 p-1.5 sm:p-1 rounded-2xl sm:rounded-xl bg-[#0F0F12]/95 backdrop-blur-md border border-white/15 shadow-2xl text-slate-300 select-none transition-all max-w-[calc(100vw-1.5rem)] overflow-x-auto no-scrollbar">
+    <aside 
+      id="main-toolbar"
+      style={{
+        bottom: 'max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))'
+      }}
+      className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 p-1 sm:p-1 rounded-2xl sm:rounded-xl bg-[#0F0F12]/95 backdrop-blur-md border border-white/15 shadow-2xl text-slate-300 select-none transition-all max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] overflow-x-auto no-scrollbar touch-pan-x"
+    >
       {/* Pointer / Select */}
       <button
         id="tool-select-btn"
         onClick={() => setActiveTool('select')}
-        className={`p-2.5 sm:p-2 rounded-xl sm:rounded-lg shrink-0 transition-all ${
+        className={`p-2 sm:p-2 rounded-xl sm:rounded-lg shrink-0 transition-all ${
           activeTool === 'select'
             ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
             : 'hover:bg-white/5 text-slate-400 hover:text-white'
@@ -152,7 +158,7 @@ export const Toolbar: React.FC = () => {
       <button
         id="tool-pan-btn"
         onClick={() => setActiveTool('pan')}
-        className={`p-2.5 sm:p-2 rounded-xl sm:rounded-lg shrink-0 transition-all ${
+        className={`p-2 sm:p-2 rounded-xl sm:rounded-lg shrink-0 transition-all ${
           activeTool === 'pan'
             ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
             : 'hover:bg-white/5 text-slate-400 hover:text-white'
@@ -171,7 +177,7 @@ export const Toolbar: React.FC = () => {
             id="tool-add-equipment-btn"
             disabled={!canEdit}
             onClick={() => setEquipmentMenuOpen(!equipmentMenuOpen)}
-            className={`flex items-center gap-1.5 px-2.5 py-2 sm:py-1.5 rounded-xl sm:rounded-lg shrink-0 transition-all ${
+            className={`flex items-center gap-1.5 px-2 py-2 sm:px-2.5 sm:py-1.5 rounded-xl sm:rounded-lg shrink-0 transition-all ${
               !canEdit 
                 ? 'opacity-30 cursor-not-allowed'
                 : activeTool === 'add_equipment'
