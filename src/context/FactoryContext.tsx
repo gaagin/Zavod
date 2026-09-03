@@ -66,6 +66,12 @@ interface FactoryContextType {
   addEquipment: (equipment: EquipmentNode, reason?: string) => void;
   deleteEquipment: (id: string, reason?: string) => void;
   updateContainer: (id: string, partial: Partial<ContainerNode>, reason?: string, skipHistory?: boolean) => void;
+  batchUpdatePositions: (
+    containerUpdates: Array<{ id: string; x: number; y: number }>,
+    equipmentUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }>,
+    reason?: string,
+    skipHistory?: boolean
+  ) => void;
   toggleContainerCollapse: (id: string) => void;
   addContainer: (container: ContainerNode, reason?: string) => void;
   deleteContainer: (id: string, reason?: string) => void;
@@ -768,6 +774,63 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [state, pushHistory, currentUser]);
 
+  const batchUpdatePositions = useCallback((
+    containerUpdates: Array<{ id: string; x: number; y: number }>,
+    equipmentUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }>,
+    reason?: string,
+    skipHistory?: boolean
+  ) => {
+    if (!skipHistory) {
+      pushHistory(state);
+    }
+    const contMap = new Map(containerUpdates.map(u => [u.id, u]));
+    const eqMap = new Map(equipmentUpdates.map(u => [u.id, u]));
+
+    setState(prev => {
+      let containersChanged = false;
+      const nextContainers = prev.containers.map(c => {
+        const u = contMap.get(c.id);
+        if (u && (c.x !== u.x || c.y !== u.y)) {
+          containersChanged = true;
+          return { ...c, x: u.x, y: u.y };
+        }
+        return c;
+      });
+
+      let equipmentChanged = false;
+      const nextEquipment = prev.equipment.map(e => {
+        const u = eqMap.get(e.id);
+        if (u) {
+          const hasPosChange = e.x !== u.x || e.y !== u.y;
+          const hasParentChange = u.parentId !== undefined && e.parentId !== u.parentId;
+          if (hasPosChange || hasParentChange) {
+            equipmentChanged = true;
+            return {
+              ...e,
+              x: u.x,
+              y: u.y,
+              ...(u.parentId !== undefined ? { parentId: u.parentId } : {})
+            };
+          }
+        }
+        return e;
+      });
+
+      if (!containersChanged && !equipmentChanged) {
+        return prev;
+      }
+
+      const nextState = {
+        ...prev,
+        containers: nextContainers,
+        equipment: nextEquipment
+      };
+
+      syncStateToServer(nextState, reason || 'Перемещение элементов');
+      return nextState;
+    });
+  }, [state, pushHistory]);
+
   const toggleContainerCollapse = useCallback((id: string) => {
     setState(prev => {
       const target = prev.containers.find(c => c.id === id);
@@ -1326,6 +1389,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addEquipment,
         deleteEquipment,
         updateContainer,
+        batchUpdatePositions,
         toggleContainerCollapse,
         addContainer,
         deleteContainer,

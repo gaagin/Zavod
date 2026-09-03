@@ -56,21 +56,45 @@ export function isNodeHiddenByCollapsedAncestor(
 }
 
 /**
- * Find all nested child equipment IDs recursively
+ * Find all nested child equipment recursively (including equipment in child, grandchild containers)
  */
 export function getAllDescendantEquipment(
   containerId: string,
   containers: ContainerNode[],
   equipment: EquipmentNode[]
 ): EquipmentNode[] {
-  const childContainers = containers.filter(c => c.parentId === containerId);
-  let result = equipment.filter(e => e.parentId === containerId);
+  const containerIds = getAllDescendantContainerIds(containerId, containers);
+  const result: EquipmentNode[] = [];
+  const seen = new Set<string>();
 
-  for (const childCont of childContainers) {
-    result = result.concat(getAllDescendantEquipment(childCont.id, containers, equipment));
+  for (const eq of equipment) {
+    if (eq.parentId && containerIds.has(eq.parentId) && !seen.has(eq.id)) {
+      seen.add(eq.id);
+      result.push(eq);
+    }
   }
 
   return result;
+}
+
+/**
+ * Returns the nesting hierarchy depth of a container (0 for root, 1 for direct child, etc.)
+ */
+export function getContainerDepth(
+  containerId: string,
+  containers: ContainerNode[]
+): number {
+  let depth = 0;
+  let current = containers.find(c => c.id === containerId);
+  const visited = new Set<string>();
+
+  while (current?.parentId && !visited.has(current.id)) {
+    visited.add(current.id);
+    depth++;
+    current = containers.find(c => c.id === current!.parentId);
+  }
+
+  return depth;
 }
 
 /**

@@ -17,7 +17,8 @@ import {
   generateLinkPath,
   getAllDescendantContainerIds,
   isNodeInContainerSubtree,
-  getContainerBreadcrumbs
+  getContainerBreadcrumbs,
+  getContainerDepth
 } from '../utils/geometry';
 import { 
   Cpu, 
@@ -71,6 +72,7 @@ export const Canvas: React.FC = () => {
     setViewport,
     updateEquipment,
     updateContainer,
+    batchUpdatePositions,
     toggleContainerCollapse,
     deleteEquipment,
     deleteContainer,
@@ -104,9 +106,30 @@ export const Canvas: React.FC = () => {
   // Interaction State
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  const [draggedNode, setDraggedNode] = useState<{ id: string; type: 'equipment' | 'container'; initialX: number; initialY: number; mouseStartX: number; mouseStartY: number } | null>(null);
+  const [draggedNode, setDraggedNode] = useState<{ 
+    id: string; 
+    type: 'equipment' | 'container'; 
+    initialX: number; 
+    initialY: number; 
+    mouseStartX: number; 
+    mouseStartY: number;
+    initialDescendantContainers?: Array<{ id: string; initialX: number; initialY: number }>;
+    initialDescendantEquipment?: Array<{ id: string; initialX: number; initialY: number }>;
+  } | null>(null);
   const [cursorPosOnCanvas, setCursorPosOnCanvas] = useState<{ x: number; y: number } | null>(null);
   const [connectingMousePos, setConnectingMousePos] = useState<{ x: number; y: number } | null>(null);
+
+  // Global mouseup listener to avoid stuck drag when mouse leaves container
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      setIsPanning(false);
+      setDraggedNode(null);
+    };
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, []);
 
   // Spacebar panning support
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -218,7 +241,20 @@ export const Canvas: React.FC = () => {
       const newX = snap(rawNewX);
       const newY = snap(rawNewY);
 
-      applyNodePositionChange(draggedNode.id, draggedNode.type, newX, newY);
+      applyNodePositionChange(
+        draggedNode.id,
+        draggedNode.type,
+        newX,
+        newY,
+        draggedNode.type === 'container' && draggedNode.initialDescendantContainers && draggedNode.initialDescendantEquipment
+          ? {
+              initialX: draggedNode.initialX,
+              initialY: draggedNode.initialY,
+              containers: draggedNode.initialDescendantContainers,
+              equipment: draggedNode.initialDescendantEquipment,
+            }
+          : undefined
+      );
     }
   };
 
@@ -240,13 +276,32 @@ export const Canvas: React.FC = () => {
     setSelectedId(id);
     if (currentUser.role === 'admin' || currentUser.role === 'operator') {
       recordHistorySnapshot();
+
+      let initialDescendantContainers: Array<{ id: string; initialX: number; initialY: number }> = [];
+      let initialDescendantEquipment: Array<{ id: string; initialX: number; initialY: number }> = [];
+
+      if (type === 'container') {
+        const allContIds = getAllDescendantContainerIds(id, state.containers);
+        allContIds.delete(id); // Exclude self
+
+        initialDescendantContainers = state.containers
+          .filter(c => allContIds.has(c.id))
+          .map(c => ({ id: c.id, initialX: c.x, initialY: c.y }));
+
+        // All descendant equipment (inside this container OR inside any child/grandchild containers)
+        const allEquipment = getAllDescendantEquipment(id, state.containers, state.equipment);
+        initialDescendantEquipment = allEquipment.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
+      }
+
       setDraggedNode({
         id,
         type,
         initialX,
         initialY,
         mouseStartX: e.clientX,
-        mouseStartY: e.clientY
+        mouseStartY: e.clientY,
+        initialDescendantContainers,
+        initialDescendantEquipment,
       });
     }
   };
@@ -268,42 +323,97 @@ export const Canvas: React.FC = () => {
   };
 
   // Unified node position update helper (used by both mouse and touch handlers)
-  const applyNodePositionChange = useCallback((id: string, type: 'equipment' | 'container', newX: number, newY: number) => {
+  const applyNodePositionChange = useCallback((
+    id: string,
+    type: 'equipment' | 'container',
+    newX: number,
+    newY: number,
+    cachedDescendants?: {
+      initialX: number;
+      initialY: number;
+      containers: Array<{ id: string; initialX: number; initialY: number }>;
+      equipment: Array<{ id: string; initialX: number; initialY: number }>;
+    }
+  ) => {
     if (type === 'equipment') {
       const eq = state.equipment.find(item => item.id === id);
       if (eq && (eq.x !== newX || eq.y !== newY)) {
-        // Check if dragging into a container
-        const targetCont = state.containers.find(c => 
+        // Check if dragging into a container (supports deep nesting: finds innermost container)
+        const matchingContainers = state.containers.filter(c => 
           !c.isCollapsed &&
           newX >= c.x && newX + eq.width <= c.x + c.width &&
           newY >= c.y && newY + eq.height <= c.y + c.height
         );
-        const newParentId = targetCont ? targetCont.id : null;
+
+        let newParentId: string | null = null;
+        if (matchingContainers.length > 0) {
+          // Sort by nesting depth descending (innermost child first), then by smallest area
+          matchingContainers.sort((a, b) => {
+            const depthA = getContainerDepth(a.id, state.containers);
+            const depthB = getContainerDepth(b.id, state.containers);
+            if (depthB !== depthA) return depthB - depthA;
+            return (a.width * a.height) - (b.width * b.height);
+          });
+          newParentId = matchingContainers[0].id;
+        }
+
         updateEquipment(id, { x: newX, y: newY, parentId: newParentId }, undefined, true);
       }
     } else if (type === 'container') {
       const cont = state.containers.find(c => c.id === id);
       if (cont && (cont.x !== newX || cont.y !== newY)) {
-        const shiftX = newX - cont.x;
-        const shiftY = newY - cont.y;
+        if (cachedDescendants) {
+          const shiftX = newX - cachedDescendants.initialX;
+          const shiftY = newY - cachedDescendants.initialY;
 
-        // Move container
-        updateContainer(id, { x: newX, y: newY }, undefined, true);
+          const containerUpdates: Array<{ id: string; x: number; y: number }> = [
+            { id, x: newX, y: newY },
+            ...cachedDescendants.containers.map(c => ({
+              id: c.id,
+              x: c.initialX + shiftX,
+              y: c.initialY + shiftY,
+            }))
+          ];
 
-        // Also move all nested equipment
-        const nestedEq = state.equipment.filter(eq => eq.parentId === cont.id);
-        nestedEq.forEach(eq => {
-          updateEquipment(eq.id, { x: snap(eq.x + shiftX), y: snap(eq.y + shiftY) }, undefined, true);
-        });
+          const equipmentUpdates: Array<{ id: string; x: number; y: number }> = cachedDescendants.equipment.map(eq => ({
+            id: eq.id,
+            x: eq.initialX + shiftX,
+            y: eq.initialY + shiftY,
+          }));
 
-        // Also move child nested containers
-        const childContainers = state.containers.filter(c => c.parentId === cont.id);
-        childContainers.forEach(cc => {
-          updateContainer(cc.id, { x: snap(cc.x + shiftX), y: snap(cc.y + shiftY) }, undefined, true);
-        });
+          batchUpdatePositions(containerUpdates, equipmentUpdates, undefined, true);
+        } else {
+          const shiftX = newX - cont.x;
+          const shiftY = newY - cont.y;
+
+          // All descendant containers (direct children and deeply nested sub-containers)
+          const allDescendantContIds = getAllDescendantContainerIds(id, state.containers);
+          allDescendantContIds.delete(id); // Exclude self
+
+          const descendantContainers = state.containers.filter(c => allDescendantContIds.has(c.id));
+          // All descendant equipment (equipment inside this container OR inside any descendant container)
+          const descendantEquipment = getAllDescendantEquipment(id, state.containers, state.equipment);
+
+          const containerUpdates: Array<{ id: string; x: number; y: number }> = [
+            { id, x: newX, y: newY },
+            ...descendantContainers.map(c => ({
+              id: c.id,
+              x: c.x + shiftX,
+              y: c.y + shiftY,
+            }))
+          ];
+
+          const equipmentUpdates: Array<{ id: string; x: number; y: number }> = descendantEquipment.map(eq => ({
+            id: eq.id,
+            x: eq.x + shiftX,
+            y: eq.y + shiftY,
+          }));
+
+          batchUpdatePositions(containerUpdates, equipmentUpdates, undefined, true);
+        }
       }
     }
-  }, [state.equipment, state.containers, updateEquipment, updateContainer, gridSnap]);
+  }, [state.equipment, state.containers, updateEquipment, batchUpdatePositions]);
 
   // Touch & Mobile Interaction Engine
   const touchStateRef = useRef({
@@ -353,6 +463,8 @@ export const Canvas: React.FC = () => {
     draggedNodeType: null,
     initialNodeX: 0,
     initialNodeY: 0,
+    initialDescendantContainers: [] as Array<{ id: string; initialX: number; initialY: number }>,
+    initialDescendantEquipment: [] as Array<{ id: string; initialX: number; initialY: number }>,
     isPanning: false,
     initialPanX: 0,
     initialPanY: 0,
@@ -410,6 +522,16 @@ export const Canvas: React.FC = () => {
             if (cont) {
               t.initialNodeX = cont.x;
               t.initialNodeY = cont.y;
+
+              const allContIds = getAllDescendantContainerIds(id, curSt.containers);
+              allContIds.delete(id);
+
+              t.initialDescendantContainers = curSt.containers
+                .filter(c => allContIds.has(c.id))
+                .map(c => ({ id: c.id, initialX: c.x, initialY: c.y }));
+
+              const allEq = getAllDescendantEquipment(id, curSt.containers, curSt.equipment);
+              t.initialDescendantEquipment = allEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
             }
           }
         } else {
@@ -483,7 +605,20 @@ export const Canvas: React.FC = () => {
             const newX = curSnap ? Math.round(rawX / 20) * 20 : Math.round(rawX);
             const newY = curSnap ? Math.round(rawY / 20) * 20 : Math.round(rawY);
 
-            applyNodePositionChange(t.draggedNodeId, t.draggedNodeType, newX, newY);
+            applyNodePositionChange(
+              t.draggedNodeId,
+              t.draggedNodeType,
+              newX,
+              newY,
+              t.draggedNodeType === 'container'
+                ? {
+                    initialX: t.initialNodeX,
+                    initialY: t.initialNodeY,
+                    containers: t.initialDescendantContainers,
+                    equipment: t.initialDescendantEquipment,
+                  }
+                : undefined
+            );
           }
         } else if (t.isPanning) {
           if (t.hasMoved) {
@@ -528,6 +663,8 @@ export const Canvas: React.FC = () => {
 
         t.draggedNodeId = null;
         t.draggedNodeType = null;
+        t.initialDescendantContainers = [];
+        t.initialDescendantEquipment = [];
         setTouchDraggingNodeId(null);
         t.isPanning = false;
         t.hasMoved = false;
@@ -539,6 +676,8 @@ export const Canvas: React.FC = () => {
       const t = touchTrackingRef.current;
       t.draggedNodeId = null;
       t.draggedNodeType = null;
+      t.initialDescendantContainers = [];
+      t.initialDescendantEquipment = [];
       setTouchDraggingNodeId(null);
       t.isPanning = false;
       t.isPinching = false;
