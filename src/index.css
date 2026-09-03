@@ -23,4 +23,15 @@ html, body, #root {
   padding: 0;
   overflow: hidden;
   background-color: #09090B;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Allow text selection inside input and textarea */
+input, textarea, select {
+  -webkit-user-select: auto;
+  user-select: auto;
 }

@@ -27,7 +27,11 @@ import {
   Share2, 
   Edit3,
   Sliders,
-  ChevronRight
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  Focus,
+  Scan
 } from 'lucide-react';
 
 export const InspectorPanel: React.FC = () => {
@@ -44,6 +48,11 @@ export const InspectorPanel: React.FC = () => {
     deleteLink,
     currentUser,
     focusNode,
+    focusedContainerId,
+    enterFocusMode,
+    exitFocusMode,
+    toggleFocusMode,
+    fitContainerToScreen,
   } = useFactory();
 
   const [newPropName, setNewPropName] = useState('');
@@ -86,11 +95,27 @@ export const InspectorPanel: React.FC = () => {
     }, `Удалено свойство для ${selectedEquipment.tag}`);
   };
 
-  const handleUpdateProperty = (propId: string, value: string | number) => {
+  const handleUpdateProperty = (propId: string, updates: Partial<CustomProperty>) => {
     if (!selectedEquipment) return;
     updateEquipment(selectedEquipment.id, {
-      properties: selectedEquipment.properties.map(p => p.id === propId ? { ...p, value } : p)
+      properties: selectedEquipment.properties.map(p => p.id === propId ? { ...p, ...updates } : p)
     });
+  };
+
+  const handleQuickAddChip = (propName: string, unit: string, defaultValue: string = '0') => {
+    if (!selectedEquipment || !canEdit) return;
+    const numVal = Number(defaultValue);
+    const isNum = !isNaN(numVal) && defaultValue !== '';
+    const newProp: CustomProperty = {
+      id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      name: propName,
+      value: isNum ? numVal : defaultValue,
+      type: isNum ? 'number' : 'text',
+      unit: unit || undefined,
+    };
+    updateEquipment(selectedEquipment.id, {
+      properties: [...selectedEquipment.properties, newProp]
+    }, `Добавлен параметр "${propName}" для ${selectedEquipment.tag}`);
   };
 
   // If nothing selected, show Factory Overview Panel
@@ -206,11 +231,22 @@ export const InspectorPanel: React.FC = () => {
       : 'Корень предприятия (вне контейнера)';
 
     return (
-      <aside 
-        id="equipment-inspector"
-        className="w-80 border-l border-white/10 bg-[#0F0F12] text-slate-300 p-4 h-[calc(100vh-3.5rem)] overflow-y-auto select-none transition-colors"
-      >
-        {/* Header */}
+      <>
+        {/* Mobile backdrop overlay */}
+        <div 
+          onClick={() => setSelectedId(null)}
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+        />
+        <aside 
+          id="equipment-inspector"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-[calc(100vh-3.5rem)] lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12]"
+        >
+          {/* Mobile Drag Indicator */}
+          <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
+            <div className="w-10 h-1 rounded-full bg-white/20" />
+          </div>
+
+          {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2 truncate">
             <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
@@ -280,10 +316,10 @@ export const InspectorPanel: React.FC = () => {
               </label>
               <input
                 type="text"
-                disabled={!canAdmin}
+                disabled={!canEdit}
                 value={selectedEquipment.tag}
                 onChange={(e) => updateEquipment(selectedEquipment.id, { tag: e.target.value })}
-                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
+                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-white/10 bg-white/5 text-blue-400 font-bold focus:outline-hidden focus:border-blue-500"
               />
             </div>
 
@@ -297,6 +333,7 @@ export const InspectorPanel: React.FC = () => {
                 onChange={(e) => updateEquipment(selectedEquipment.id, { equipmentType: e.target.value as EquipmentType })}
                 className="w-full px-2 py-1.5 rounded-lg border border-white/10 bg-[#17171C] text-slate-200 focus:outline-hidden focus:border-blue-500"
               >
+                <option value="custom" className="bg-[#0F0F12]">Другое / Свои свойства</option>
                 <option value="cnc" className="bg-[#0F0F12]">ЧПУ станок</option>
                 <option value="robot" className="bg-[#0F0F12]">Робот-манипулятор</option>
                 <option value="pump" className="bg-[#0F0F12]">Насосная станция</option>
@@ -306,7 +343,6 @@ export const InspectorPanel: React.FC = () => {
                 <option value="compressor" className="bg-[#0F0F12]">Компрессор</option>
                 <option value="furnace" className="bg-[#0F0F12]">Печь / Термоблок</option>
                 <option value="motor" className="bg-[#0F0F12]">Электродвигатель</option>
-                <option value="custom" className="bg-[#0F0F12]">Другое</option>
               </select>
             </div>
           </div>
@@ -319,8 +355,9 @@ export const InspectorPanel: React.FC = () => {
               <input
                 type="number"
                 disabled={!canEdit}
-                value={selectedEquipment.powerKw || ''}
-                onChange={(e) => updateEquipment(selectedEquipment.id, { powerKw: Number(e.target.value) })}
+                placeholder="0"
+                value={selectedEquipment.powerKw ?? ''}
+                onChange={(e) => updateEquipment(selectedEquipment.id, { powerKw: e.target.value === '' ? undefined : Number(e.target.value) })}
                 className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
               />
             </div>
@@ -332,8 +369,9 @@ export const InspectorPanel: React.FC = () => {
               <input
                 type="number"
                 disabled={!canEdit}
-                value={selectedEquipment.voltageV || ''}
-                onChange={(e) => updateEquipment(selectedEquipment.id, { voltageV: Number(e.target.value) })}
+                placeholder="380"
+                value={selectedEquipment.voltageV ?? ''}
+                onChange={(e) => updateEquipment(selectedEquipment.id, { voltageV: e.target.value === '' ? undefined : Number(e.target.value) })}
                 className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500"
               />
             </div>
@@ -361,17 +399,47 @@ export const InspectorPanel: React.FC = () => {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                Модель
+              </label>
+              <input
+                type="text"
+                disabled={!canEdit}
+                placeholder="напр. DMU-50"
+                value={selectedEquipment.model || ''}
+                onChange={(e) => updateEquipment(selectedEquipment.id, { model: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-600"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                Заводской №
+              </label>
+              <input
+                type="text"
+                disabled={!canEdit}
+                placeholder="SN-001"
+                value={selectedEquipment.serialNumber || ''}
+                onChange={(e) => updateEquipment(selectedEquipment.id, { serialNumber: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-600 font-mono"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-              Модель & Серийный номер
+              Изготовитель / Бренд
             </label>
             <input
               type="text"
               disabled={!canEdit}
-              placeholder="Например, DMU 50, сер. №8841"
-              value={selectedEquipment.model || ''}
-              onChange={(e) => updateEquipment(selectedEquipment.id, { model: e.target.value })}
-              className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 mb-1 placeholder:text-slate-600"
+              placeholder="Siemens, KUKA, Danfoss..."
+              value={selectedEquipment.manufacturer || ''}
+              onChange={(e) => updateEquipment(selectedEquipment.id, { manufacturer: e.target.value })}
+              className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-600"
             />
           </div>
 
@@ -382,6 +450,7 @@ export const InspectorPanel: React.FC = () => {
             <textarea
               rows={2}
               disabled={!canEdit}
+              placeholder="Заметки по оборудованию, состояние..."
               value={selectedEquipment.notes || ''}
               onChange={(e) => updateEquipment(selectedEquipment.id, { notes: e.target.value })}
               className="w-full px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-slate-200 focus:outline-hidden focus:border-blue-500 resize-none text-[11px] placeholder:text-slate-600"
@@ -392,51 +461,100 @@ export const InspectorPanel: React.FC = () => {
         {/* Custom Editable Properties Section */}
         <div className="pt-3 border-t border-white/10 my-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              Настраиваемые свойства
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+              <Sliders className="w-3 h-3 text-blue-400" />
+              <span>Настраиваемые свойства</span>
             </span>
             <span className="text-[10px] text-slate-500 font-mono">
               {selectedEquipment.properties.length}
             </span>
           </div>
 
-          {/* Properties list */}
-          <div className="space-y-1.5 max-h-48 overflow-y-auto">
-            {selectedEquipment.properties.map(prop => (
-              <div 
-                key={prop.id} 
-                className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/10 text-xs"
-              >
-                <div className="flex-1 min-w-0 mr-2">
-                  <div className="font-medium text-slate-400 truncate text-[11px]">
-                    {prop.name}
-                  </div>
-                  <input
-                    type="text"
-                    disabled={!canEdit}
-                    value={prop.value}
-                    onChange={(e) => handleUpdateProperty(prop.id, e.target.value)}
-                    className="w-full bg-transparent font-mono font-bold text-white focus:outline-hidden text-xs"
-                  />
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {prop.unit && (
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {prop.unit}
-                    </span>
-                  )}
-                  {canEdit && (
-                    <button
-                      onClick={() => handleDeleteProperty(prop.id)}
-                      className="p-1 text-slate-500 hover:text-red-400 rounded transition-colors"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
+          {/* Quick template chips */}
+          {canEdit && (
+            <div className="mb-2.5">
+              <div className="text-[10px] text-slate-500 mb-1">Быстро добавить свойство:</div>
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { name: 'Температура', unit: '°C', val: '40' },
+                  { name: 'Давление', unit: 'бар', val: '6.0' },
+                  { name: 'Вибрация', unit: 'мм/с', val: '1.2' },
+                  { name: 'Ток', unit: 'А', val: '24' },
+                  { name: 'Обороты', unit: 'об/мин', val: '1500' },
+                  { name: 'Наработка', unit: 'ч', val: '120' },
+                  { name: 'IP-адрес', unit: '', val: '192.168.1.50' },
+                ].map(chip => (
+                  <button
+                    key={chip.name}
+                    type="button"
+                    onClick={() => handleQuickAddChip(chip.name, chip.unit, chip.val)}
+                    className="px-1.5 py-0.5 rounded bg-white/5 hover:bg-blue-600/20 hover:text-blue-300 border border-white/10 text-[10px] text-slate-300 transition-colors flex items-center gap-0.5"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>{chip.name}</span>
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* Properties list */}
+          {selectedEquipment.properties.length === 0 ? (
+            <div className="p-3 rounded-xl bg-blue-500/5 border border-dashed border-blue-500/20 text-center text-slate-400 text-xs my-2">
+              <div className="text-blue-300 font-semibold mb-0.5">Нет пользовательских свойств</div>
+              <div className="text-[10px] text-slate-500">
+                Используйте кнопки выше или форму ниже, чтобы добавить параметры
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-56 overflow-y-auto">
+              {selectedEquipment.properties.map(prop => (
+                <div 
+                  key={prop.id} 
+                  className="p-2 rounded-lg bg-white/5 border border-white/10 text-xs space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <input
+                      type="text"
+                      disabled={!canEdit}
+                      value={prop.name}
+                      onChange={(e) => handleUpdateProperty(prop.id, { name: e.target.value })}
+                      placeholder="Имя параметра"
+                      className="flex-1 bg-transparent text-slate-300 text-[11px] font-medium focus:outline-hidden focus:border-b border-blue-500 px-0.5"
+                    />
+                    {canEdit && (
+                      <button
+                        onClick={() => handleDeleteProperty(prop.id)}
+                        className="p-1 text-slate-500 hover:text-red-400 rounded transition-colors"
+                        title="Удалить свойство"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      disabled={!canEdit}
+                      value={prop.value}
+                      onChange={(e) => handleUpdateProperty(prop.id, { value: e.target.value })}
+                      placeholder="Значение"
+                      className="flex-1 bg-black/30 px-2 py-0.5 rounded font-mono font-bold text-white border border-white/10 focus:outline-hidden focus:border-blue-500 text-xs"
+                    />
+                    <input
+                      type="text"
+                      disabled={!canEdit}
+                      value={prop.unit || ''}
+                      onChange={(e) => handleUpdateProperty(prop.id, { unit: e.target.value })}
+                      placeholder="ед."
+                      className="w-12 bg-black/30 px-1.5 py-0.5 rounded font-mono text-slate-400 border border-white/10 focus:outline-hidden focus:border-blue-500 text-[10px] text-center"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Add property form */}
           {canEdit && (
@@ -495,7 +613,8 @@ export const InspectorPanel: React.FC = () => {
           </div>
         )}
       </aside>
-    );
+    </>
+  );
   }
 
   // CONTAINER INSPECTOR (Deep nesting)
@@ -508,11 +627,22 @@ export const InspectorPanel: React.FC = () => {
     const directEquipment = state.equipment.filter(e => e.parentId === selectedContainer.id);
 
     return (
-      <aside 
-        id="container-inspector"
-        className="w-80 border-l border-white/10 bg-[#0F0F12] text-slate-300 p-4 h-[calc(100vh-3.5rem)] overflow-y-auto select-none transition-colors"
-      >
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+      <>
+        {/* Mobile backdrop overlay */}
+        <div 
+          onClick={() => setSelectedId(null)}
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+        />
+        <aside 
+          id="container-inspector"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-[calc(100vh-3.5rem)] lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12]"
+        >
+          {/* Mobile Drag Indicator */}
+          <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
+            <div className="w-10 h-1 rounded-full bg-white/20" />
+          </div>
+
+          <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2 truncate">
             <span 
               className="font-mono text-xs font-bold px-1.5 py-0.5 rounded text-white"
@@ -532,8 +662,47 @@ export const InspectorPanel: React.FC = () => {
           </button>
         </div>
 
+        {/* Focus Mode Action Banner */}
+        {/* Fullscreen Workspace Focus Mode */}
+        <div className="my-3 space-y-1.5">
+          <button
+            id="inspector-focus-mode-toggle-btn"
+            onClick={() => toggleFocusMode(selectedContainer.id)}
+            className={`w-full py-2.5 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 ${
+              focusedContainerId === selectedContainer.id
+                ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400 shadow-blue-500/25 ring-2 ring-blue-500/40'
+                : 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-white border-blue-500/40 hover:border-blue-500/60'
+            }`}
+          >
+            {focusedContainerId === selectedContainer.id ? (
+              <>
+                <Minimize2 className="w-4 h-4 text-white" />
+                <span>Выйти из цеха (общий план)</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-4 h-4 text-blue-400" />
+                <span>Открыть цех на весь экран (F)</span>
+              </>
+            )}
+          </button>
+
+          {focusedContainerId === selectedContainer.id && (
+            <div className="pt-1">
+              <button
+                onClick={() => fitContainerToScreen(selectedContainer.id)}
+                className="w-full py-2 px-3 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold border border-white/10 flex items-center justify-center gap-1.5 transition-colors"
+                title="Подогнать элементы цеха под рабочее окно"
+              >
+                <Scan className="w-3.5 h-3.5 text-blue-400" />
+                <span>По размеру рабочего окна</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Collapse Toggle */}
-        <div className="my-3">
+        <div className="mb-3">
           <button
             onClick={() => toggleContainerCollapse(selectedContainer.id)}
             className="w-full py-2 px-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-200 flex items-center justify-between transition-colors"
@@ -657,10 +826,21 @@ export const InspectorPanel: React.FC = () => {
             {childContainers.map(cc => (
               <div 
                 key={cc.id}
-                onClick={() => focusNode(cc.id)}
-                className="p-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between cursor-pointer hover:bg-white/10"
+                className="p-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between hover:bg-white/10 group/item"
               >
-                <span className="font-semibold text-blue-400 truncate">📁 [{cc.tag}] {cc.name}</span>
+                <span 
+                  onClick={() => focusNode(cc.id)}
+                  className="font-semibold text-blue-400 truncate cursor-pointer hover:underline flex-1"
+                >
+                  📁 [{cc.tag}] {cc.name}
+                </span>
+                <button
+                  onClick={() => enterFocusMode(cc.id)}
+                  className="p-1 rounded-md hover:bg-blue-500/20 text-slate-400 hover:text-blue-300 transition-colors"
+                  title="Войти в фокусный режим для этого цеха (на весь экран)"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             ))}
             {directEquipment.map(eq => (
@@ -695,7 +875,8 @@ export const InspectorPanel: React.FC = () => {
           </div>
         )}
       </aside>
-    );
+    </>
+  );
   }
 
   // LINK / CONNECTION INSPECTOR
@@ -704,11 +885,22 @@ export const InspectorPanel: React.FC = () => {
     const toNode = state.equipment.find(e => e.id === selectedLink.toId) || state.containers.find(c => c.id === selectedLink.toId);
 
     return (
-      <aside 
-        id="link-inspector"
-        className="w-80 border-l border-white/10 bg-[#0F0F12] text-slate-300 p-4 h-[calc(100vh-3.5rem)] overflow-y-auto select-none transition-colors"
-      >
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+      <>
+        {/* Mobile backdrop overlay */}
+        <div 
+          onClick={() => setSelectedId(null)}
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+        />
+        <aside 
+          id="link-inspector"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80vh] w-full border-t border-white/15 bg-[#0F0F12]/95 backdrop-blur-xl p-4 overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-[calc(100vh-3.5rem)] lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:bg-[#0F0F12]"
+        >
+          {/* Mobile Drag Indicator */}
+          <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
+            <div className="w-10 h-1 rounded-full bg-white/20" />
+          </div>
+
+          <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2 truncate">
             <Share2 className="w-4 h-4 text-blue-400" />
             <span className="font-bold text-xs text-white truncate">
@@ -824,7 +1016,8 @@ export const InspectorPanel: React.FC = () => {
           </div>
         )}
       </aside>
-    );
+    </>
+  );
   }
 
   return null;

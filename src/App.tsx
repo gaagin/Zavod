@@ -7,6 +7,7 @@ import { InspectorPanel } from './components/InspectorPanel';
 import { ProjectPanel } from './components/ProjectPanel';
 import { SearchModal } from './components/SearchModal';
 import { ReportModal } from './components/ReportModal';
+import { CreateEquipmentModal } from './components/CreateEquipmentModal';
 import { ToastContainer } from './components/ToastContainer';
 import { exportToJSON } from './utils/exportUtils';
 import { Upload, FileCode } from 'lucide-react';
@@ -31,6 +32,12 @@ const AppContent: React.FC = () => {
     importProject,
     forceSave,
     showToast,
+    focusedContainerId,
+    enterFocusMode,
+    exitFocusMode,
+    isFocusFullscreen,
+    addEmptyEquipment,
+    setIsCreateEquipmentOpen,
   } = useFactory();
 
   const [isWindowDragOver, setIsWindowDragOver] = useState(false);
@@ -121,14 +128,27 @@ const AppContent: React.FC = () => {
         return;
       }
 
-      // Escape: Close search, deselect
+      // Escape: Close search, exit focus mode, or deselect
       if (e.key === 'Escape') {
         if (isSearchOpen) {
           setIsSearchOpen(false);
+        } else if (focusedContainerId) {
+          exitFocusMode();
         } else {
           setSelectedId(null);
         }
         return;
+      }
+
+      // Focus Mode toggle via 'f' / 'F' (when not typing in form field)
+      if ((e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (focusedContainerId) {
+          exitFocusMode();
+          return;
+        } else if (selectedId && state.containers.some(c => c.id === selectedId)) {
+          enterFocusMode(selectedId);
+          return;
+        }
       }
 
       // Delete / Backspace: delete selected
@@ -164,6 +184,8 @@ const AppContent: React.FC = () => {
         zoomOut();
       } else if (e.key === '0') {
         zoomReset();
+      } else if ((e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        addEmptyEquipment(focusedContainerId || null);
       }
     };
 
@@ -184,7 +206,12 @@ const AppContent: React.FC = () => {
     setActiveTool,
     zoomIn,
     zoomOut,
-    zoomReset
+    zoomReset,
+    focusedContainerId,
+    enterFocusMode,
+    exitFocusMode,
+    addEmptyEquipment,
+    setIsCreateEquipmentOpen
   ]);
 
   return (
@@ -205,6 +232,7 @@ const AppContent: React.FC = () => {
       {/* Modals & Dialogs */}
       <SearchModal />
       <ReportModal />
+      <CreateEquipmentModal />
 
       {/* Global Toast Notifications */}
       <ToastContainer />

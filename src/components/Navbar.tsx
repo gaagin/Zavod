@@ -15,7 +15,9 @@ import {
   Save,
   ChevronRight,
   ShieldCheck,
-  RefreshCw
+  RefreshCw,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -34,6 +36,10 @@ export const Navbar: React.FC = () => {
     autoSaveConfig,
     saveStatus,
     lastSavedTime,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useFactory();
 
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
@@ -181,7 +187,38 @@ export const Navbar: React.FC = () => {
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Undo & Redo History Controls */}
+        <div className="flex items-center gap-0.5 bg-white/5 border border-white/10 rounded-lg p-0.5">
+          <button
+            id="nav-undo-btn"
+            disabled={!canUndo}
+            onClick={undo}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              canUndo
+                ? 'bg-blue-600/25 hover:bg-blue-600/40 text-blue-300 hover:text-white border border-blue-500/40 shadow-sm active:scale-95'
+                : 'opacity-30 cursor-not-allowed text-slate-500 border border-transparent'
+            }`}
+            title={canUndo ? 'Отменить последнее действие (Ctrl+Z)' : 'Нет действий для отмены'}
+          >
+            <Undo2 className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden sm:inline">Отменить</span>
+          </button>
+          <button
+            id="nav-redo-btn"
+            disabled={!canRedo}
+            onClick={redo}
+            className={`p-1.5 rounded-md text-xs transition-all ${
+              canRedo
+                ? 'hover:bg-white/10 text-slate-200 hover:text-white active:scale-95'
+                : 'opacity-25 cursor-not-allowed text-slate-600'
+            }`}
+            title={canRedo ? 'Повторить действие (Ctrl+Y)' : 'Нет действий для повтора'}
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         {/* Mobile Search button */}
         <button
           onClick={() => setIsSearchOpen(true)}

@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { initialFactoryState } from '../data/initialFactory';
 import { parseAndValidateProject } from '../utils/exportUtils';
+import { calculateContainerFitViewport } from '../utils/geometry';
 
 export type CanvasTool = 'select' | 'pan' | 'add_equipment' | 'add_container' | 'connect';
 
@@ -50,11 +51,21 @@ interface FactoryContextType {
   zoomOut: () => void;
   zoomReset: () => void;
 
+  // Container Focus Mode (Full-screen workshop view)
+  focusedContainerId: string | null;
+  setFocusedContainerId: (id: string | null) => void;
+  isFocusFullscreen: boolean;
+  setIsFocusFullscreen: React.Dispatch<React.SetStateAction<boolean>>;
+  enterFocusMode: (containerId: string) => void;
+  exitFocusMode: () => void;
+  toggleFocusMode: (containerId?: string) => void;
+  fitContainerToScreen: (containerId?: string) => void;
+
   // Actions
-  updateEquipment: (id: string, partial: Partial<EquipmentNode>, reason?: string) => void;
+  updateEquipment: (id: string, partial: Partial<EquipmentNode>, reason?: string, skipHistory?: boolean) => void;
   addEquipment: (equipment: EquipmentNode, reason?: string) => void;
   deleteEquipment: (id: string, reason?: string) => void;
-  updateContainer: (id: string, partial: Partial<ContainerNode>, reason?: string) => void;
+  updateContainer: (id: string, partial: Partial<ContainerNode>, reason?: string, skipHistory?: boolean) => void;
   toggleContainerCollapse: (id: string) => void;
   addContainer: (container: ContainerNode, reason?: string) => void;
   deleteContainer: (id: string, reason?: string) => void;
@@ -81,6 +92,7 @@ interface FactoryContextType {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  recordHistorySnapshot: () => void;
 
   // User & Role
   setCurrentUserRole: (role: UserRole) => void;
@@ -92,6 +104,9 @@ interface FactoryContextType {
   toggleDarkMode: () => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
+  isCreateEquipmentOpen: boolean;
+  setIsCreateEquipmentOpen: (open: boolean) => void;
+  addEmptyEquipment: (parentId?: string | null, position?: { x: number; y: number }) => string;
   isReportOpen: boolean;
   setIsReportOpen: (open: boolean) => void;
   isBackupOpen: boolean;
@@ -215,8 +230,13 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [linkDraftType, setLinkDraftType] = useState<LinkType>('power');
   const [gridSnap, setGridSnap] = useState<boolean>(true);
 
+  // Container Focus Mode State (Selected container fills the entire working window)
+  const [focusedContainerId, setFocusedContainerId] = useState<string | null>(null);
+  const [isFocusFullscreen, setIsFocusFullscreen] = useState<boolean>(false);
+
   // Modals & Panels
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCreateEquipmentOpen, setIsCreateEquipmentOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isEventLogsOpen, setIsEventLogsOpen] = useState(false);
@@ -259,6 +279,16 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setCanRedo(false);
   }, []);
 
+  const recordHistorySnapshot = useCallback(() => {
+    historyRef.current.past.push(JSON.parse(JSON.stringify(state)));
+    if (historyRef.current.past.length > 40) {
+      historyRef.current.past.shift();
+    }
+    historyRef.current.future = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, [state]);
+
   const undo = useCallback(() => {
     if (historyRef.current.past.length === 0) return;
     const previous = historyRef.current.past.pop();
@@ -268,7 +298,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setCanUndo(historyRef.current.past.length > 0);
     setCanRedo(true);
     syncStateToServer(previous, 'Откат изменений (Undo)');
-  }, [state]);
+    showToast('Действие отменено', 'Предыдущее состояние схемы восстановлено', 'info');
+  }, [state, showToast]);
 
   const redo = useCallback(() => {
     if (historyRef.current.future.length === 0) return;
@@ -279,7 +310,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setCanUndo(true);
     setCanRedo(historyRef.current.future.length > 0);
     syncStateToServer(next, 'Повтор изменений (Redo)');
-  }, [state]);
+    showToast('Действие повторено', 'Повтор отмененного действия выполнен', 'info');
+  }, [state, showToast]);
 
   // Autosave status & configuration
   const [autoSaveConfig, setAutoSaveConfig] = useState<AutoSaveConfig>(() => {
@@ -573,8 +605,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   // Equipment CRUD
-  const updateEquipment = useCallback((id: string, partial: Partial<EquipmentNode>, reason?: string) => {
-    pushHistory(state);
+  const updateEquipment = useCallback((id: string, partial: Partial<EquipmentNode>, reason?: string, skipHistory?: boolean) => {
+    if (!skipHistory) {
+      pushHistory(state);
+    }
     setState(prev => {
       const target = prev.equipment.find(e => e.id === id);
       const nextEq = prev.equipment.map(e => e.id === id ? { ...e, ...partial } : e);
@@ -620,6 +654,66 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [state, pushHistory, currentUser]);
 
+  const addEmptyEquipment = useCallback((parentId?: string | null, position?: { x: number; y: number }) => {
+    const targetParentId = parentId !== undefined ? parentId : (focusedContainerId || null);
+    
+    let posX: number;
+    let posY: number;
+
+    if (position) {
+      posX = position.x;
+      posY = position.y;
+    } else if (targetParentId) {
+      const parentContainer = state.containers.find(c => c.id === targetParentId);
+      if (parentContainer) {
+        posX = parentContainer.x + 30;
+        posY = parentContainer.y + 60;
+      } else {
+        posX = Math.round((-viewport.panX + window.innerWidth / 2) / viewport.zoom) - 85;
+        posY = Math.round((-viewport.panY + window.innerHeight / 2) / viewport.zoom) - 85;
+      }
+    } else {
+      posX = Math.round((-viewport.panX + window.innerWidth / 2) / viewport.zoom) - 85;
+      posY = Math.round((-viewport.panY + window.innerHeight / 2) / viewport.zoom) - 85;
+    }
+
+    const newId = 'eq_' + Date.now();
+    const nextNum = Math.floor(100 + Math.random() * 900);
+    const newTag = 'EQ-' + nextNum;
+
+    const newEquipment: EquipmentNode = {
+      id: newId,
+      type: 'equipment',
+      name: 'Новое оборудование',
+      tag: newTag,
+      equipmentType: 'custom',
+      status: 'normal',
+      parentId: targetParentId,
+      x: posX,
+      y: posY,
+      width: 170,
+      height: 170,
+      properties: [],
+      model: '',
+      serialNumber: '',
+      manufacturer: '',
+      notes: '',
+      commissionDate: new Date().toISOString().slice(0, 10),
+    };
+
+    addEquipment(newEquipment, `Создано пустое оборудование [${newTag}]`);
+    setSelectedId(newId);
+    setActiveTool('select');
+
+    showToast(
+      `Создано пустое оборудование [${newTag}]`,
+      'Заполните название, параметры и свойства в панели инспектора справа.',
+      'info'
+    );
+
+    return newId;
+  }, [focusedContainerId, state.containers, viewport, addEquipment, setSelectedId, setActiveTool, showToast]);
+
   const deleteEquipment = useCallback((id: string, reason?: string) => {
     pushHistory(state);
     setState(prev => {
@@ -646,8 +740,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [state, pushHistory, currentUser]);
 
   // Container CRUD & Deep nesting
-  const updateContainer = useCallback((id: string, partial: Partial<ContainerNode>, reason?: string) => {
-    pushHistory(state);
+  const updateContainer = useCallback((id: string, partial: Partial<ContainerNode>, reason?: string, skipHistory?: boolean) => {
+    if (!skipHistory) {
+      pushHistory(state);
+    }
     setState(prev => {
       const target = prev.containers.find(c => c.id === id);
       const nextContainers = prev.containers.map(c => c.id === id ? { ...c, ...partial } : c);
@@ -1065,6 +1161,71 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSelectedId(nodeId);
   }, [state.equipment, state.containers]);
 
+  // Fit container to screen (fills the workspace)
+  const fitContainerToScreen = useCallback((containerId?: string) => {
+    const id = containerId || focusedContainerId || selectedId;
+    if (!id) return;
+    const cont = state.containers.find(c => c.id === id);
+    if (!cont) return;
+
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const fit = calculateContainerFitViewport(cont, viewportW, viewportH, 40, 56);
+    setViewport(fit);
+  }, [focusedContainerId, selectedId, state.containers]);
+
+  // Enter Focus Mode for a Container (Container fills entire working window)
+  const enterFocusMode = useCallback((containerId: string) => {
+    const target = state.containers.find(c => c.id === containerId);
+    if (!target) return;
+
+    // If target or any ancestor container is collapsed, uncollapse it!
+    setState(prev => {
+      let changed = false;
+      const nextContainers = prev.containers.map(c => {
+        if (c.id === containerId && c.isCollapsed) {
+          changed = true;
+          return { ...c, isCollapsed: false };
+        }
+        return c;
+      });
+      return changed ? { ...prev, containers: nextContainers } : prev;
+    });
+
+    setFocusedContainerId(containerId);
+    setSelectedId(containerId);
+
+    // Zoom and center container to fill the working window
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const fit = calculateContainerFitViewport(target, viewportW, viewportH, 40, 56);
+    setViewport(fit);
+
+    showToast(
+      `Цех: [${target.tag}] ${target.name}`,
+      'Контейнер заполняет рабочее окно. Нажмите Esc для возврата.',
+      'info'
+    );
+  }, [state.containers, showToast]);
+
+  // Exit Focus Mode
+  const exitFocusMode = useCallback(() => {
+    setFocusedContainerId(null);
+    setIsFocusFullscreen(false);
+    showToast('Выход из фокусного режима', 'Отображается общая схема завода', 'info');
+  }, [showToast]);
+
+  // Toggle Focus Mode
+  const toggleFocusMode = useCallback((containerId?: string) => {
+    const id = containerId || selectedId;
+    if (!id) return;
+    if (focusedContainerId === id) {
+      exitFocusMode();
+    } else {
+      enterFocusMode(id);
+    }
+  }, [focusedContainerId, selectedId, enterFocusMode, exitFocusMode]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1097,7 +1258,16 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveTool('add_container');
       } else if (e.key === 'l' || e.key === 'L') {
         setActiveTool('connect');
+      } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
+        if (selectedId && state.containers.some(c => c.id === selectedId)) {
+          e.preventDefault();
+          toggleFocusMode(selectedId);
+        }
       } else if (e.key === 'Escape') {
+        if (focusedContainerId) {
+          exitFocusMode();
+          return;
+        }
         setSelectedId(null);
         setConnectingSourceId(null);
         setActiveTool('select');
@@ -1120,7 +1290,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, currentUser.role, state, undo, redo, deleteEquipment, deleteContainer, deleteLink]);
+  }, [selectedId, currentUser.role, state, undo, redo, deleteEquipment, deleteContainer, deleteLink, focusedContainerId, exitFocusMode, toggleFocusMode]);
 
   return (
     <FactoryContext.Provider
@@ -1144,6 +1314,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         zoomIn,
         zoomOut,
         zoomReset,
+        focusedContainerId,
+        setFocusedContainerId,
+        isFocusFullscreen,
+        setIsFocusFullscreen,
+        enterFocusMode,
+        exitFocusMode,
+        toggleFocusMode,
+        fitContainerToScreen,
         updateEquipment,
         addEquipment,
         deleteEquipment,
@@ -1168,6 +1346,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         redo,
         canUndo,
         canRedo,
+        recordHistorySnapshot,
         setCurrentUserRole,
         setCurrentUserName,
         broadcastCursor,
@@ -1175,6 +1354,9 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toggleDarkMode,
         isSearchOpen,
         setIsSearchOpen,
+        isCreateEquipmentOpen,
+        setIsCreateEquipmentOpen,
+        addEmptyEquipment,
         isReportOpen,
         setIsReportOpen,
         isBackupOpen,
