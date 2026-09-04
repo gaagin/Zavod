@@ -581,18 +581,27 @@ export const ProjectPanel: React.FC = () => {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400">Сервер:</span>
-                <span className="text-slate-500 dark:text-slate-400 font-medium">Автосохранение отключено</span>
+                <span className="text-slate-500 dark:text-slate-400">Центральный сервер:</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                  <span>Синхронизация активна</span>
+                </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400">Папка на диске:</span>
+                <span className="text-slate-500 dark:text-slate-400">Многопользовательский режим:</span>
+                <span className="text-blue-600 dark:text-blue-400 font-mono text-[10px]">
+                  Одновременное сохранение (2+ устр.)
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Локальная папка (ПК):</span>
                 {targetDirectory ? (
                   <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[10px] truncate max-w-[170px]" title={`${targetDirectory.name}/${targetProjectFilename}`}>
                     {targetDirectory.name}/{targetProjectFilename}
                   </span>
                 ) : (
-                  <span className="text-amber-600 dark:text-amber-400 text-[10px]">
-                    Папка не выбрана
+                  <span className="text-slate-400 dark:text-slate-500 text-[10px]">
+                    Опционально (не выбрана)
                   </span>
                 )}
               </div>

@@ -503,9 +503,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [autoSaveConfig]);
 
-  // Local Folder Auto-Save:
-  // Server autosave is explicitly cancelled per user request.
-  // Instead, autosave writes directly to the user-selected local directory.
+  // Multi-device WebSocket debounce timer
+  const wsDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Multi-device & Local Auto-Save:
+  // 1. Immediately saves to local browser cache (localStorage)
+  // 2. Broadcasts to other open tabs via BroadcastChannel
+  // 3. Syncs and saves to centralized SCADA Server via WebSocket (enabling real-time multi-device simultaneous autosaving)
+  // 4. Optionally saves to local folder if user selected a directory
   const triggerLocalAutoSave = useCallback((newState: FactoryState, reason: string = 'Изменение схемы') => {
     // 1. Keep safety copy in browser localStorage
     try {
@@ -514,7 +519,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.warn('Local storage write failed:', e);
     }
 
-    // 2. Broadcast through BroadcastChannel for same-origin tabs on user's machine (zero server traffic)
+    // 2. Broadcast through BroadcastChannel for same-origin tabs on user's machine
     if (broadcastChannelRef.current) {
       broadcastChannelRef.current.postMessage({
         type: 'state_updated',
@@ -524,11 +529,38 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     }
 
-    // 3. Debounced local folder auto-save (server is NOT called)
     if (autoSaveConfig.enabled) {
-      if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
-
       setSaveStatus('saving');
+
+      // 3. Multi-device live sync via WebSocket (synchronizes with all connected devices and server disk)
+      if (wsDebounceTimerRef.current) clearTimeout(wsDebounceTimerRef.current);
+      wsDebounceTimerRef.current = setTimeout(() => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'state_patch',
+            state: newState,
+            reason,
+            senderId: currentUser.id,
+          }));
+        } else {
+          // Fallback to REST API if WebSocket is not ready
+          fetch('/api/state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ state: newState, reason }),
+          }).then(r => r.json()).then(data => {
+            if (data.success) {
+              setSaveStatus('saved');
+              setLastSavedTime(Date.now());
+            }
+          }).catch(err => {
+            console.warn('[AutoSave] REST fallback save failed:', err);
+          });
+        }
+      }, 250);
+
+      // 4. Debounced local folder auto-save
+      if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
 
       saveDebounceTimerRef.current = setTimeout(async () => {
         const handle = targetDirectoryHandleRef.current;
@@ -548,22 +580,39 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             setSaveStatus('error');
           }
         } else {
-          // No local directory selected yet
-          setSaveStatus('no_folder');
+          // Without local folder, state is successfully autosaved to Server + LocalStorage
+          setSaveStatus('saved');
           setLastSavedTime(Date.now());
         }
-      }, 700);
+      }, 600);
     }
   }, [autoSaveConfig.enabled, currentUser.id, targetDirectory?.name]);
 
   // Alias for backward-compatibility with mutators in this context
   const syncStateToServer = triggerLocalAutoSave;
 
-  // Force instant save to target folder
+  // Force instant save to server and target folder
   const forceSave = useCallback(async (): Promise<boolean> => {
     setSaveStatus('saving');
     try {
       localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(state));
+
+      // Sync to server via WebSocket or REST API
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'state_patch',
+          state,
+          reason: 'Принудительное сохранение пользователем',
+          senderId: currentUser.id,
+        }));
+      } else {
+        await fetch('/api/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state, reason: 'Принудительное сохранение' }),
+        });
+      }
+
       const handle = targetDirectoryHandleRef.current;
       if (handle) {
         const filename = targetProjectFilenameRef.current || 'promschema_project.json';
@@ -572,7 +621,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setSaveStatus('saved');
           setLastSavedTime(Date.now());
           setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
-          showToast('Сохранено', `Проект успешно сохранен в выбранную папку: «${targetDirectory?.name}/${filename}»`, 'success');
+          showToast('Сохранено', `Схема успешно сохранена на сервере и в выбранную папку: «${targetDirectory?.name}/${filename}»`, 'success');
           return true;
         } else {
           setSaveStatus('error');
@@ -581,15 +630,16 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       }
 
-      setSaveStatus('no_folder');
-      showToast('Папка не выбрана', 'Выберите папку на диске для сохранения проекта', 'info');
-      return await selectTargetFolder();
+      setSaveStatus('saved');
+      setLastSavedTime(Date.now());
+      showToast('Сохранено', 'Схема успешно сохранена на сервере и в локальном кэше браузера', 'success');
+      return true;
     } catch (e: any) {
       setSaveStatus('error');
       showToast('Ошибка сохранения', e?.message || 'Не удалось сохранить проект', 'error');
       return false;
     }
-  }, [state, targetDirectory?.name, selectTargetFolder, showToast]);
+  }, [state, targetDirectory?.name, currentUser.id, showToast]);
 
   // Prevent navigation loss during active save operation
   useEffect(() => {
@@ -675,7 +725,24 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 links: dedupeById(msg.state.links || prev.links),
                 eventLogs: dedupeById(msg.state.eventLogs || prev.eventLogs),
               }));
+              // Synchronously autosave incoming remote update into local cache
+              try {
+                localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(msg.state));
+              } catch (e) {
+                console.warn(e);
+              }
+              // If target directory is active on this machine, autosave it too
+              const handle = targetDirectoryHandleRef.current;
+              if (handle) {
+                const filename = targetProjectFilenameRef.current || 'promschema_project.json';
+                saveProjectToDirectory(handle, msg.state, filename).catch(() => {});
+              }
+              setSaveStatus('saved');
+              setLastSavedTime(Date.now());
             }
+          } else if (msg.type === 'save_ack') {
+            setSaveStatus('saved');
+            setLastSavedTime(msg.timestamp || Date.now());
           } else if (msg.type === 'cursor') {
             if (msg.clientId && msg.cursor) {
               setUserCursors(prev => ({

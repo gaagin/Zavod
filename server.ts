@@ -59,10 +59,29 @@ function loadPersistedState(): FactoryState {
 // In-memory & Disk Authoritative Factory State
 let currentState: FactoryState = loadPersistedState();
 
-// Autosave to server disk is cancelled per user request.
-// Projects are autosaved directly into the user's selected local folder on disk.
-function persistStateToDisk(_immediate = false) {
-  // Autosave to server disk disabled
+let serverSaveTimer: NodeJS.Timeout | null = null;
+
+// Multi-device server-side autosave: writes authoritative state to disk
+function persistStateToDisk(immediate = false) {
+  const doSave = () => {
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(currentState, null, 2), 'utf-8');
+      console.log(`[Server AutoSave] Схема синхронизирована и сохранена на диск (${new Date().toLocaleTimeString('ru-RU')}). Узлов: ${currentState.equipment.length}`);
+    } catch (err) {
+      console.error('[Server AutoSave] Ошибка записи состояния на диск:', err);
+    }
+  };
+
+  if (immediate) {
+    if (serverSaveTimer) clearTimeout(serverSaveTimer);
+    doSave();
+  } else {
+    if (serverSaveTimer) clearTimeout(serverSaveTimer);
+    serverSaveTimer = setTimeout(doSave, 500);
+  }
 }
 
 // Connected clients tracking
@@ -178,6 +197,12 @@ wss.on('connection', (ws: WebSocket) => {
             senderId: clientId,
             reason: msg.reason || 'Изменение схемы',
           }, clientId);
+          // Confirm save to sending client
+          ws.send(JSON.stringify({
+            type: 'save_ack',
+            timestamp: Date.now(),
+            version: currentState.version,
+          }));
           persistStateToDisk();
         }
       } else if (msg.type === 'event_log') {
