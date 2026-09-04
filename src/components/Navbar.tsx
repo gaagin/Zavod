@@ -17,7 +17,10 @@ import {
   ShieldCheck,
   RefreshCw,
   Undo2,
-  Redo2
+  Redo2,
+  FolderCheck,
+  FolderPlus,
+  FolderOpen
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -36,6 +39,12 @@ export const Navbar: React.FC = () => {
     autoSaveConfig,
     saveStatus,
     lastSavedTime,
+    lastSavedFilePath,
+    targetDirectory,
+    targetProjectFilename,
+    selectTargetFolder,
+    hasDirectoryPermission,
+    requestDirectoryAccess,
     undo,
     redo,
     canUndo,
@@ -232,6 +241,56 @@ export const Navbar: React.FC = () => {
         >
           <Search className="w-4 h-4" />
         </button>
+
+        {/* Local Folder Auto-Save Indicator & Quick Picker */}
+        {targetDirectory ? (
+          <button
+            id="nav-folder-status-btn"
+            type="button"
+            onClick={() => {
+              if (!hasDirectoryPermission) {
+                requestDirectoryAccess();
+              } else {
+                setIsProjectPanelOpen(true);
+              }
+            }}
+            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono transition-all ${
+              !hasDirectoryPermission
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+            }`}
+            title={
+              !hasDirectoryPermission
+                ? 'Нажмите, чтобы подтвердить разрешение на запись в папку'
+                : `Автосохранение активно в папку: ${targetDirectory.name}/${targetProjectFilename} (сохранение на сервер отключено)`
+            }
+          >
+            <FolderCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span className="truncate max-w-[130px] font-sans font-medium text-slate-800 dark:text-slate-200">
+              {targetDirectory.name}
+            </span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">/</span>
+            <span className="truncate max-w-[120px] text-[11px] text-emerald-700 dark:text-emerald-400 font-mono">
+              {targetProjectFilename}
+            </span>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+              saveStatus === 'saving'
+                ? 'bg-amber-400 animate-pulse'
+                : 'bg-emerald-500 shadow-[0_0_6px_#10b981]'
+            }`} />
+          </button>
+        ) : (
+          <button
+            id="nav-select-folder-quick-btn"
+            type="button"
+            onClick={selectTargetFolder}
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50/70 hover:bg-blue-100 dark:bg-blue-600/15 dark:hover:bg-blue-600/25 text-blue-700 dark:text-blue-300 text-xs font-medium transition-all"
+            title="Выбрать папку на компьютере для непрерывного автосохранения схемы"
+          >
+            <FolderPlus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>Выбрать папку проекта</span>
+          </button>
+        )}
 
         {/* Project & Files Right Panel Toggle Button */}
         <button

@@ -41,7 +41,9 @@ import {
   ChevronRight,
   Sparkles,
   FileDown,
-  Trash2
+  Trash2,
+  Edit3,
+  Check
 } from 'lucide-react';
 
 export const ProjectPanel: React.FC = () => {
@@ -53,6 +55,14 @@ export const ProjectPanel: React.FC = () => {
     setAutoSaveConfig,
     saveStatus,
     lastSavedTime,
+    lastSavedFilePath,
+    targetDirectory,
+    targetProjectFilename,
+    setTargetProjectFilename,
+    selectTargetFolder,
+    clearTargetFolder,
+    hasDirectoryPermission,
+    requestDirectoryAccess,
     forceSave,
     importProject,
     showToast,
@@ -67,15 +77,13 @@ export const ProjectPanel: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDropActive, setIsDropActive] = useState(false);
 
-  // Folder selection state
-  const directoryHandleRef = useRef<any>(null);
-  const [targetDirectory, setTargetDirectory] = useState<{ name: string } | null>(() => {
-    try {
-      const saved = localStorage.getItem('promschema_target_folder');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return null;
-  });
+  // Direct editing of target project filename
+  const [isEditingFilename, setIsEditingFilename] = useState(false);
+  const [filenameInput, setFilenameInput] = useState(targetProjectFilename);
+
+  useEffect(() => {
+    setFilenameInput(targetProjectFilename);
+  }, [targetProjectFilename]);
 
   // "Save As" Modal state
   const [isSaveAsOpen, setIsSaveAsOpen] = useState(false);
@@ -99,49 +107,33 @@ export const ProjectPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, [lastSavedTime]);
 
-  // Folder selection handler
+  // Folder selection handler using context
   const handleSelectFolder = async () => {
-    try {
-      const res = await selectSystemDirectory();
-      if (res.success && res.handle && res.dirName) {
-        directoryHandleRef.current = res.handle;
-        const info = { name: res.dirName };
-        setTargetDirectory(info);
-        try {
-          localStorage.setItem('promschema_target_folder', JSON.stringify(info));
-        } catch (e) {}
-        showToast(
-          'Папка сохранения выбрана',
-          `Выбрана папка: «${res.dirName}». Проекты будут сохраняться в нее.`,
-          'success'
-        );
-      } else if (!res.aborted && res.error) {
-        showToast('Выбор папки', res.error, 'info');
-      }
-    } catch (err: any) {
-      showToast(
-        'Информация о сохранении',
-        'Для прямого сохранения с выбором папки воспользуйтесь кнопкой «Сохранить как... (проводник ОС)».',
-        'info'
-      );
-    }
+    await selectTargetFolder();
   };
 
-  // Clear target folder
-  const handleClearFolder = () => {
-    directoryHandleRef.current = null;
-    setTargetDirectory(null);
-    try {
-      localStorage.removeItem('promschema_target_folder');
-    } catch (e) {}
-    showToast('Папка сброшена', 'Используется стандартный диалог сохранения браузера', 'info');
+  // Clear target folder handler
+  const handleClearFolder = async () => {
+    await clearTargetFolder();
+  };
+
+  // Save filename edit
+  const handleSaveFilenameEdit = () => {
+    const trimmed = filenameInput.trim();
+    if (trimmed) {
+      const normalized = trimmed.endsWith('.json') ? trimmed : `${trimmed}.json`;
+      setTargetProjectFilename(normalized);
+      showToast('Имя файла обновлено', `Файл проекта переименован в «${normalized}»`, 'success');
+    }
+    setIsEditingFilename(false);
   };
 
   // Open "Save As" dialog with preset filename
   const handleOpenSaveAs = () => {
+    const baseName = targetProjectFilename.replace(/\.json$/i, '');
     const dateStr = new Date().toISOString().slice(0, 10);
     const timeStr = new Date().toTimeString().slice(0, 5).replace(':', '-');
-    setCustomFilename(`promschema_project_${dateStr}_${timeStr}`);
+    setCustomFilename(`${baseName}_${dateStr}_${timeStr}`);
     setIsSaveAsOpen(true);
   };
 
@@ -149,7 +141,6 @@ export const ProjectPanel: React.FC = () => {
   const handleSaveWithSystemPicker = async () => {
     if (!customFilename.trim()) return;
     setIsSavingInProgress(true);
-    forceSave();
     const targetState = includeLogsInSaveAs
       ? state
       : { ...state, eventLogs: [] };
@@ -173,23 +164,19 @@ export const ProjectPanel: React.FC = () => {
 
   // Save to pre-selected folder
   const handleSaveToSelectedDirectory = async () => {
-    if (!directoryHandleRef.current || !customFilename.trim()) return;
+    if (!targetDirectory || !customFilename.trim()) return;
     setIsSavingInProgress(true);
-    forceSave();
-    const targetState = includeLogsInSaveAs
-      ? state
-      : { ...state, eventLogs: [] };
+    const cleanName = customFilename.trim().endsWith('.json')
+      ? customFilename.trim()
+      : `${customFilename.trim()}.json`;
 
     try {
-      const res = await saveProjectToDirectory(
-        directoryHandleRef.current,
-        targetState,
-        customFilename.trim()
-      );
+      const res = await forceSave(cleanName);
       if (res.success) {
+        setTargetProjectFilename(cleanName);
         showToast(
           'Сохранено в целевую папку',
-          `Файл «${res.filename}» записан в «${targetDirectory?.name}»`,
+          `Файл «${cleanName}» записан в «${targetDirectory.name}»`,
           'success'
         );
         setIsSaveAsOpen(false);
@@ -206,7 +193,6 @@ export const ProjectPanel: React.FC = () => {
     e.preventDefault();
     if (!customFilename.trim()) return;
 
-    forceSave();
     const targetState = includeLogsInSaveAs
       ? state
       : { ...state, eventLogs: [] };
@@ -224,22 +210,19 @@ export const ProjectPanel: React.FC = () => {
     }
   };
 
-  // Quick Save
+  // Quick Save (uses chosen directory if present)
   const handleQuickSave = async () => {
-    forceSave();
-    if (directoryHandleRef.current) {
-      const res = await saveProjectToDirectory(directoryHandleRef.current, state);
-      if (res.success) {
-        showToast(
-          'Файл сохранен',
-          `Файл «${res.filename}» записан в папку «${targetDirectory?.name}»`,
-          'success'
-        );
-        return;
-      }
+    const res = await forceSave();
+    if (res.success && res.savedLocally) {
+      showToast(
+        'Файл сохранен',
+        `Файл «${res.filename || targetProjectFilename}» записан в папку «${targetDirectory?.name}»`,
+        'success'
+      );
+    } else {
+      exportToJSON(state, targetProjectFilename.replace(/\.json$/i, ''));
+      showToast('Файл проекта сохранен', 'Файл .json загружен. Все данные схемы сохранены.', 'success');
     }
-    exportToJSON(state);
-    showToast('Файл проекта сохранен', 'Файл .json загружен. Все данные схемы сохранены.', 'success');
   };
 
   // File Import handler
@@ -367,16 +350,20 @@ export const ProjectPanel: React.FC = () => {
                 </span>
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium ${
-                targetDirectory ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-400'
+                targetDirectory && hasDirectoryPermission
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                  : targetDirectory && !hasDirectoryPermission
+                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                  : 'bg-slate-200 dark:bg-white/10 text-slate-600 dark:text-slate-400'
               }`}>
-                {targetDirectory ? 'НА ДИСКЕ' : 'СТАНДАРТ'}
+                {targetDirectory && hasDirectoryPermission ? 'НА ДИСКЕ' : targetDirectory ? 'ТРЕБУЕТ ДОСТУП' : 'НЕ ВЫБРАНА'}
               </span>
             </div>
 
-            {/* Folder indicator */}
-            <div className="p-2.5 rounded-lg bg-white dark:bg-black/30 border border-slate-200 dark:border-white/5 space-y-1.5 text-xs shadow-xs">
+            {/* Folder and File indicator */}
+            <div className="p-2.5 rounded-lg bg-white dark:bg-black/30 border border-slate-200 dark:border-white/5 space-y-2 text-xs shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400 text-[11px]">Место сохранения:</span>
+                <span className="text-slate-500 dark:text-slate-400 text-[11px]">Целевой каталог:</span>
                 {targetDirectory && (
                   <button
                     onClick={handleClearFolder}
@@ -401,16 +388,71 @@ export const ProjectPanel: React.FC = () => {
                   <>
                     <FolderOpen className="w-4 h-4 text-slate-400 shrink-0" />
                     <span className="text-slate-600 dark:text-slate-300 text-xs">
-                      Папка загрузок браузера / Запрос ОС
+                      Папка на компьютере не выбрана
                     </span>
                   </>
                 )}
               </div>
 
+              {/* Target Project Filename row */}
+              <div className="pt-1.5 border-t border-slate-100 dark:border-white/5">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">Имя файла проекта:</span>
+                  {!isEditingFilename && (
+                    <button
+                      onClick={() => setIsEditingFilename(true)}
+                      className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                    >
+                      <Edit3 className="w-2.5 h-2.5" />
+                      <span>Изменить</span>
+                    </button>
+                  )}
+                </div>
+
+                {isEditingFilename ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={filenameInput}
+                      onChange={(e) => setFilenameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveFilenameEdit();
+                        if (e.key === 'Escape') setIsEditingFilename(false);
+                      }}
+                      className="flex-1 px-2 py-1 text-xs font-mono rounded border border-blue-400 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleSaveFilenameEdit}
+                      className="p-1 rounded bg-blue-600 text-white hover:bg-blue-500"
+                      title="Сохранить имя"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200 font-semibold break-all">
+                    {targetProjectFilename}
+                  </span>
+                )}
+              </div>
+
+              {/* Permission re-request button if access not yet granted */}
+              {targetDirectory && !hasDirectoryPermission && (
+                <button
+                  type="button"
+                  onClick={requestDirectoryAccess}
+                  className="w-full mt-1.5 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[11px] font-medium transition-colors"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Подтвердить доступ к папке «{targetDirectory.name}»</span>
+                </button>
+              )}
+
               <div className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 leading-snug">
                 {targetDirectory
-                  ? 'Файлы проектов будут направляться в выбранную папку на вашем компьютере.'
-                  : 'Нажмите «Выбрать папку», чтобы назначить конкретный каталог для схем на вашем ПК.'}
+                  ? `Автосохранение сохраняет все изменения прямо в «${targetDirectory.name}/${targetProjectFilename}».`
+                  : 'Нажмите кнопку ниже, чтобы выбрать папку на вашем компьютере. Автосохранение на сервер отключено.'}
               </div>
             </div>
 
@@ -539,8 +581,20 @@ export const ProjectPanel: React.FC = () => {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400">Хранилище:</span>
-                <span className="text-slate-700 dark:text-slate-200">Браузер + файл сервера</span>
+                <span className="text-slate-500 dark:text-slate-400">Сервер:</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Автосохранение отключено</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Папка на диске:</span>
+                {targetDirectory ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[10px] truncate max-w-[170px]" title={`${targetDirectory.name}/${targetProjectFilename}`}>
+                    {targetDirectory.name}/{targetProjectFilename}
+                  </span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400 text-[10px]">
+                    Папка не выбрана
+                  </span>
+                )}
               </div>
             </div>
 
@@ -873,7 +927,7 @@ export const ProjectPanel: React.FC = () => {
                     <span>Выбрать папку и сохранить (проводник ОС)</span>
                   </button>
 
-                  {directoryHandleRef.current && (
+                  {targetDirectory && (
                     <button
                       type="button"
                       onClick={handleSaveToSelectedDirectory}
@@ -881,7 +935,7 @@ export const ProjectPanel: React.FC = () => {
                       className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-50 dark:bg-emerald-600/30 hover:bg-emerald-100 dark:hover:bg-emerald-600/50 text-emerald-700 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-500/30 text-xs font-semibold transition-colors"
                     >
                       <FolderCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <span>В папку «{targetDirectory?.name}»</span>
+                      <span>В папку «{targetDirectory.name}»</span>
                     </button>
                   )}
                 </div>

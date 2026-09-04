@@ -144,5 +144,8 @@ export interface AutoSaveConfig {
   enabled: boolean;
   autoSnapshots: boolean;
   snapshotIntervalMinutes: number;
+  saveToServer: boolean;
+  targetFolderName?: string;
+  targetFilename?: string;
 }
 

@@ -59,26 +59,10 @@ function loadPersistedState(): FactoryState {
 // In-memory & Disk Authoritative Factory State
 let currentState: FactoryState = loadPersistedState();
 
-let saveDiskTimer: NodeJS.Timeout | null = null;
-function persistStateToDisk(immediate = false) {
-  const save = () => {
-    try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-      fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(currentState, null, 2), 'utf-8');
-    } catch (e) {
-      console.warn('[Server] Ошибка автосохранения схемы на диск:', e);
-    }
-  };
-
-  if (immediate) {
-    if (saveDiskTimer) clearTimeout(saveDiskTimer);
-    save();
-  } else {
-    if (saveDiskTimer) clearTimeout(saveDiskTimer);
-    saveDiskTimer = setTimeout(save, 500);
-  }
+// Autosave to server disk is cancelled per user request.
+// Projects are autosaved directly into the user's selected local folder on disk.
+function persistStateToDisk(_immediate = false) {
+  // Autosave to server disk disabled
 }
 
 // Connected clients tracking

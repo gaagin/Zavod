@@ -14,8 +14,16 @@ import {
   AutoSaveConfig
 } from '../types';
 import { initialFactoryState } from '../data/initialFactory';
-import { parseAndValidateProject } from '../utils/exportUtils';
+import { parseAndValidateProject, selectSystemDirectory, saveProjectToDirectory } from '../utils/exportUtils';
 import { calculateContainerFitViewport } from '../utils/geometry';
+import {
+  storeDirectoryHandle,
+  getStoredDirectoryHandle,
+  clearStoredDirectoryHandle,
+  storeProjectFilename,
+  getStoredProjectFilename,
+  verifyDirectoryPermission
+} from '../utils/fileSystemStorage';
 
 export type CanvasTool = 'select' | 'pan' | 'add_equipment' | 'add_container' | 'connect';
 
@@ -124,12 +132,21 @@ interface FactoryContextType {
   gridSnap: boolean;
   setGridSnap: (snap: boolean) => void;
 
-  // Auto-Save Management
+  // Auto-Save Management & Local Folder Persistence
   autoSaveConfig: AutoSaveConfig;
   setAutoSaveConfig: React.Dispatch<React.SetStateAction<AutoSaveConfig>>;
-  saveStatus: 'saved' | 'saving' | 'error';
+  saveStatus: 'saved' | 'saving' | 'error' | 'no_folder';
   lastSavedTime: number;
-  forceSave: () => void;
+  lastSavedFilePath: string | null;
+  targetDirectory: { name: string } | null;
+  targetProjectFilename: string;
+  setTargetProjectFilename: (name: string) => void;
+  selectTargetFolder: () => Promise<boolean>;
+  clearTargetFolder: () => Promise<void>;
+  hasDirectoryPermission: boolean;
+  requestDirectoryAccess: () => Promise<boolean>;
+  forceSave: (overrideFilename?: string) => Promise<{ success: boolean; savedLocally?: boolean; filename?: string; error?: string }>;
+  loadFactoryPreset: () => void;
 }
 
 export function dedupeById<T extends { id: string }>(items?: T[]): T[] {
@@ -323,7 +340,13 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [autoSaveConfig, setAutoSaveConfig] = useState<AutoSaveConfig>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_AUTOSAVE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          saveToServer: false, // Server autosave cancelled per user request
+        };
+      }
     } catch (e) {
       console.warn(e);
     }
@@ -331,12 +354,146 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       enabled: true,
       autoSnapshots: true,
       snapshotIntervalMinutes: 5,
+      saveToServer: false, // Autosave to server is disabled
     };
   });
 
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+  // Local Folder for project autosaving
+  const targetDirectoryHandleRef = useRef<any>(null);
+  const [targetDirectory, setTargetDirectory] = useState<{ name: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem('promschema_target_folder');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  });
+  const [targetProjectFilename, setTargetProjectFilenameState] = useState<string>('promschema_project.json');
+  const targetProjectFilenameRef = useRef<string>('promschema_project.json');
+  const [hasDirectoryPermission, setHasDirectoryPermission] = useState<boolean>(false);
+  const [lastSavedFilePath, setLastSavedFilePath] = useState<string | null>(null);
+
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'no_folder'>('saved');
   const [lastSavedTime, setLastSavedTime] = useState<number>(Date.now());
   const saveDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Restore stored directory handle from IndexedDB on startup
+  useEffect(() => {
+    let isMounted = true;
+    getStoredDirectoryHandle().then(async (handle) => {
+      if (!isMounted || !handle) return;
+      targetDirectoryHandleRef.current = handle;
+      const permGranted = await verifyDirectoryPermission(handle, false);
+      if (isMounted) {
+        setHasDirectoryPermission(permGranted);
+        if (handle.name) {
+          setTargetDirectory({ name: handle.name });
+        }
+      }
+    });
+
+    getStoredProjectFilename().then(name => {
+      if (!isMounted || !name) return;
+      setTargetProjectFilenameState(name);
+      targetProjectFilenameRef.current = name;
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const setTargetProjectFilename = useCallback((name: string) => {
+    let clean = name.trim();
+    if (!clean) clean = 'promschema_project.json';
+    if (!clean.toLowerCase().endsWith('.json')) clean += '.json';
+    setTargetProjectFilenameState(clean);
+    targetProjectFilenameRef.current = clean;
+    storeProjectFilename(clean);
+  }, []);
+
+  // Pick target folder for autosaving
+  const selectTargetFolder = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await selectSystemDirectory();
+      if (res.success && res.handle && res.dirName) {
+        targetDirectoryHandleRef.current = res.handle;
+        setHasDirectoryPermission(true);
+        const folderInfo = { name: res.dirName };
+        setTargetDirectory(folderInfo);
+        try {
+          localStorage.setItem('promschema_target_folder', JSON.stringify(folderInfo));
+        } catch {}
+        await storeDirectoryHandle(res.handle);
+
+        // Immediate project save into the newly chosen folder
+        setSaveStatus('saving');
+        const filename = targetProjectFilenameRef.current || 'promschema_project.json';
+        const saveRes = await saveProjectToDirectory(res.handle, state, filename);
+        if (saveRes.success) {
+          setSaveStatus('saved');
+          setLastSavedTime(Date.now());
+          setLastSavedFilePath(`${res.dirName}/${filename}`);
+          showToast(
+            'Папка для сохранения выбрана',
+            `Файл сохранен в «${res.dirName}/${filename}». Автосохранение на сервер отключено — все изменения схемы будут автоматически сохраняться в эту папку.`,
+            'success'
+          );
+          return true;
+        } else {
+          setSaveStatus('error');
+          showToast('Ошибка сохранения', saveRes.error || 'Не удалось записать в выбранную папку', 'error');
+          return false;
+        }
+      } else if (!res.aborted && res.error) {
+        showToast('Выбор папки', res.error, 'info');
+      }
+    } catch (err: any) {
+      showToast('Выбор папки', err?.message || 'Не удалось выбрать папку', 'error');
+    }
+    return false;
+  }, [state, showToast]);
+
+  // Clear chosen target folder
+  const clearTargetFolder = useCallback(async () => {
+    targetDirectoryHandleRef.current = null;
+    setTargetDirectory(null);
+    setHasDirectoryPermission(false);
+    setLastSavedFilePath(null);
+    try {
+      localStorage.removeItem('promschema_target_folder');
+    } catch {}
+    await clearStoredDirectoryHandle();
+    setSaveStatus('no_folder');
+    showToast(
+      'Папка сброшена',
+      'Автосохранение в локальную папку приостановлено. Выберите папку снова, чтобы включить автосохранение.',
+      'info'
+    );
+  }, [showToast]);
+
+  // Request/verify readwrite permissions for target directory
+  const requestDirectoryAccess = useCallback(async (): Promise<boolean> => {
+    if (!targetDirectoryHandleRef.current) {
+      return await selectTargetFolder();
+    }
+    const granted = await verifyDirectoryPermission(targetDirectoryHandleRef.current, true);
+    setHasDirectoryPermission(granted);
+    if (granted) {
+      setSaveStatus('saving');
+      const filename = targetProjectFilenameRef.current || 'promschema_project.json';
+      const saveRes = await saveProjectToDirectory(targetDirectoryHandleRef.current, state, filename);
+      if (saveRes.success) {
+        setSaveStatus('saved');
+        setLastSavedTime(Date.now());
+        setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
+        showToast('Доступ предоставлен', `Схема сохранена в «${targetDirectory?.name}/${filename}»`, 'success');
+        return true;
+      }
+    } else {
+      showToast('Доступ не получен', 'Для автосохранения в локальную папку необходимо подтвердить доступ в браузере', 'warning');
+    }
+    return false;
+  }, [selectTargetFolder, state, targetDirectory?.name, showToast]);
 
   useEffect(() => {
     try {
@@ -346,20 +503,18 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [autoSaveConfig]);
 
-  // Sync state to backend & broadcast (Auto-save)
-  const syncStateToServer = (newState: FactoryState, reason: string = 'Изменение схемы') => {
-    if (autoSaveConfig.enabled) {
-      setSaveStatus('saving');
-    }
-
+  // Local Folder Auto-Save:
+  // Server autosave is explicitly cancelled per user request.
+  // Instead, autosave writes directly to the user-selected local directory.
+  const triggerLocalAutoSave = useCallback((newState: FactoryState, reason: string = 'Изменение схемы') => {
+    // 1. Keep safety copy in browser localStorage
     try {
       localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(newState));
     } catch (e) {
       console.warn('Local storage write failed:', e);
-      setSaveStatus('error');
     }
 
-    // Broadcast through BroadcastChannel for same-origin tabs
+    // 2. Broadcast through BroadcastChannel for same-origin tabs on user's machine (zero server traffic)
     if (broadcastChannelRef.current) {
       broadcastChannelRef.current.postMessage({
         type: 'state_updated',
@@ -369,57 +524,72 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     }
 
-    // Send to WebSocket or fallback to HTTP
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'state_patch',
-        state: newState,
-        reason
-      }));
-    } else {
-      fetch('/api/state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: newState, reason })
-      }).catch(err => console.warn('POST /api/state sync error:', err));
+    // 3. Debounced local folder auto-save (server is NOT called)
+    if (autoSaveConfig.enabled) {
+      if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
+
+      setSaveStatus('saving');
+
+      saveDebounceTimerRef.current = setTimeout(async () => {
+        const handle = targetDirectoryHandleRef.current;
+        if (handle) {
+          try {
+            const filename = targetProjectFilenameRef.current || 'promschema_project.json';
+            const saveRes = await saveProjectToDirectory(handle, newState, filename);
+            if (saveRes.success) {
+              setSaveStatus('saved');
+              setLastSavedTime(Date.now());
+              setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
+            } else {
+              setSaveStatus('error');
+            }
+          } catch (err) {
+            console.warn('[AutoSave] Error saving to directory:', err);
+            setSaveStatus('error');
+          }
+        } else {
+          // No local directory selected yet
+          setSaveStatus('no_folder');
+          setLastSavedTime(Date.now());
+        }
+      }, 700);
     }
+  }, [autoSaveConfig.enabled, currentUser.id, targetDirectory?.name]);
 
-    if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
-    saveDebounceTimerRef.current = setTimeout(() => {
-      setSaveStatus('saved');
-      setLastSavedTime(Date.now());
-    }, 350);
-  };
+  // Alias for backward-compatibility with mutators in this context
+  const syncStateToServer = triggerLocalAutoSave;
 
-  // Force instant save to all storages
-  const forceSave = useCallback(() => {
+  // Force instant save to target folder
+  const forceSave = useCallback(async (): Promise<boolean> => {
     setSaveStatus('saving');
     try {
       localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(state));
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({
-          type: 'state_patch',
-          state,
-          reason: 'Ручное сохранение'
-        }));
-      } else {
-        fetch('/api/state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state, reason: 'Ручное сохранение' })
-        }).catch(console.warn);
+      const handle = targetDirectoryHandleRef.current;
+      if (handle) {
+        const filename = targetProjectFilenameRef.current || 'promschema_project.json';
+        const saveRes = await saveProjectToDirectory(handle, state, filename);
+        if (saveRes.success) {
+          setSaveStatus('saved');
+          setLastSavedTime(Date.now());
+          setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
+          showToast('Сохранено', `Проект успешно сохранен в выбранную папку: «${targetDirectory?.name}/${filename}»`, 'success');
+          return true;
+        } else {
+          setSaveStatus('error');
+          showToast('Ошибка сохранения', saveRes.error || 'Не удалось сохранить в папку', 'error');
+          return false;
+        }
       }
-      if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
-      saveDebounceTimerRef.current = setTimeout(() => {
-        setSaveStatus('saved');
-        setLastSavedTime(Date.now());
-      }, 250);
-      showToast('Сохранено', 'Проект успешно сохранен в браузере и на сервере.', 'success');
-    } catch (e) {
+
+      setSaveStatus('no_folder');
+      showToast('Папка не выбрана', 'Выберите папку на диске для сохранения проекта', 'info');
+      return await selectTargetFolder();
+    } catch (e: any) {
       setSaveStatus('error');
-      showToast('Ошибка сохранения', 'Не удалось записать в локальное хранилище.', 'error');
+      showToast('Ошибка сохранения', e?.message || 'Не удалось сохранить проект', 'error');
+      return false;
     }
-  }, [state, showToast]);
+  }, [state, targetDirectory?.name, selectTargetFolder, showToast]);
 
   // Prevent navigation loss during active save operation
   useEffect(() => {
@@ -982,14 +1152,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     setState(sanitized);
     syncStateToServer(sanitized, reason || 'Восстановление схемы из файла/копии');
-    
-    // Also save via HTTP API for guaranteed persistence across devices
-    fetch('/api/state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: sanitized, reason: reason || 'Восстановление схемы' })
-    }).catch(err => console.warn('POST /api/state fallback failed:', err));
-  }, [state, pushHistory]);
+  }, [state, pushHistory, syncStateToServer]);
 
   const updateLink = useCallback((id: string, partial: Partial<ConnectionLink>) => {
     pushHistory(state);
@@ -1043,27 +1206,37 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [currentUser, state, showToast]);
 
-  // Periodic automated recovery snapshot (if schema has nodes and changed)
+  // Periodic automated recovery snapshot directly into chosen project directory
   const lastSnapshotHashRef = useRef<string>('');
   useEffect(() => {
     if (!autoSaveConfig.enabled || !autoSaveConfig.autoSnapshots) return;
     const intervalMinutes = Math.max(1, autoSaveConfig.snapshotIntervalMinutes || 5);
     const intervalMs = intervalMinutes * 60 * 1000;
 
-    const timer = setInterval(() => {
+    const timer = setInterval(async () => {
       const currentHash = `${state.equipment.length}_${state.containers.length}_${state.links.length}_${state.version || 0}`;
       if (
         (state.equipment.length > 0 || state.containers.length > 0) &&
         currentHash !== lastSnapshotHashRef.current
       ) {
         lastSnapshotHashRef.current = currentHash;
-        const timeStr = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-        createBackup('yandex', `[Автосохранение] ${timeStr}`);
+        const handle = targetDirectoryHandleRef.current;
+        if (handle) {
+          const dateStr = new Date().toISOString().slice(0, 10);
+          const timeStr = new Date().toTimeString().slice(0, 5).replace(':', '-');
+          const snapshotName = `promschema_snapshot_${dateStr}_${timeStr}.json`;
+          try {
+            await saveProjectToDirectory(handle, state, snapshotName);
+            setLastSavedTime(Date.now());
+          } catch (e) {
+            console.warn('[Snapshot] Error writing snapshot to directory:', e);
+          }
+        }
       }
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [autoSaveConfig.enabled, autoSaveConfig.autoSnapshots, autoSaveConfig.snapshotIntervalMinutes, state.equipment.length, state.containers.length, state.links.length, state.version, createBackup]);
+  }, [autoSaveConfig.enabled, autoSaveConfig.autoSnapshots, autoSaveConfig.snapshotIntervalMinutes, state]);
 
   const restoreBackup = useCallback(async (backupId: string): Promise<boolean> => {
     try {
@@ -1183,6 +1356,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     return { success: true, message: msg };
   }, [currentUser, restoreState, showToast, addEventLog]);
+
+  // Reset to initial factory preset
+  const loadFactoryPreset = useCallback(() => {
+    restoreState(initialFactoryState, 'Сброс к заводскому шаблону');
+    showToast('Схема сброшена', 'Загружен заводской типовой проект предприятия.', 'info');
+  }, [restoreState, showToast]);
 
   // Viewport helper functions
   const zoomIn = () => {
@@ -1444,7 +1623,16 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setAutoSaveConfig,
         saveStatus,
         lastSavedTime,
+        lastSavedFilePath,
+        targetDirectory,
+        targetProjectFilename,
+        setTargetProjectFilename,
+        selectTargetFolder,
+        clearTargetFolder,
+        hasDirectoryPermission,
+        requestDirectoryAccess,
         forceSave,
+        loadFactoryPreset,
       }}
     >
       {children}

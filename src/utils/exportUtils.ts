@@ -591,8 +591,7 @@ export async function saveProjectToDirectory(
   filename?: string
 ): Promise<{ success: boolean; filename?: string; error?: string }> {
   try {
-    const dateStr = new Date().toISOString().slice(0, 10);
-    let name = filename?.trim() || `promschema_project_${dateStr}.json`;
+    let name = filename?.trim() || 'promschema_project.json';
     if (!name.toLowerCase().endsWith('.json')) {
       name += '.json';
     }
