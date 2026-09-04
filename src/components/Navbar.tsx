@@ -29,7 +29,8 @@ import {
   Smartphone,
   Copy,
   ExternalLink,
-  Share2
+  Share2,
+  Zap
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -50,6 +51,8 @@ export const Navbar: React.FC = () => {
     saveStatus,
     lastSavedTime,
     lastSavedFilePath,
+    lastSyncEvent,
+    sendPingSync,
     targetDirectory,
     targetProjectFilename,
     selectTargetFolder,
@@ -310,8 +313,13 @@ export const Navbar: React.FC = () => {
               )}
             </div>
 
-            {/* Multi-Device Indicator Badge */}
-            {onlineUsers.length > 1 && (
+            {/* Multi-Device & Live Sync Indicator Badge */}
+            {lastSyncEvent && (Date.now() - lastSyncEvent.timestamp < 6000) ? (
+              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-500/40 shrink-0 animate-pulse">
+                <Zap className="w-2.5 h-2.5 text-emerald-500" />
+                <span className="hidden sm:inline">Синхронно</span>
+              </span>
+            ) : onlineUsers.length > 1 ? (
               <span
                 className="hidden sm:flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 font-mono border border-blue-500/30 shrink-0"
                 title={`${onlineUsers.length} устройства онлайн: синхронизация и автосохранение происходят одновременно на обоих`}
@@ -319,7 +327,7 @@ export const Navbar: React.FC = () => {
                 <Laptop className="w-2.5 h-2.5 text-blue-500" />
                 <span>{onlineUsers.length} устр.</span>
               </span>
-            )}
+            ) : null}
 
             <ChevronDown className={`w-3 h-3 opacity-60 transition-transform duration-200 ${autosaveMenuOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -373,7 +381,7 @@ export const Navbar: React.FC = () => {
                   <strong className="text-slate-900 dark:text-white font-semibold">Да, одновременное автосохранение на двух устройствах полностью поддерживается.</strong> Все изменения со всех открытых компьютеров или планшетов мгновенно передаются через WebSocket и синхронно автосохраняются на сервере и во всех клиентских сессиях.
                 </p>
 
-                <div className="mt-2.5 flex items-center gap-2">
+                <div className="mt-2.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <button
                     type="button"
                     onClick={handleCopyShareLink}
@@ -382,7 +390,33 @@ export const Navbar: React.FC = () => {
                     <Copy className="w-3.5 h-3.5" />
                     <span>Скопировать ссылку для 2-го устройства</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={sendPingSync}
+                    className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-lg shadow-2xs transition-all active:scale-95"
+                    title="Отправить мгновенный тестовый сигнал синхронизации на второе устройство"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Тест связи</span>
+                  </button>
                 </div>
+
+                {/* Last Received Remote Sync Notification */}
+                {lastSyncEvent && (
+                  <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-medium truncate">
+                      <Zap className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="truncate">{lastSyncEvent.reason}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                        (от {lastSyncEvent.senderName || 'устройства'})
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono shrink-0 ml-2">
+                      {new Date(lastSyncEvent.timestamp).toLocaleTimeString('ru-RU')}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Storage Destinations List */}

@@ -184,18 +184,21 @@ wss.on('connection', (ws: WebSocket) => {
           currentState = {
             ...currentState,
             ...msg.state,
-            equipment: dedupeById(msg.state.equipment || currentState.equipment),
-            containers: dedupeById(msg.state.containers || currentState.containers),
-            links: dedupeById(msg.state.links || currentState.links),
-            eventLogs: dedupeById(msg.state.eventLogs || currentState.eventLogs).slice(0, 200),
+            equipment: msg.state.equipment !== undefined ? dedupeById(msg.state.equipment) : currentState.equipment,
+            containers: msg.state.containers !== undefined ? dedupeById(msg.state.containers) : currentState.containers,
+            links: msg.state.links !== undefined ? dedupeById(msg.state.links) : currentState.links,
+            eventLogs: msg.state.eventLogs !== undefined ? dedupeById(msg.state.eventLogs).slice(0, 200) : currentState.eventLogs,
             version: (currentState.version || 1) + 1,
             lastUpdated: new Date().toISOString(),
           };
+          // Broadcast immediately to all other connected clients
           broadcast({
             type: 'state_updated',
             state: currentState,
             senderId: clientId,
+            senderName: msg.senderName,
             reason: msg.reason || 'Изменение схемы',
+            timestamp: Date.now(),
           }, clientId);
           // Confirm save to sending client
           ws.send(JSON.stringify({
@@ -205,6 +208,15 @@ wss.on('connection', (ws: WebSocket) => {
           }));
           persistStateToDisk();
         }
+      } else if (msg.type === 'sync_ping') {
+        // User triggered a test sync impulse to other device
+        const client = clients.get(clientId);
+        broadcast({
+          type: 'sync_ping',
+          senderId: clientId,
+          senderName: msg.senderName || client?.user?.name || 'Второе устройство',
+          timestamp: Date.now(),
+        }, clientId);
       } else if (msg.type === 'event_log') {
         if (msg.eventLog && msg.eventLog.id) {
           if (!currentState.eventLogs.some(l => l.id === msg.eventLog.id)) {
@@ -258,10 +270,10 @@ app.post('/api/state', (req, res) => {
     currentState = {
       ...currentState,
       ...incoming,
-      equipment: dedupeById(incoming.equipment || currentState.equipment),
-      containers: dedupeById(incoming.containers || currentState.containers),
-      links: dedupeById(incoming.links || currentState.links),
-      eventLogs: dedupeById(incoming.eventLogs || currentState.eventLogs).slice(0, 200),
+      equipment: incoming.equipment !== undefined ? dedupeById(incoming.equipment) : currentState.equipment,
+      containers: incoming.containers !== undefined ? dedupeById(incoming.containers) : currentState.containers,
+      links: incoming.links !== undefined ? dedupeById(incoming.links) : currentState.links,
+      eventLogs: incoming.eventLogs !== undefined ? dedupeById(incoming.eventLogs).slice(0, 200) : currentState.eventLogs,
       version: (currentState.version || 1) + 1,
       lastUpdated: new Date().toISOString(),
     };
@@ -269,7 +281,9 @@ app.post('/api/state', (req, res) => {
       type: 'state_updated',
       state: currentState,
       senderId: 'api',
+      senderName: incoming.userName || 'REST API',
       reason: req.body.reason || 'Синхронизация через API',
+      timestamp: Date.now(),
     });
     persistStateToDisk();
     res.json({ success: true, version: currentState.version, state: currentState });

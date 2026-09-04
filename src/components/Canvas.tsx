@@ -85,6 +85,7 @@ export const Canvas: React.FC = () => {
     userCursors,
     broadcastCursor,
     gridSnap,
+    triggerInstantSync,
     focusNode,
     focusedContainerId,
     setFocusedContainerId,
@@ -310,6 +311,9 @@ export const Canvas: React.FC = () => {
 
   const handleCanvasMouseUp = () => {
     setIsPanning(false);
+    if (draggedNode || resizingContainer) {
+      triggerInstantSync();
+    }
     setDraggedNode(null);
     setResizingContainer(null);
   };
@@ -746,6 +750,10 @@ export const Canvas: React.FC = () => {
               setSelectedId(null);
             }
           }
+        }
+
+        if (t.draggedNodeId && t.hasMoved) {
+          triggerInstantSync();
         }
 
         t.draggedNodeId = null;

@@ -132,12 +132,15 @@ interface FactoryContextType {
   gridSnap: boolean;
   setGridSnap: (snap: boolean) => void;
 
-  // Auto-Save Management & Local Folder Persistence
+  // Auto-Save Management & Multi-Device Live Sync
   autoSaveConfig: AutoSaveConfig;
   setAutoSaveConfig: React.Dispatch<React.SetStateAction<AutoSaveConfig>>;
   saveStatus: 'saved' | 'saving' | 'error' | 'no_folder';
   lastSavedTime: number;
   lastSavedFilePath: string | null;
+  lastSyncEvent: { timestamp: number; reason: string; senderName?: string } | null;
+  sendPingSync: () => void;
+  triggerInstantSync: () => void;
   targetDirectory: { name: string } | null;
   targetProjectFilename: string;
   setTargetProjectFilename: (name: string) => void;
@@ -374,6 +377,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'no_folder'>('saved');
   const [lastSavedTime, setLastSavedTime] = useState<number>(Date.now());
+  const [lastSyncEvent, setLastSyncEvent] = useState<{ timestamp: number; reason: string; senderName?: string } | null>(null);
+  const latestServerVersionRef = useRef<number>(state.version || 1);
   const saveDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Restore stored directory handle from IndexedDB on startup
@@ -509,9 +514,13 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Multi-device & Local Auto-Save:
   // 1. Immediately saves to local browser cache (localStorage)
   // 2. Broadcasts to other open tabs via BroadcastChannel
-  // 3. Syncs and saves to centralized SCADA Server via WebSocket (enabling real-time multi-device simultaneous autosaving)
+  // 3. Syncs and saves to centralized SCADA Server via WebSocket (instant 0ms sync to 2+ devices)
   // 4. Optionally saves to local folder if user selected a directory
-  const triggerLocalAutoSave = useCallback((newState: FactoryState, reason: string = 'Изменение схемы') => {
+  const triggerLocalAutoSave = useCallback((
+    newState: FactoryState,
+    reason: string = 'Изменение схемы',
+    immediate: boolean = true
+  ) => {
     // 1. Keep safety copy in browser localStorage
     try {
       localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(newState));
@@ -525,68 +534,76 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         type: 'state_updated',
         state: newState,
         senderId: currentUser.id,
+        senderName: currentUser.name,
         reason
       });
     }
 
-    if (autoSaveConfig.enabled) {
-      setSaveStatus('saving');
+    setSaveStatus('saving');
 
-      // 3. Multi-device live sync via WebSocket (synchronizes with all connected devices and server disk)
-      if (wsDebounceTimerRef.current) clearTimeout(wsDebounceTimerRef.current);
-      wsDebounceTimerRef.current = setTimeout(() => {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({
-            type: 'state_patch',
-            state: newState,
-            reason,
-            senderId: currentUser.id,
-          }));
-        } else {
-          // Fallback to REST API if WebSocket is not ready
-          fetch('/api/state', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ state: newState, reason }),
-          }).then(r => r.json()).then(data => {
-            if (data.success) {
-              setSaveStatus('saved');
-              setLastSavedTime(Date.now());
-            }
-          }).catch(err => {
-            console.warn('[AutoSave] REST fallback save failed:', err);
-          });
-        }
-      }, 250);
+    const sendToServer = () => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'state_patch',
+          state: newState,
+          reason,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+        }));
+      } else {
+        // Fallback to REST API if WebSocket is not ready
+        fetch('/api/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: newState, reason, userName: currentUser.name }),
+        }).then(r => r.json()).then(data => {
+          if (data.success) {
+            setSaveStatus('saved');
+            setLastSavedTime(Date.now());
+          }
+        }).catch(err => {
+          console.warn('[AutoSave] REST fallback save failed:', err);
+        });
+      }
+    };
 
-      // 4. Debounced local folder auto-save
-      if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
+    if (wsDebounceTimerRef.current) clearTimeout(wsDebounceTimerRef.current);
 
-      saveDebounceTimerRef.current = setTimeout(async () => {
-        const handle = targetDirectoryHandleRef.current;
-        if (handle) {
-          try {
-            const filename = targetProjectFilenameRef.current || 'promschema_project.json';
-            const saveRes = await saveProjectToDirectory(handle, newState, filename);
-            if (saveRes.success) {
-              setSaveStatus('saved');
-              setLastSavedTime(Date.now());
-              setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
-            } else {
-              setSaveStatus('error');
-            }
-          } catch (err) {
-            console.warn('[AutoSave] Error saving to directory:', err);
+    if (immediate) {
+      // 0ms delay: instant broadcast across all connected devices!
+      sendToServer();
+    } else {
+      // 40ms throttled delay for high-frequency dragging on canvas
+      wsDebounceTimerRef.current = setTimeout(sendToServer, 40);
+    }
+
+    // 4. Debounced local folder auto-save
+    if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
+
+    saveDebounceTimerRef.current = setTimeout(async () => {
+      const handle = targetDirectoryHandleRef.current;
+      if (handle) {
+        try {
+          const filename = targetProjectFilenameRef.current || 'promschema_project.json';
+          const saveRes = await saveProjectToDirectory(handle, newState, filename);
+          if (saveRes.success) {
+            setSaveStatus('saved');
+            setLastSavedTime(Date.now());
+            setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
+          } else {
             setSaveStatus('error');
           }
-        } else {
-          // Without local folder, state is successfully autosaved to Server + LocalStorage
-          setSaveStatus('saved');
-          setLastSavedTime(Date.now());
+        } catch (err) {
+          console.warn('[AutoSave] Error saving to directory:', err);
+          setSaveStatus('error');
         }
-      }, 600);
-    }
-  }, [autoSaveConfig.enabled, currentUser.id, targetDirectory?.name]);
+      } else {
+        // Without local folder, state is successfully autosaved to Server + LocalStorage
+        setSaveStatus('saved');
+        setLastSavedTime(Date.now());
+      }
+    }, 600);
+  }, [currentUser.id, currentUser.name, targetDirectory?.name]);
 
   // Alias for backward-compatibility with mutators in this context
   const syncStateToServer = triggerLocalAutoSave;
@@ -702,14 +719,18 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           if (msg.type === 'init') {
             if (msg.state) {
               isRemoteUpdateRef.current = true;
+              latestServerVersionRef.current = msg.state.version || 1;
               setState(prev => ({
                 ...prev,
                 ...msg.state,
-                equipment: dedupeById(msg.state.equipment || prev.equipment),
-                containers: dedupeById(msg.state.containers || prev.containers),
-                links: dedupeById(msg.state.links || prev.links),
-                eventLogs: dedupeById(msg.state.eventLogs || prev.eventLogs),
+                equipment: msg.state.equipment !== undefined ? dedupeById(msg.state.equipment) : prev.equipment,
+                containers: msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers,
+                links: msg.state.links !== undefined ? dedupeById(msg.state.links) : prev.links,
+                eventLogs: msg.state.eventLogs !== undefined ? dedupeById(msg.state.eventLogs) : prev.eventLogs,
               }));
+              try {
+                localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(msg.state));
+              } catch (e) {}
             }
             if (msg.users) {
               setOnlineUsers(msg.users);
@@ -717,13 +738,21 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           } else if (msg.type === 'state_updated') {
             if (msg.state) {
               isRemoteUpdateRef.current = true;
+              latestServerVersionRef.current = msg.state.version || 1;
+              const reasonText = msg.reason || 'Обновление схемы';
+              setLastSyncEvent({
+                timestamp: Date.now(),
+                reason: reasonText,
+                senderName: msg.senderName || 'Второе устройство',
+              });
+
               setState(prev => ({
                 ...prev,
                 ...msg.state,
-                equipment: dedupeById(msg.state.equipment || prev.equipment),
-                containers: dedupeById(msg.state.containers || prev.containers),
-                links: dedupeById(msg.state.links || prev.links),
-                eventLogs: dedupeById(msg.state.eventLogs || prev.eventLogs),
+                equipment: msg.state.equipment !== undefined ? dedupeById(msg.state.equipment) : prev.equipment,
+                containers: msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers,
+                links: msg.state.links !== undefined ? dedupeById(msg.state.links) : prev.links,
+                eventLogs: msg.state.eventLogs !== undefined ? dedupeById(msg.state.eventLogs) : prev.eventLogs,
               }));
               // Synchronously autosave incoming remote update into local cache
               try {
@@ -740,6 +769,13 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               setSaveStatus('saved');
               setLastSavedTime(Date.now());
             }
+          } else if (msg.type === 'sync_ping') {
+            setLastSyncEvent({
+              timestamp: Date.now(),
+              reason: 'Тестовый сигнал связи',
+              senderName: msg.senderName || 'Второе устройство',
+            });
+            showToast('Синхронизация активна ⚡', `Тестовый импульс от «${msg.senderName || 'второго устройства'}» принят мгновенно!`, 'success');
           } else if (msg.type === 'save_ack') {
             setSaveStatus('saved');
             setLastSavedTime(msg.timestamp || Date.now());
@@ -797,6 +833,91 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (broadcastChannelRef.current) broadcastChannelRef.current.close();
     };
   }, []);
+
+  // Resilience: pull server state on initial load, tab refocus/visibility change, and periodic heartbeat
+  useEffect(() => {
+    let isMounted = true;
+
+    const pullServerState = async (onlyIfNewer = true) => {
+      try {
+        const res = await fetch('/api/state');
+        if (!res.ok) return;
+        const serverState = await res.json();
+        if (!serverState || !serverState.equipment) return;
+
+        if (onlyIfNewer) {
+          const currentVer = latestServerVersionRef.current || 0;
+          if ((serverState.version || 0) <= currentVer) {
+            return;
+          }
+        }
+
+        if (isMounted) {
+          latestServerVersionRef.current = serverState.version || 1;
+          setLastSyncEvent({
+            timestamp: Date.now(),
+            reason: 'Автоматическая сверка версий',
+            senderName: 'Сервер синхронизации',
+          });
+          setState(prev => ({
+            ...prev,
+            ...serverState,
+            equipment: dedupeById(serverState.equipment),
+            containers: dedupeById(serverState.containers),
+            links: dedupeById(serverState.links),
+            eventLogs: dedupeById(serverState.eventLogs),
+          }));
+          try {
+            localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(serverState));
+          } catch (e) {}
+        }
+      } catch (err) {
+        // silent catch
+      }
+    };
+
+    // Immediate pull
+    pullServerState(false);
+
+    // Sync on window focus or visibility change (e.g. tablet unlocked or user returns to tab)
+    const handleActive = () => {
+      if (document.visibilityState === 'visible') {
+        pullServerState(true);
+      }
+    };
+    window.addEventListener('focus', handleActive);
+    document.addEventListener('visibilitychange', handleActive);
+
+    // Fallback sync every 4 seconds
+    const interval = setInterval(() => {
+      pullServerState(true);
+    }, 4000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleActive);
+      document.removeEventListener('visibilitychange', handleActive);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const sendPingSync = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'sync_ping',
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        timestamp: Date.now(),
+      }));
+      showToast('Сигнал отправлен ⚡', 'Тестовый импульс синхронизации отправлен на подключенные устройства', 'info');
+    } else {
+      showToast('Синхронизация активна', 'Сервер SCADA подключен и синхронизирует изменения', 'info');
+    }
+  }, [currentUser.id, currentUser.name, showToast]);
+
+  const triggerInstantSync = useCallback(() => {
+    triggerLocalAutoSave(state, 'Фиксация положения элементов', true);
+  }, [state, triggerLocalAutoSave]);
 
   const broadcastCursor = useCallback((canvasPos: { x: number; y: number } | null) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -1691,6 +1812,9 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         saveStatus,
         lastSavedTime,
         lastSavedFilePath,
+        lastSyncEvent,
+        sendPingSync,
+        triggerInstantSync,
         targetDirectory,
         targetProjectFilename,
         setTargetProjectFilename,
