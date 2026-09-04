@@ -9,6 +9,7 @@ import { SearchModal } from './components/SearchModal';
 import { ReportModal } from './components/ReportModal';
 import { CreateEquipmentModal } from './components/CreateEquipmentModal';
 import { ToastContainer } from './components/ToastContainer';
+import { FolderSyncBanner } from './components/FolderSyncBanner';
 import { exportToJSON } from './utils/exportUtils';
 import { Upload, FileCode } from 'lucide-react';
 
@@ -252,6 +253,7 @@ const AppContent: React.FC = () => {
       {/* Main Workspace: Canvas + Inspector Sidebar */}
       <main className="flex-1 flex overflow-hidden relative">
         <div className="flex-1 h-full relative">
+          <FolderSyncBanner />
           <Canvas />
           <Toolbar />
         </div>

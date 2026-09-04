@@ -60,6 +60,7 @@ function loadPersistedState(): FactoryState {
 let currentState: FactoryState = loadPersistedState();
 
 let serverSaveTimer: NodeJS.Timeout | null = null;
+let lastSelfWrittenDiskMtime = 0;
 
 // Multi-device server-side autosave: writes authoritative state to disk
 function persistStateToDisk(immediate = false) {
@@ -69,6 +70,10 @@ function persistStateToDisk(immediate = false) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
       fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(currentState, null, 2), 'utf-8');
+      try {
+        const stats = fs.statSync(STATE_FILE_PATH);
+        lastSelfWrittenDiskMtime = stats.mtimeMs;
+      } catch {}
       console.log(`[Server AutoSave] Схема синхронизирована и сохранена на диск (${new Date().toLocaleTimeString('ru-RU')}). Узлов: ${currentState.equipment.length}`);
     } catch (err) {
       console.error('[Server AutoSave] Ошибка записи состояния на диск:', err);
@@ -83,6 +88,57 @@ function persistStateToDisk(immediate = false) {
     serverSaveTimer = setTimeout(doSave, 500);
   }
 }
+
+// Watcher for external disk file changes (e.g. from network share or another container/process)
+let diskWatcherPollInterval: NodeJS.Timeout | null = null;
+function startDiskStateWatcher() {
+  if (diskWatcherPollInterval) return;
+
+  try {
+    if (fs.existsSync(STATE_FILE_PATH)) {
+      lastSelfWrittenDiskMtime = fs.statSync(STATE_FILE_PATH).mtimeMs;
+    }
+  } catch {}
+
+  diskWatcherPollInterval = setInterval(() => {
+    try {
+      if (!fs.existsSync(STATE_FILE_PATH)) return;
+      const stats = fs.statSync(STATE_FILE_PATH);
+      // If file on disk was modified externally (more than 400ms after our last write)
+      if (stats.mtimeMs > lastSelfWrittenDiskMtime + 400) {
+        lastSelfWrittenDiskMtime = stats.mtimeMs;
+        const raw = fs.readFileSync(STATE_FILE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.equipment || parsed.containers)) {
+          console.log(`[Server DiskWatcher] Обнаружено изменение файла на диске (${new Date().toLocaleTimeString('ru-RU')})! Транслируем клиентам...`);
+          currentState = {
+            ...currentState,
+            ...parsed,
+            equipment: dedupeById(parsed.equipment || currentState.equipment),
+            containers: dedupeById(parsed.containers || currentState.containers),
+            links: dedupeById(parsed.links || currentState.links),
+            eventLogs: dedupeById(parsed.eventLogs || currentState.eventLogs).slice(0, 200),
+            version: (currentState.version || 1) + 1,
+            lastUpdated: new Date().toISOString(),
+          };
+
+          broadcast({
+            type: 'state_updated',
+            state: currentState,
+            senderId: 'disk_watcher',
+            senderName: 'Файл схемы на диске',
+            reason: 'Файл схемы изменен в общей папке на диске',
+            source: 'server_disk',
+            timestamp: Date.now(),
+          });
+        }
+      }
+    } catch (e) {
+      // ignore transient errors
+    }
+  }, 1000);
+}
+
 
 // Connected clients tracking
 interface ConnectedClient {
@@ -446,6 +502,8 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  startDiskStateWatcher();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server and WebSocket running on http://0.0.0.0:${PORT}`);

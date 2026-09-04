@@ -589,7 +589,7 @@ export async function saveProjectToDirectory(
   dirHandle: any,
   factory: FactoryState,
   filename?: string
-): Promise<{ success: boolean; filename?: string; error?: string }> {
+): Promise<{ success: boolean; filename?: string; lastModified?: number; size?: number; error?: string }> {
   try {
     let name = filename?.trim() || 'promschema_project.json';
     if (!name.toLowerCase().endsWith('.json')) {
@@ -602,13 +602,82 @@ export async function saveProjectToDirectory(
     await writable.write(jsonStr);
     await writable.close();
 
-    return { success: true, filename: name };
+    // Get updated file metadata
+    let lastModified = Date.now();
+    let size = 0;
+    try {
+      const file = await fileHandle.getFile();
+      lastModified = file.lastModified;
+      size = file.size;
+    } catch {}
+
+    return { success: true, filename: name, lastModified, size };
   } catch (err: any) {
     console.error('saveProjectToDirectory failed:', err);
     return {
       success: false,
       error: err?.message || 'Ошибка записи в выбранную папку',
     };
+  }
+}
+
+/**
+ * Reads and parses a project file from a directory handle
+ */
+export async function readProjectFromDirectory(
+  dirHandle: any,
+  filename?: string
+): Promise<{ success: boolean; state?: FactoryState; lastModified?: number; size?: number; error?: string }> {
+  try {
+    let name = filename?.trim() || 'promschema_project.json';
+    if (!name.toLowerCase().endsWith('.json')) {
+      name += '.json';
+    }
+
+    const fileHandle = await dirHandle.getFileHandle(name);
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    const result = parseAndValidateProject(text);
+    if (!result.success || !result.state) {
+      return { success: false, error: result.error || 'Не удалось распознать структуру проекта' };
+    }
+
+    return {
+      success: true,
+      state: result.state,
+      lastModified: file.lastModified,
+      size: file.size,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Ошибка чтения файла проекта из папки',
+    };
+  }
+}
+
+/**
+ * Queries file existence and metadata (lastModified, size) in a directory handle without parsing
+ */
+export async function getFileMetadataInDirectory(
+  dirHandle: any,
+  filename?: string
+): Promise<{ exists: boolean; lastModified?: number; size?: number; error?: string }> {
+  try {
+    let name = filename?.trim() || 'promschema_project.json';
+    if (!name.toLowerCase().endsWith('.json')) {
+      name += '.json';
+    }
+
+    const fileHandle = await dirHandle.getFileHandle(name);
+    const file = await fileHandle.getFile();
+    return {
+      exists: true,
+      lastModified: file.lastModified,
+      size: file.size,
+    };
+  } catch (err: any) {
+    return { exists: false, error: err?.message };
   }
 }
 

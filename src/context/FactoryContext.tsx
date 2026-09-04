@@ -11,10 +11,17 @@ import {
   CloudServiceType,
   LinkType,
   LinkStyle,
-  AutoSaveConfig
+  AutoSaveConfig,
+  FolderFileChangeNotice
 } from '../types';
 import { initialFactoryState } from '../data/initialFactory';
-import { parseAndValidateProject, selectSystemDirectory, saveProjectToDirectory } from '../utils/exportUtils';
+import { 
+  parseAndValidateProject, 
+  selectSystemDirectory, 
+  saveProjectToDirectory,
+  readProjectFromDirectory,
+  getFileMetadataInDirectory 
+} from '../utils/exportUtils';
 import { calculateContainerFitViewport } from '../utils/geometry';
 import {
   storeDirectoryHandle,
@@ -141,6 +148,11 @@ interface FactoryContextType {
   lastSyncEvent: { timestamp: number; reason: string; senderName?: string } | null;
   sendPingSync: () => void;
   triggerInstantSync: () => void;
+  folderWatchActive: boolean;
+  lastFolderSyncTime: number | null;
+  lastFolderFileChangeNotice: FolderFileChangeNotice | null;
+  clearFolderChangeNotice: () => void;
+  checkFolderNow: () => Promise<boolean>;
   targetDirectory: { name: string } | null;
   targetProjectFilename: string;
   setTargetProjectFilename: (name: string) => void;
@@ -378,6 +390,17 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'no_folder'>('saved');
   const [lastSavedTime, setLastSavedTime] = useState<number>(Date.now());
   const [lastSyncEvent, setLastSyncEvent] = useState<{ timestamp: number; reason: string; senderName?: string } | null>(null);
+  const [lastFolderFileChangeNotice, setLastFolderFileChangeNotice] = useState<FolderFileChangeNotice | null>(null);
+  const [lastFolderSyncTime, setLastFolderSyncTime] = useState<number | null>(null);
+
+  const lastSelfWrittenFileMtimeRef = useRef<number>(0);
+  const lastKnownFolderFileMtimeRef = useRef<number>(0);
+  const lastKnownFolderFileSizeRef = useRef<number>(0);
+
+  const clearFolderChangeNotice = useCallback(() => {
+    setLastFolderFileChangeNotice(null);
+  }, []);
+
   const latestServerVersionRef = useRef<number>(state.version || 1);
   const saveDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -430,17 +453,51 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         } catch {}
         await storeDirectoryHandle(res.handle);
 
-        // Immediate project save into the newly chosen folder
+        // Immediate project check or save into the newly chosen folder
         setSaveStatus('saving');
         const filename = targetProjectFilenameRef.current || 'promschema_project.json';
+
+        // If file already exists in this folder (e.g. created by another device), load it!
+        const existingMeta = await getFileMetadataInDirectory(res.handle, filename);
+        if (existingMeta.exists && existingMeta.lastModified) {
+          const existingProject = await readProjectFromDirectory(res.handle, filename);
+          if (existingProject.success && existingProject.state && (existingProject.state.equipment?.length > 0 || existingProject.state.containers?.length > 0)) {
+            lastKnownFolderFileMtimeRef.current = existingMeta.lastModified;
+            lastKnownFolderFileSizeRef.current = existingMeta.size || 0;
+            lastSelfWrittenFileMtimeRef.current = existingMeta.lastModified;
+            setState(prev => ({
+              ...prev,
+              ...existingProject.state,
+              equipment: dedupeById(existingProject.state!.equipment),
+              containers: dedupeById(existingProject.state!.containers),
+              links: dedupeById(existingProject.state!.links),
+              eventLogs: dedupeById(existingProject.state!.eventLogs),
+            }));
+            setSaveStatus('saved');
+            setLastSavedTime(existingMeta.lastModified);
+            setLastSavedFilePath(`${res.dirName}/${filename}`);
+            showToast(
+              'Схема загружена из папки 📂',
+              `В папке обнаружен проект «${filename}» (${existingProject.state.equipment.length} узлов). Он выведен на экран и подключен к автослежению.`,
+              'success'
+            );
+            return true;
+          }
+        }
+
         const saveRes = await saveProjectToDirectory(res.handle, state, filename);
         if (saveRes.success) {
+          if (saveRes.lastModified) {
+            lastSelfWrittenFileMtimeRef.current = saveRes.lastModified;
+            lastKnownFolderFileMtimeRef.current = saveRes.lastModified;
+            lastKnownFolderFileSizeRef.current = saveRes.size || 0;
+          }
           setSaveStatus('saved');
           setLastSavedTime(Date.now());
           setLastSavedFilePath(`${res.dirName}/${filename}`);
           showToast(
             'Папка для сохранения выбрана',
-            `Файл сохранен в «${res.dirName}/${filename}». Автосохранение на сервер отключено — все изменения схемы будут автоматически сохраняться в эту папку.`,
+            `Файл сохранен в «${res.dirName}/${filename}». Включено автосохранение и слежение за изменениями файла в реальном времени.`,
             'success'
           );
           return true;
@@ -507,6 +564,137 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.warn(e);
     }
   }, [autoSaveConfig]);
+
+  const folderWatchActive = Boolean(targetDirectory && hasDirectoryPermission && autoSaveConfig.watchFolderFile !== false);
+
+  // Active Folder File Watcher
+  // When another device updates the file in the shared folder (e.g. via network share, Google Drive, Dropbox, OneDrive),
+  // this device detects the change and immediately updates the scheme on the main screen in real time!
+  const checkFolderNow = useCallback(async (): Promise<boolean> => {
+    const handle = targetDirectoryHandleRef.current;
+    if (!handle) return false;
+    const filename = targetProjectFilenameRef.current || 'promschema_project.json';
+
+    try {
+      const meta = await getFileMetadataInDirectory(handle, filename);
+      if (!meta.exists || !meta.lastModified) return false;
+
+      // Detect if file was modified externally (not by our own recent write)
+      const isExternalChange =
+        lastKnownFolderFileMtimeRef.current > 0 &&
+        meta.lastModified !== lastKnownFolderFileMtimeRef.current &&
+        (meta.lastModified > lastSelfWrittenFileMtimeRef.current + 300 || meta.size !== lastKnownFolderFileSizeRef.current);
+
+      if (isExternalChange || lastKnownFolderFileMtimeRef.current === 0) {
+        lastKnownFolderFileMtimeRef.current = meta.lastModified;
+        lastKnownFolderFileSizeRef.current = meta.size || 0;
+
+        if (isExternalChange) {
+          const res = await readProjectFromDirectory(handle, filename);
+          if (res.success && res.state) {
+            const incomingState = res.state;
+            const currentEqCount = state.equipment.length;
+            const newEqCount = (incomingState.equipment || []).length;
+            const isDifferent =
+              (incomingState.version && incomingState.version !== state.version) ||
+              newEqCount !== currentEqCount ||
+              JSON.stringify(incomingState.equipment.map(e => ({ id: e.id, x: e.x, y: e.y, s: e.status }))) !==
+              JSON.stringify(state.equipment.map(e => ({ id: e.id, x: e.x, y: e.y, s: e.status })));
+
+            if (isDifferent) {
+              isRemoteUpdateRef.current = true;
+              latestServerVersionRef.current = incomingState.version || ((state.version || 1) + 1);
+
+              setState(prev => ({
+                ...prev,
+                ...incomingState,
+                equipment: dedupeById(incomingState.equipment || prev.equipment),
+                containers: dedupeById(incomingState.containers || prev.containers),
+                links: dedupeById(incomingState.links || prev.links),
+                eventLogs: dedupeById(incomingState.eventLogs || prev.eventLogs),
+              }));
+
+              const now = Date.now();
+              setLastSavedTime(meta.lastModified);
+              setLastFolderSyncTime(now);
+
+              const notice: FolderFileChangeNotice = {
+                filename,
+                timestamp: now,
+                summary: `Схема обновлена из файла: ${newEqCount} узлов, ${(incomingState.containers || []).length} цехов`,
+                source: 'folder',
+                equipmentCount: newEqCount,
+                containersCount: (incomingState.containers || []).length,
+              };
+              setLastFolderFileChangeNotice(notice);
+              setLastSyncEvent({
+                timestamp: now,
+                reason: `Синхронизация из файла «${filename}»`,
+                senderName: 'Второе устройство (через папку)',
+              });
+
+              showToast(
+                'Синхронизация из папки 📂⚡',
+                `Файл «${filename}» изменен другим устройством. Изменения выведены на экран в реальном времени!`,
+                'success'
+              );
+
+              // Broadcast to WebSocket so other connected views stay aligned
+              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                  type: 'state_patch',
+                  state: incomingState,
+                  reason: `Синхронизация из файла папки «${filename}»`,
+                  senderId: currentUser.id,
+                  senderName: `${currentUser.name} (папка)`,
+                }));
+              }
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    } catch (err) {
+      console.warn('[FolderWatcher] Ошибка опроса файла в папке:', err);
+      return false;
+    }
+  }, [state, currentUser.id, currentUser.name, showToast]);
+
+  // Active polling of the selected local directory
+  useEffect(() => {
+    if (!targetDirectory || !hasDirectoryPermission || autoSaveConfig.watchFolderFile === false) {
+      return;
+    }
+
+    let isPolling = false;
+    const poll = async () => {
+      if (isPolling) return;
+      isPolling = true;
+      try {
+        await checkFolderNow();
+      } finally {
+        isPolling = false;
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 1200);
+
+    const handleActive = () => {
+      if (document.visibilityState === 'visible') {
+        poll();
+      }
+    };
+    window.addEventListener('focus', handleActive);
+    document.addEventListener('visibilitychange', handleActive);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleActive);
+      document.removeEventListener('visibilitychange', handleActive);
+    };
+  }, [targetDirectory, hasDirectoryPermission, autoSaveConfig.watchFolderFile, checkFolderNow]);
 
   // Multi-device WebSocket debounce timer
   const wsDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -587,6 +775,11 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const filename = targetProjectFilenameRef.current || 'promschema_project.json';
           const saveRes = await saveProjectToDirectory(handle, newState, filename);
           if (saveRes.success) {
+            if (saveRes.lastModified) {
+              lastSelfWrittenFileMtimeRef.current = saveRes.lastModified;
+              lastKnownFolderFileMtimeRef.current = saveRes.lastModified;
+              lastKnownFolderFileSizeRef.current = saveRes.size || 0;
+            }
             setSaveStatus('saved');
             setLastSavedTime(Date.now());
             setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
@@ -635,6 +828,11 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const filename = targetProjectFilenameRef.current || 'promschema_project.json';
         const saveRes = await saveProjectToDirectory(handle, state, filename);
         if (saveRes.success) {
+          if (saveRes.lastModified) {
+            lastSelfWrittenFileMtimeRef.current = saveRes.lastModified;
+            lastKnownFolderFileMtimeRef.current = saveRes.lastModified;
+            lastKnownFolderFileSizeRef.current = saveRes.size || 0;
+          }
           setSaveStatus('saved');
           setLastSavedTime(Date.now());
           setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
@@ -754,6 +952,21 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 links: msg.state.links !== undefined ? dedupeById(msg.state.links) : prev.links,
                 eventLogs: msg.state.eventLogs !== undefined ? dedupeById(msg.state.eventLogs) : prev.eventLogs,
               }));
+
+              if (msg.source === 'server_disk' || msg.senderId === 'disk_watcher') {
+                const count = (msg.state.equipment || []).length;
+                setLastFolderFileChangeNotice({
+                  filename: 'factory_state.json',
+                  timestamp: Date.now(),
+                  summary: `Схема обновлена на диске: ${count} узлов оборудования`,
+                  source: 'server_disk',
+                  equipmentCount: count,
+                  containersCount: (msg.state.containers || []).length,
+                });
+                setLastFolderSyncTime(Date.now());
+                showToast('Синхронизация из папки 📂⚡', 'Файл схемы изменен на диске в общей папке. Изменения выведены на экран в реальном времени!', 'success');
+              }
+
               // Synchronously autosave incoming remote update into local cache
               try {
                 localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(msg.state));
@@ -764,7 +977,13 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               const handle = targetDirectoryHandleRef.current;
               if (handle) {
                 const filename = targetProjectFilenameRef.current || 'promschema_project.json';
-                saveProjectToDirectory(handle, msg.state, filename).catch(() => {});
+                saveProjectToDirectory(handle, msg.state, filename).then(res => {
+                  if (res.success && res.lastModified) {
+                    lastSelfWrittenFileMtimeRef.current = res.lastModified;
+                    lastKnownFolderFileMtimeRef.current = res.lastModified;
+                    lastKnownFolderFileSizeRef.current = res.size || 0;
+                  }
+                }).catch(() => {});
               }
               setSaveStatus('saved');
               setLastSavedTime(Date.now());
@@ -1815,6 +2034,11 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         lastSyncEvent,
         sendPingSync,
         triggerInstantSync,
+        folderWatchActive,
+        lastFolderSyncTime,
+        lastFolderFileChangeNotice,
+        clearFolderChangeNotice,
+        checkFolderNow,
         targetDirectory,
         targetProjectFilename,
         setTargetProjectFilename,

@@ -53,6 +53,10 @@ export const Navbar: React.FC = () => {
     lastSavedFilePath,
     lastSyncEvent,
     sendPingSync,
+    folderWatchActive,
+    lastFolderFileChangeNotice,
+    lastFolderSyncTime,
+    checkFolderNow,
     targetDirectory,
     targetProjectFilename,
     selectTargetFolder,
@@ -69,12 +73,25 @@ export const Navbar: React.FC = () => {
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [autosaveMenuOpen, setAutosaveMenuOpen] = useState(false);
+  const [isCheckingFolder, setIsCheckingFolder] = useState(false);
 
   const roleMenuRef = useRef<HTMLDivElement>(null);
   const usersMenuRef = useRef<HTMLDivElement>(null);
   const autosaveMenuRef = useRef<HTMLDivElement>(null);
 
   const [timeAgoText, setTimeAgoText] = useState('только что');
+
+  const handleCheckFolderNow = async () => {
+    setIsCheckingFolder(true);
+    try {
+      const changed = await checkFolderNow();
+      if (!changed) {
+        showToast('Файл актуален', 'Изменений в файле папки не обнаружено. Схема полностью синхронизирована.', 'info');
+      }
+    } finally {
+      setTimeout(() => setIsCheckingFolder(false), 500);
+    }
+  };
 
   useEffect(() => {
     const update = () => {
@@ -314,7 +331,12 @@ export const Navbar: React.FC = () => {
             </div>
 
             {/* Multi-Device & Live Sync Indicator Badge */}
-            {lastSyncEvent && (Date.now() - lastSyncEvent.timestamp < 6000) ? (
+            {lastFolderFileChangeNotice && (Date.now() - lastFolderFileChangeNotice.timestamp < 15000) ? (
+              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/25 text-emerald-800 dark:text-emerald-300 font-semibold border border-emerald-500/50 shrink-0 animate-pulse">
+                <FolderCheck className="w-2.5 h-2.5 text-emerald-500" />
+                <span className="hidden sm:inline">Из папки ⚡</span>
+              </span>
+            ) : lastSyncEvent && (Date.now() - lastSyncEvent.timestamp < 6000) ? (
               <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-500/40 shrink-0 animate-pulse">
                 <Zap className="w-2.5 h-2.5 text-emerald-500" />
                 <span className="hidden sm:inline">Синхронно</span>
@@ -462,23 +484,39 @@ export const Navbar: React.FC = () => {
                 </div>
 
                 {/* 3. Local Folder on PC */}
-                <div className="p-2 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FolderCheck className="w-4 h-4 text-amber-500 shrink-0" />
                       <div>
-                        <div className="text-xs font-medium text-slate-900 dark:text-slate-100">
-                          Локальная папка на диске ПК
+                        <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          <span>Общая папка на диске</span>
+                          {folderWatchActive && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-semibold border border-emerald-500/30">
+                              СЛЕЖЕНИЕ ⚡
+                            </span>
+                          )}
                         </div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[210px]">
                           {targetDirectory ? `${targetDirectory.name}/${targetProjectFilename}` : 'Не выбрана (опционально)'}
                         </div>
                       </div>
                     </div>
                     {targetDirectory ? (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-mono">
-                        Активно
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleCheckFolderNow}
+                          disabled={isCheckingFolder}
+                          title="Проверить изменения файла в папке прямо сейчас"
+                          className="p-1 rounded text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isCheckingFolder ? 'animate-spin text-emerald-400' : ''}`} />
+                        </button>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-mono">
+                          Активно
+                        </span>
+                      </div>
                     ) : (
                       <button
                         type="button"
@@ -492,6 +530,20 @@ export const Navbar: React.FC = () => {
                       </button>
                     )}
                   </div>
+
+                  {targetDirectory && (
+                    <div className="mt-2 pt-2 border-t border-slate-200/50 dark:border-white/5 text-[10px] text-slate-600 dark:text-slate-300 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span>Слежение за изменениями:</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">в реальном времени (каждые 1.2 с)</span>
+                      </div>
+                      {lastFolderFileChangeNotice && (
+                        <div className="text-emerald-700 dark:text-emerald-300 font-mono bg-emerald-500/10 p-1.5 rounded border border-emerald-500/20 truncate">
+                          {lastFolderFileChangeNotice.summary}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

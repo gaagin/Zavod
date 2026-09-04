@@ -147,5 +147,16 @@ export interface AutoSaveConfig {
   saveToServer: boolean;
   targetFolderName?: string;
   targetFilename?: string;
+  watchFolderFile?: boolean;
 }
+
+export interface FolderFileChangeNotice {
+  filename: string;
+  timestamp: number;
+  summary: string;
+  source: 'folder' | 'server_disk' | 'remote_device';
+  equipmentCount?: number;
+  containersCount?: number;
+}
+
 
