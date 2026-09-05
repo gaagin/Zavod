@@ -34,11 +34,14 @@ export interface EquipmentNode {
   tag: string;
   equipmentType: EquipmentType;
   status: EquipmentStatus;
-  parentId?: string | null; // Id родительского контейнера
+  parentId?: string | null; // Id родительского контейнера или родительского оборудования
   x: number;
   y: number;
   width: number;
   height: number;
+  isCollapsed?: boolean;
+  collapsedWidth?: number;
+  collapsedHeight?: number;
   properties: CustomProperty[];
   model?: string;
   serialNumber?: string;

@@ -14,12 +14,17 @@ import {
   isNodeHiddenByCollapsedAncestor, 
   getAllDescendantEquipment, 
   findAllDescendantsOfContainer,
+  findAllDescendantsOfEquipment,
+  getAllDescendantEquipmentOfEquipment,
   getBestConnectionPoints, 
   generateLinkPath,
   getAllDescendantContainerIds,
   isNodeInContainerSubtree,
+  isNodeInSubtree,
+  getNodeBreadcrumbs,
   getContainerBreadcrumbs,
-  getContainerDepth
+  getContainerDepth,
+  calculateNodeFitViewport
 } from '../utils/geometry';
 import { 
   Cpu, 
@@ -75,6 +80,7 @@ export const Canvas: React.FC = () => {
     updateContainer,
     batchUpdatePositions,
     toggleContainerCollapse,
+    toggleEquipmentCollapse,
     deleteEquipment,
     deleteContainer,
     addLink,
@@ -118,8 +124,9 @@ export const Canvas: React.FC = () => {
     initialDescendantContainers?: Array<{ id: string; initialX: number; initialY: number }>;
     initialDescendantEquipment?: Array<{ id: string; initialX: number; initialY: number }>;
   } | null>(null);
-  const [resizingContainer, setResizingContainer] = useState<{
+  const [resizingNode, setResizingNode] = useState<{
     id: string;
+    type: 'container' | 'equipment';
     isCollapsed: boolean;
     initialWidth: number;
     initialHeight: number;
@@ -135,7 +142,7 @@ export const Canvas: React.FC = () => {
     const handleGlobalMouseUp = () => {
       setIsPanning(false);
       setDraggedNode(null);
-      setResizingContainer(null);
+      setResizingNode(null);
     };
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => {
@@ -244,41 +251,75 @@ export const Canvas: React.FC = () => {
       setConnectingMousePos(canvasPt);
     }
 
-    // Handle Container Resizing (Both expanded and collapsed modes)
-    if (resizingContainer && (currentUser.role === 'admin' || currentUser.role === 'operator')) {
-      const dx = (e.clientX - resizingContainer.initialMouseX) / viewport.zoom;
-      const dy = (e.clientY - resizingContainer.initialMouseY) / viewport.zoom;
+    // Handle Node Resizing (Container or Equipment, both expanded and collapsed modes)
+    if (resizingNode && (currentUser.role === 'admin' || currentUser.role === 'operator')) {
+      const dx = (e.clientX - resizingNode.initialMouseX) / viewport.zoom;
+      const dy = (e.clientY - resizingNode.initialMouseY) / viewport.zoom;
 
-      if (resizingContainer.isCollapsed) {
-        let newW = resizingContainer.direction !== 's' 
-          ? Math.max(160, Math.round(resizingContainer.initialWidth + dx)) 
-          : resizingContainer.initialWidth;
-        let newH = resizingContainer.direction !== 'e' 
-          ? Math.max(54, Math.round(resizingContainer.initialHeight + dy)) 
-          : resizingContainer.initialHeight;
-        if (gridSnap) {
-          newW = snap(newW);
-          newH = snap(newH);
+      if (resizingNode.type === 'container') {
+        if (resizingNode.isCollapsed) {
+          let newW = resizingNode.direction !== 's' 
+            ? Math.max(160, Math.round(resizingNode.initialWidth + dx)) 
+            : resizingNode.initialWidth;
+          let newH = resizingNode.direction !== 'e' 
+            ? Math.max(54, Math.round(resizingNode.initialHeight + dy)) 
+            : resizingNode.initialHeight;
+          if (gridSnap) {
+            newW = snap(newW);
+            newH = snap(newH);
+          }
+          updateContainer(resizingNode.id, {
+            collapsedWidth: Math.max(160, newW),
+            collapsedHeight: Math.max(54, newH),
+          }, undefined, true);
+        } else {
+          let newW = resizingNode.direction !== 's' 
+            ? Math.max(220, Math.round(resizingNode.initialWidth + dx)) 
+            : resizingNode.initialWidth;
+          let newH = resizingNode.direction !== 'e' 
+            ? Math.max(120, Math.round(resizingNode.initialHeight + dy)) 
+            : resizingNode.initialHeight;
+          if (gridSnap) {
+            newW = snap(newW);
+            newH = snap(newH);
+          }
+          updateContainer(resizingNode.id, {
+            width: Math.max(220, newW),
+            height: Math.max(120, newH),
+          }, undefined, true);
         }
-        updateContainer(resizingContainer.id, {
-          collapsedWidth: Math.max(160, newW),
-          collapsedHeight: Math.max(54, newH),
-        }, undefined, true);
-      } else {
-        let newW = resizingContainer.direction !== 's' 
-          ? Math.max(220, Math.round(resizingContainer.initialWidth + dx)) 
-          : resizingContainer.initialWidth;
-        let newH = resizingContainer.direction !== 'e' 
-          ? Math.max(120, Math.round(resizingContainer.initialHeight + dy)) 
-          : resizingContainer.initialHeight;
-        if (gridSnap) {
-          newW = snap(newW);
-          newH = snap(newH);
+      } else if (resizingNode.type === 'equipment') {
+        if (resizingNode.isCollapsed) {
+          let newW = resizingNode.direction !== 's' 
+            ? Math.max(160, Math.round(resizingNode.initialWidth + dx)) 
+            : resizingNode.initialWidth;
+          let newH = resizingNode.direction !== 'e' 
+            ? Math.max(48, Math.round(resizingNode.initialHeight + dy)) 
+            : resizingNode.initialHeight;
+          if (gridSnap) {
+            newW = snap(newW);
+            newH = snap(newH);
+          }
+          updateEquipment(resizingNode.id, {
+            collapsedWidth: Math.max(160, newW),
+            collapsedHeight: Math.max(48, newH),
+          }, undefined, true);
+        } else {
+          let newW = resizingNode.direction !== 's' 
+            ? Math.max(160, Math.round(resizingNode.initialWidth + dx)) 
+            : resizingNode.initialWidth;
+          let newH = resizingNode.direction !== 'e' 
+            ? Math.max(80, Math.round(resizingNode.initialHeight + dy)) 
+            : resizingNode.initialHeight;
+          if (gridSnap) {
+            newW = snap(newW);
+            newH = snap(newH);
+          }
+          updateEquipment(resizingNode.id, {
+            width: Math.max(160, newW),
+            height: Math.max(80, newH),
+          }, undefined, true);
         }
-        updateContainer(resizingContainer.id, {
-          width: Math.max(220, newW),
-          height: Math.max(120, newH),
-        }, undefined, true);
       }
       return;
     }
@@ -297,11 +338,11 @@ export const Canvas: React.FC = () => {
         draggedNode.type,
         newX,
         newY,
-        draggedNode.type === 'container' && draggedNode.initialDescendantContainers && draggedNode.initialDescendantEquipment
+        draggedNode.initialDescendantEquipment && draggedNode.initialDescendantEquipment.length > 0
           ? {
               initialX: draggedNode.initialX,
               initialY: draggedNode.initialY,
-              containers: draggedNode.initialDescendantContainers,
+              containers: draggedNode.initialDescendantContainers || [],
               equipment: draggedNode.initialDescendantEquipment,
             }
           : undefined
@@ -311,17 +352,18 @@ export const Canvas: React.FC = () => {
 
   const handleCanvasMouseUp = () => {
     setIsPanning(false);
-    if (draggedNode || resizingContainer) {
+    if (draggedNode || resizingNode) {
       triggerInstantSync();
     }
     setDraggedNode(null);
-    setResizingContainer(null);
+    setResizingNode(null);
   };
 
-  // Container Resize Start (Expanded & Collapsed)
-  const startResizeContainer = (
+  // Unified Node Resize Start (Containers & Equipment, Expanded & Collapsed)
+  const startResizeNode = (
     e: React.MouseEvent | React.TouchEvent,
-    containerId: string,
+    nodeId: string,
+    type: 'container' | 'equipment',
     isCollapsed: boolean,
     width: number,
     height: number,
@@ -335,9 +377,10 @@ export const Canvas: React.FC = () => {
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
     recordHistorySnapshot();
-    setSelectedId(containerId);
-    setResizingContainer({
-      id: containerId,
+    setSelectedId(nodeId);
+    setResizingNode({
+      id: nodeId,
+      type,
       isCollapsed,
       initialWidth: width,
       initialHeight: height,
@@ -368,6 +411,9 @@ export const Canvas: React.FC = () => {
         const { containers: descConts, equipment: descEq } = findAllDescendantsOfContainer(id, state.containers, state.equipment);
 
         initialDescendantContainers = descConts.map(c => ({ id: c.id, initialX: c.x, initialY: c.y }));
+        initialDescendantEquipment = descEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
+      } else if (type === 'equipment') {
+        const { equipment: descEq } = findAllDescendantsOfEquipment(id, state.equipment);
         initialDescendantEquipment = descEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
       }
 
@@ -416,15 +462,35 @@ export const Canvas: React.FC = () => {
     if (type === 'equipment') {
       const eq = state.equipment.find(item => item.id === id);
       if (eq && (eq.x !== newX || eq.y !== newY)) {
+        const curW = eq.isCollapsed ? (eq.collapsedWidth || 200) : eq.width;
+        const curH = eq.isCollapsed ? (eq.collapsedHeight || 64) : eq.height;
+
+        // Prevent circular nesting: exclude self and all equipment descendants
+        const { equipment: descEq } = findAllDescendantsOfEquipment(id, state.equipment);
+        const forbiddenIds = new Set(descEq.map(e => e.id));
+        forbiddenIds.add(id);
+
+        // Check if dragging into another equipment (that is not collapsed)
+        const matchingEquipment = state.equipment.filter(e =>
+          !forbiddenIds.has(e.id) &&
+          !e.isCollapsed &&
+          newX >= e.x && newX + curW <= e.x + e.width &&
+          newY >= e.y && newY + curH <= e.y + e.height
+        );
+
         // Check if dragging into a container (supports deep nesting: finds innermost container)
         const matchingContainers = state.containers.filter(c => 
           !c.isCollapsed &&
-          newX >= c.x && newX + eq.width <= c.x + c.width &&
-          newY >= c.y && newY + eq.height <= c.y + c.height
+          newX >= c.x && newX + curW <= c.x + c.width &&
+          newY >= c.y && newY + curH <= c.y + c.height
         );
 
         let newParentId: string | null = null;
-        if (matchingContainers.length > 0) {
+        if (matchingEquipment.length > 0) {
+          // Innermost / smallest equipment wins
+          matchingEquipment.sort((a, b) => (a.width * a.height) - (b.width * b.height));
+          newParentId = matchingEquipment[0].id;
+        } else if (matchingContainers.length > 0) {
           // Sort by nesting depth descending (innermost child first), then by smallest area
           matchingContainers.sort((a, b) => {
             const depthA = getContainerDepth(a.id, state.containers);
@@ -435,7 +501,35 @@ export const Canvas: React.FC = () => {
           newParentId = matchingContainers[0].id;
         }
 
-        updateEquipment(id, { x: newX, y: newY, parentId: newParentId }, undefined, true);
+        // If this equipment has nested child equipment, move them along!
+        if (cachedDescendants && cachedDescendants.equipment.length > 0) {
+          const shiftX = newX - cachedDescendants.initialX;
+          const shiftY = newY - cachedDescendants.initialY;
+
+          const eqUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }> = [
+            { id, x: newX, y: newY, parentId: newParentId },
+            ...cachedDescendants.equipment.map(child => ({
+              id: child.id,
+              x: child.initialX + shiftX,
+              y: child.initialY + shiftY,
+            }))
+          ];
+          batchUpdatePositions([], eqUpdates, undefined, true);
+        } else if (descEq.length > 0) {
+          const shiftX = newX - eq.x;
+          const shiftY = newY - eq.y;
+          const eqUpdates: Array<{ id: string; x: number; y: number; parentId?: string | null }> = [
+            { id, x: newX, y: newY, parentId: newParentId },
+            ...descEq.map(child => ({
+              id: child.id,
+              x: child.x + shiftX,
+              y: child.y + shiftY,
+            }))
+          ];
+          batchUpdatePositions([], eqUpdates, undefined, true);
+        } else {
+          updateEquipment(id, { x: newX, y: newY, parentId: newParentId }, undefined, true);
+        }
       }
     } else if (type === 'container') {
       const cont = state.containers.find(c => c.id === id);
@@ -612,6 +706,9 @@ export const Canvas: React.FC = () => {
             if (eq) {
               t.initialNodeX = eq.x;
               t.initialNodeY = eq.y;
+              const { equipment: descEq } = findAllDescendantsOfEquipment(id, curSt.equipment);
+              t.initialDescendantContainers = [];
+              t.initialDescendantEquipment = descEq.map(d => ({ id: d.id, initialX: d.x, initialY: d.y }));
             }
           } else if (type === 'container') {
             const cont = curSt.containers.find(item => item.id === id);
@@ -701,11 +798,11 @@ export const Canvas: React.FC = () => {
               t.draggedNodeType,
               newX,
               newY,
-              t.draggedNodeType === 'container'
+              t.initialDescendantEquipment && t.initialDescendantEquipment.length > 0
                 ? {
                     initialX: t.initialNodeX,
                     initialY: t.initialNodeY,
-                    containers: t.initialDescendantContainers,
+                    containers: t.initialDescendantContainers || [],
                     equipment: t.initialDescendantEquipment,
                   }
                 : undefined
@@ -793,27 +890,38 @@ export const Canvas: React.FC = () => {
     };
   }, [applyNodePositionChange, handleNodeConnectClick, setSelectedId, setConnectingSourceId, setViewport]);
 
-  // Focus Mode context computations
-  const focusedContainer = useMemo(() => {
+  // Focus Mode context computations (Supports both Container and Equipment as focused node)
+  const focusedNode = useMemo(() => {
     if (!focusedContainerId) return null;
-    return state.containers.find(c => c.id === focusedContainerId) || null;
-  }, [focusedContainerId, state.containers]);
+    const cont = state.containers.find(c => c.id === focusedContainerId);
+    if (cont) return { type: 'container' as const, data: cont };
+    const eq = state.equipment.find(e => e.id === focusedContainerId);
+    if (eq) return { type: 'equipment' as const, data: eq };
+    return null;
+  }, [focusedContainerId, state.containers, state.equipment]);
 
-  // Breadcrumbs path from factory root to current focused container
+  const focusedContainer = useMemo(() => {
+    return focusedNode?.type === 'container' ? focusedNode.data : null;
+  }, [focusedNode]);
+
+  // Breadcrumbs path from factory root to current focused container or equipment
   const breadcrumbs = useMemo(() => {
     if (!focusedContainerId) return [];
-    return getContainerBreadcrumbs(focusedContainerId, state.containers);
-  }, [focusedContainerId, state.containers]);
+    return getNodeBreadcrumbs(focusedContainerId, state.containers, state.equipment);
+  }, [focusedContainerId, state.containers, state.equipment]);
 
   const focusedSubtreeContainerIds = useMemo(() => {
-    if (!focusedContainerId) return null;
+    if (!focusedContainerId || focusedNode?.type !== 'container') return null;
     return getAllDescendantContainerIds(focusedContainerId, state.containers);
-  }, [focusedContainerId, state.containers]);
+  }, [focusedContainerId, focusedNode, state.containers]);
 
   const focusedEquipment = useMemo(() => {
     if (!focusedContainerId) return [];
+    if (focusedNode?.type === 'equipment') {
+      return getAllDescendantEquipmentOfEquipment(focusedContainerId, state.equipment);
+    }
     return getAllDescendantEquipment(focusedContainerId, state.containers, state.equipment);
-  }, [focusedContainerId, state.containers, state.equipment]);
+  }, [focusedContainerId, focusedNode, state.containers, state.equipment]);
 
   const focusedTotalKw = useMemo(() => {
     return focusedEquipment.reduce((sum, e) => sum + (e.powerKw || 0), 0);
@@ -840,33 +948,46 @@ export const Canvas: React.FC = () => {
   };
 
   // Filter visible equipment:
-  // When in focus mode, the container fills the entire working window.
-  // ONLY equipment belonging to this focused container (or its child sub-containers) is rendered.
-  // Outside equipment is NOT rendered at all (clean view, no dimming).
+  // When in focus mode, the focused node fills the working window.
+  // ONLY equipment belonging to this focused subtree is rendered.
+  // Outside equipment is NOT rendered.
   const visibleEquipment = useMemo(() => {
-    if (focusedContainerId && focusedSubtreeContainerIds) {
-      return state.equipment.filter(eq => 
-        Boolean(eq.parentId && focusedSubtreeContainerIds.has(eq.parentId)) &&
-        !isNodeHiddenByCollapsedAncestor(eq.parentId, state.containers)
-      );
+    if (focusedContainerId) {
+      if (focusedNode?.type === 'equipment') {
+        const desc = getAllDescendantEquipmentOfEquipment(focusedContainerId, state.equipment);
+        const descIds = new Set(desc.map(d => d.id));
+        return state.equipment.filter(eq => 
+          descIds.has(eq.id) &&
+          !isNodeHiddenByCollapsedAncestor(eq.parentId, state.containers, state.equipment)
+        );
+      } else {
+        const subtreeIds = getAllDescendantContainerIds(focusedContainerId, state.containers);
+        return state.equipment.filter(eq => 
+          Boolean(eq.parentId && (subtreeIds.has(eq.parentId) || isNodeInSubtree(eq.id, focusedContainerId, state.containers, state.equipment))) &&
+          !isNodeHiddenByCollapsedAncestor(eq.parentId, state.containers, state.equipment)
+        );
+      }
     }
-    return state.equipment.filter(eq => !isNodeHiddenByCollapsedAncestor(eq.parentId, state.containers));
-  }, [state.equipment, state.containers, focusedContainerId, focusedSubtreeContainerIds]);
+    return state.equipment.filter(eq => !isNodeHiddenByCollapsedAncestor(eq.parentId, state.containers, state.equipment));
+  }, [state.equipment, state.containers, focusedContainerId, focusedNode]);
 
   // Filter visible containers:
-  // When in focus mode, the focused container itself fills the entire working window.
-  // Only its child sub-containers nested inside are rendered on the floor.
-  // Outside containers are NOT rendered at all (clean view, no dimming).
+  // When in focus mode of a container, its nested child sub-containers are rendered.
+  // When in focus mode of an equipment, no containers are shown.
   const visibleContainers = useMemo(() => {
-    if (focusedContainerId && focusedSubtreeContainerIds) {
+    if (focusedContainerId) {
+      if (focusedNode?.type === 'equipment') {
+        return [];
+      }
+      const subtreeIds = getAllDescendantContainerIds(focusedContainerId, state.containers);
       return state.containers.filter(c => 
         c.id !== focusedContainerId && 
-        focusedSubtreeContainerIds.has(c.id) &&
-        !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers)
+        subtreeIds.has(c.id) &&
+        !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers, state.equipment)
       );
     }
-    return state.containers.filter(c => !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers));
-  }, [state.containers, focusedContainerId, focusedSubtreeContainerIds]);
+    return state.containers.filter(c => !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers, state.equipment));
+  }, [state.containers, state.equipment, focusedContainerId, focusedNode]);
 
   // Icons for equipment types
   const getEquipmentIcon = (type: EquipmentType) => {
@@ -1058,19 +1179,21 @@ export const Canvas: React.FC = () => {
             // Check if hidden by collapsed parent
             const fromHidden = isNodeHiddenByCollapsedAncestor(
               state.equipment.find(e => e.id === link.fromId)?.parentId || state.containers.find(c => c.id === link.fromId)?.parentId,
-              state.containers
+              state.containers,
+              state.equipment
             );
             const toHidden = isNodeHiddenByCollapsedAncestor(
               state.equipment.find(e => e.id === link.toId)?.parentId || state.containers.find(c => c.id === link.toId)?.parentId,
-              state.containers
+              state.containers,
+              state.equipment
             );
 
             if (fromHidden || toHidden) return null;
 
-            // If in focus mode: only show links where BOTH nodes belong to this focused container subtree
+            // If in focus mode: only show links where BOTH nodes belong to this focused subtree
             if (focusedContainerId) {
-              const fromIn = isNodeInContainerSubtree(link.fromId, focusedContainerId, state.containers, state.equipment);
-              const toIn = isNodeInContainerSubtree(link.toId, focusedContainerId, state.containers, state.equipment);
+              const fromIn = isNodeInSubtree(link.fromId, focusedContainerId, state.containers, state.equipment);
+              const toIn = isNodeInSubtree(link.toId, focusedContainerId, state.containers, state.equipment);
               if (!fromIn || !toIn) return null;
             }
 
@@ -1279,22 +1402,22 @@ export const Canvas: React.FC = () => {
                 {canEdit && (
                   <>
                     <div
-                      onMouseDown={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 'se')}
-                      onTouchStart={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 'se')}
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 'se')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 'se')}
                       className="absolute -bottom-1 -right-1 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
                       title="Изменить размер свернутого цеха"
                     >
                       <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs hover:border-blue-500" />
                     </div>
                     <div
-                      onMouseDown={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 'e')}
-                      onTouchStart={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 'e')}
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 'e')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 'e')}
                       className="absolute top-1 bottom-1 -right-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
                       title="Изменить ширину"
                     />
                     <div
-                      onMouseDown={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 's')}
-                      onTouchStart={(e) => startResizeContainer(e, container.id, true, container.collapsedWidth, container.collapsedHeight, 's')}
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 's')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 's')}
                       className="absolute left-1 right-1 -bottom-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
                       title="Изменить высоту"
                     />
@@ -1426,22 +1549,22 @@ export const Canvas: React.FC = () => {
               {canEdit && (
                 <>
                   <div
-                    onMouseDown={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 'se')}
-                    onTouchStart={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 'se')}
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 'se')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 'se')}
                     className="absolute -bottom-2 -right-2 w-6 h-6 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
                     title="Изменить размер цеха"
                   >
                     <div className="w-3.5 h-3.5 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs group-hover:border-blue-500" />
                   </div>
                   <div
-                    onMouseDown={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 'e')}
-                    onTouchStart={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 'e')}
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 'e')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 'e')}
                     className="absolute top-3 bottom-3 -right-1 w-2.5 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
                     title="Изменить ширину цеха"
                   />
                   <div
-                    onMouseDown={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 's')}
-                    onTouchStart={(e) => startResizeContainer(e, container.id, false, container.width, container.height, 's')}
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 's')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 's')}
                     className="absolute left-3 right-3 -bottom-1 h-2.5 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
                     title="Изменить высоту цеха"
                   />
@@ -1454,9 +1577,138 @@ export const Canvas: React.FC = () => {
         {/* Equipment Blocks Layer */}
         {visibleEquipment.map(equipment => {
           const isSelected = selectedId === equipment.id;
+          const isThisFocused = focusedContainerId === equipment.id;
           const statusStyle = getStatusStyles(equipment.status);
           const StatusIcon = statusStyle.icon;
+          const childEquipment = state.equipment.filter(e => e.parentId === equipment.id);
 
+          if (equipment.isCollapsed) {
+            const collapsedW = equipment.collapsedWidth || 200;
+            const collapsedH = equipment.collapsedHeight || 64;
+
+            return (
+              <div
+                key={equipment.id}
+                id={`equipment-${equipment.id}`}
+                data-node-id={equipment.id}
+                data-node-type="equipment"
+                style={{
+                  transform: `translate(${equipment.x}px, ${equipment.y}px)`,
+                  width: collapsedW,
+                  height: collapsedH,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (activeTool === 'connect') {
+                    handleNodeConnectClick(equipment.id);
+                  } else {
+                    setSelectedId(equipment.id);
+                  }
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  toggleFocusMode(equipment.id);
+                }}
+                onMouseDown={(e) => startDragNode(e, equipment.id, 'equipment', equipment.x, equipment.y)}
+                className={`absolute rounded-xl border p-2 bg-white dark:bg-[#0F0F12]/95 backdrop-blur-md shadow-md dark:shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-700 dark:text-slate-300 touch-none ${
+                  statusStyle.border
+                } ${
+                  touchDraggingNodeId === equipment.id ? 'ring-4 ring-blue-400 scale-[1.03] shadow-2xl z-30' : ''
+                } ${
+                  isThisFocused
+                    ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_40px_rgba(59,130,246,0.35)] z-20'
+                    : isSelected ? 'ring-2 ring-blue-500 shadow-xl' : 'hover:border-slate-300 dark:hover:border-white/30'
+                } ${
+                  connectingSourceId === equipment.id ? 'ring-2 ring-blue-400 animate-pulse' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1.5 overflow-hidden">
+                  <div className="flex items-center gap-1.5 overflow-hidden">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleEquipmentCollapse(equipment.id);
+                      }}
+                      className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-blue-500 transition-colors"
+                      title="Развернуть оборудование"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5 text-blue-500" />
+                    </button>
+                    <div className="p-1 rounded bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 shrink-0">
+                      {getEquipmentIcon(equipment.equipmentType)}
+                    </div>
+                    <span className="font-mono text-[10px] font-bold text-slate-900 dark:text-white truncate">
+                      {equipment.tag}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFocusMode(equipment.id);
+                      }}
+                      className="p-1 rounded-md hover:bg-blue-500/15 text-slate-500 dark:text-slate-400 hover:text-blue-500 transition-colors"
+                      title="Фокусный режим оборудования (F / двойной клик)"
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                    </button>
+
+                    <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${statusStyle.badgeBg}`}>
+                      <StatusIcon className="w-2.5 h-2.5 shrink-0" />
+                      <span className="truncate">{statusStyle.label}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-white/10">
+                  <span className="truncate max-w-[110px] font-semibold text-slate-800 dark:text-slate-200">
+                    {equipment.name}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {childEquipment.length > 0 && (
+                      <span className="px-1 py-0.2 rounded bg-blue-500/15 text-blue-400 font-mono text-[9px] font-bold">
+                        {childEquipment.length} влож.
+                      </span>
+                    )}
+                    {equipment.powerKw !== undefined && (
+                      <span className="font-mono text-slate-700 dark:text-slate-300 font-medium text-[9px]">
+                        {equipment.powerKw} кВт
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Resize handles for Collapsed Equipment */}
+                {canEdit && (
+                  <>
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 'se')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 'se')}
+                      className="absolute -bottom-1 -right-1 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
+                      title="Изменить размер свернутого оборудования"
+                    >
+                      <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs hover:border-blue-500" />
+                    </div>
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 'e')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 'e')}
+                      className="absolute top-1 bottom-1 -right-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
+                      title="Изменить ширину"
+                    />
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 's')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 's')}
+                      className="absolute left-1 right-1 -bottom-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
+                      title="Изменить высоту"
+                    />
+                  </>
+                )}
+              </div>
+            );
+          }
+
+          // Expanded Equipment Block
           return (
             <div
               key={equipment.id}
@@ -1476,33 +1728,73 @@ export const Canvas: React.FC = () => {
                   setSelectedId(equipment.id);
                 }
               }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                toggleFocusMode(equipment.id);
+              }}
               onMouseDown={(e) => startDragNode(e, equipment.id, 'equipment', equipment.x, equipment.y)}
               className={`absolute rounded-xl border p-3 bg-white dark:bg-[#0F0F12] shadow-md dark:shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-700 dark:text-slate-300 touch-none ${
                 statusStyle.border
               } ${
                 touchDraggingNodeId === equipment.id ? 'ring-4 ring-blue-400 scale-[1.03] shadow-2xl z-30' : ''
               } ${
-                isSelected ? 'ring-2 ring-blue-500 shadow-xl scale-[1.01]' : 'hover:border-slate-300 dark:hover:border-white/30'
+                isThisFocused
+                  ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_50px_rgba(59,130,246,0.35)] z-20'
+                  : isSelected ? 'ring-2 ring-blue-500 shadow-xl scale-[1.01]' : 'hover:border-slate-300 dark:hover:border-white/30'
               } ${
                 connectingSourceId === equipment.id ? 'ring-2 ring-blue-400 animate-pulse' : ''
               }`}
             >
-              {/* Card Header: Tag, Icon, Name */}
+              {/* Card Header: Collapse button, Tag, Icon, Focus button, Status */}
               <div>
                 <div className="flex items-center justify-between gap-1.5 mb-1.5">
                   <div className="flex items-center gap-1.5 overflow-hidden">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleEquipmentCollapse(equipment.id);
+                      }}
+                      className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-blue-500 transition-colors"
+                      title="Свернуть оборудование"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5 text-blue-500" />
+                    </button>
+
                     <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300">
                       {getEquipmentIcon(equipment.equipmentType)}
                     </div>
                     <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white tracking-tight">
                       {equipment.tag}
                     </span>
+
+                    {childEquipment.length > 0 && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-mono text-[9px] font-bold">
+                        {childEquipment.length} влож.
+                      </span>
+                    )}
                   </div>
 
-                  {/* Status Pill */}
-                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusStyle.badgeBg}`}>
-                    <StatusIcon className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{statusStyle.label}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFocusMode(equipment.id);
+                      }}
+                      className={`p-1 rounded-md transition-colors ${
+                        isThisFocused
+                          ? 'bg-blue-600 text-white'
+                          : 'hover:bg-blue-500/15 text-slate-500 dark:text-slate-400 hover:text-blue-500'
+                      }`}
+                      title="Фокусный режим оборудования (F / двойной клик)"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Status Pill */}
+                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusStyle.badgeBg}`}>
+                      <StatusIcon className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{statusStyle.label}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1594,6 +1886,32 @@ export const Canvas: React.FC = () => {
                 className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-white dark:border-[#09090B] opacity-0 group-hover:opacity-100 hover:scale-125 transition-all cursor-pointer shadow-sm z-10" 
                 title="Подключить справа"
               />
+
+              {/* Resize handles for Expanded Equipment */}
+              {canEdit && (
+                <>
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 'se')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 'se')}
+                    className="absolute -bottom-1.5 -right-1.5 w-5 h-5 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
+                    title="Изменить размер оборудования"
+                  >
+                    <div className="w-3 h-3 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs group-hover:border-blue-500" />
+                  </div>
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 'e')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 'e')}
+                    className="absolute top-2 bottom-2 -right-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
+                    title="Изменить ширину оборудования"
+                  />
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 's')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 's')}
+                    className="absolute left-2 right-2 -bottom-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
+                    title="Изменить высоту оборудования"
+                  />
+                </>
+              )}
             </div>
           );
         })}
@@ -1625,35 +1943,41 @@ export const Canvas: React.FC = () => {
             </div>
           );
         })}
-        {/* Empty Container State inside focus mode */}
-        {focusedContainer && visibleEquipment.length === 0 && visibleContainers.length === 0 && (
+        {/* Empty State inside focus mode */}
+        {focusedNode && visibleEquipment.length === 0 && visibleContainers.length === 0 && (
           <div 
             style={{
-              transform: `translate(${focusedContainer.x + 30}px, ${focusedContainer.y + 60}px)`,
-              width: Math.max(340, focusedContainer.width - 60),
+              transform: `translate(${focusedNode.data.x + 30}px, ${focusedNode.data.y + 60}px)`,
+              width: Math.max(340, focusedNode.data.width - 60),
             }}
             className="absolute p-6 rounded-2xl bg-white/5 border border-dashed border-white/15 text-center select-none backdrop-blur-xs z-10"
           >
             <Boxes className="w-8 h-8 text-blue-400 mx-auto mb-2 opacity-60" />
-            <h4 className="text-xs font-bold text-white mb-1">Участок пока пуст</h4>
+            <h4 className="text-xs font-bold text-white mb-1">
+              {focusedNode.type === 'container' ? 'Участок пока пуст' : 'Вложенное оборудование отсутствует'}
+            </h4>
             <p className="text-[11px] text-slate-400 mb-3">
-              Добавьте пустое оборудование для ручной настройки свойств или воспользуйтесь мастером параметров.
+              {focusedNode.type === 'container' 
+                ? 'Добавьте оборудование для ручной настройки свойств или воспользуйтесь мастером параметров.'
+                : 'Вы можете поместить внутрь другое оборудование (дочерние узлы, датчики, компоненты).'}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button
-                onClick={() => addEmptyEquipment(focusedContainer.id)}
+                onClick={() => addEmptyEquipment(focusedNode.data.id)}
                 className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition-all cursor-pointer hover:scale-[1.02] active:scale-98"
               >
                 <Sliders className="w-3.5 h-3.5" />
-                <span>+ Пустое оборудование</span>
+                <span>+ Добавить оборудование</span>
               </button>
-              <button
-                onClick={() => setIsCreateEquipmentOpen(true)}
-                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                <span>Мастер параметров...</span>
-              </button>
+              {focusedNode.type === 'container' && (
+                <button
+                  onClick={() => setIsCreateEquipmentOpen(true)}
+                  className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Мастер параметров...</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1665,7 +1989,7 @@ export const Canvas: React.FC = () => {
         className="absolute bottom-6 right-6 w-48 h-36 bg-[#0F0F12]/90 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl overflow-hidden pointer-events-auto select-none hidden sm:block"
       >
         <div className="px-2 py-1 bg-white/5 border-b border-white/10 flex items-center justify-between text-[10px] font-bold text-slate-400">
-          <span className="truncate max-w-[100px]">{focusedContainer ? focusedContainer.tag : 'Схема завода'}</span>
+          <span className="truncate max-w-[100px]">{focusedNode ? focusedNode.data.tag : 'Схема завода'}</span>
           <span>{visibleEquipment.length} ед.</span>
         </div>
         <div 
@@ -1723,12 +2047,12 @@ export const Canvas: React.FC = () => {
         </div>
       </div>
 
-      {/* Top Focus Mode Bar (Selected container fills the entire working window) */}
-      {focusedContainer && (
+      {/* Top Focus Mode Bar (Selected container or equipment fills the entire working window) */}
+      {focusedNode && (
         <div 
           id="focus-mode-hud-bar"
           className="absolute top-3 left-4 right-4 z-30 flex items-center justify-between gap-3 p-2 px-3.5 rounded-xl bg-[#0E1015]/95 backdrop-blur-md border border-white/10 shadow-2xl text-white select-none pointer-events-auto"
-          style={{ borderLeft: `5px solid ${focusedContainer.color}` }}
+          style={{ borderLeft: focusedNode.type === 'container' ? `5px solid ${focusedNode.data.color}` : '5px solid #3b82f6' }}
         >
           {/* Left: Back button & Interactive Breadcrumbs */}
           <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
@@ -1808,7 +2132,7 @@ export const Canvas: React.FC = () => {
             {/* Fit to window */}
             <button
               id="focus-fit-screen-btn"
-              onClick={() => fitContainerToScreen(focusedContainer.id)}
+              onClick={() => fitContainerToScreen(focusedNode.data.id)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all hover:scale-[1.02] active:scale-95 shrink-0"
               title="Подогнать элементы цеха под размер рабочего окна"
             >

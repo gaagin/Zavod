@@ -5,19 +5,30 @@ import { FactoryState, EquipmentNode, ContainerNode, ConnectionLink, FactoryEven
  * Returns full path of an equipment or container in the hierarchy
  * e.g., "Цех №1 > Линия А > Шкаф АСУ"
  */
-export function getHierarchyPath(nodeId: string, containers: ContainerNode[]): string {
+export function getHierarchyPath(nodeId: string, containers: ContainerNode[], equipment?: EquipmentNode[]): string {
   const containerMap = new Map(containers.map(c => [c.id, c]));
+  const eqMap = equipment ? new Map(equipment.map(e => [e.id, e])) : null;
   const path: string[] = [];
   let currentId: string | null | undefined = nodeId;
+  const visited = new Set<string>();
 
-  while (currentId) {
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
     const cont = containerMap.get(currentId);
     if (cont) {
       path.unshift(cont.name);
       currentId = cont.parentId;
-    } else {
-      break;
+      continue;
     }
+    if (eqMap) {
+      const eq = eqMap.get(currentId);
+      if (eq) {
+        path.unshift(eq.name);
+        currentId = eq.parentId;
+        continue;
+      }
+    }
+    break;
   }
 
   return path.length > 0 ? path.join(' / ') : 'Корень завода';

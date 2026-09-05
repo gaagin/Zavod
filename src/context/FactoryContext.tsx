@@ -22,7 +22,7 @@ import {
   readProjectFromDirectory,
   getFileMetadataInDirectory 
 } from '../utils/exportUtils';
-import { calculateContainerFitViewport } from '../utils/geometry';
+import { calculateContainerFitViewport, calculateNodeFitViewport } from '../utils/geometry';
 import {
   storeDirectoryHandle,
   getStoredDirectoryHandle,
@@ -88,6 +88,7 @@ interface FactoryContextType {
     skipHistory?: boolean
   ) => void;
   toggleContainerCollapse: (id: string) => void;
+  toggleEquipmentCollapse: (id: string) => void;
   addContainer: (container: ContainerNode, reason?: string) => void;
   deleteContainer: (id: string, reason?: string) => void;
   addLink: (fromId: string, toId: string, type?: LinkType, style?: LinkStyle) => void;
@@ -1487,6 +1488,31 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [currentUser]);
 
+  const toggleEquipmentCollapse = useCallback((id: string) => {
+    setState(prev => {
+      const target = prev.equipment.find(e => e.id === id);
+      if (!target) return prev;
+      const willBeCollapsed = !target.isCollapsed;
+      const nextEq = prev.equipment.map(e => e.id === id ? { ...e, isCollapsed: willBeCollapsed } : e);
+      const logDesc = willBeCollapsed ? `Свернуто оборудование [${target.tag}] ${target.name}` : `Раскрыто оборудование [${target.tag}] ${target.name}`;
+      const newLog = createEventLog({
+        targetId: id,
+        targetName: target.name,
+        targetType: 'equipment',
+        eventType: 'property_edit',
+        severity: 'info',
+        description: logDesc,
+        userName: currentUser.name,
+        userRole: currentUser.role
+      });
+      const nextLogs = [newLog, ...prev.eventLogs.filter(l => l.id !== newLog.id)].slice(0, 200);
+      const nextState = { ...prev, equipment: nextEq, eventLogs: nextLogs };
+
+      syncStateToServer(nextState, `Оборудование ${target.tag} ${willBeCollapsed ? 'свернуто' : 'развернуто'}`);
+      return nextState;
+    });
+  }, [currentUser]);
+
   const addContainer = useCallback((container: ContainerNode, reason?: string) => {
     pushHistory(state);
     setState(prev => {
@@ -1835,7 +1861,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const target = eq || cont;
     if (!target) return;
 
-    // If target has collapsed ancestor, uncollapse it so it's visible!
+    // If target has collapsed ancestor (container or equipment), uncollapse it so it's visible!
     let currentParentId = target.parentId;
     if (currentParentId) {
       setState(prev => {
@@ -1847,14 +1873,27 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
           return c;
         });
-        return changed ? { ...prev, containers: nextContainers } : prev;
+        const nextEquipment = prev.equipment.map(e => {
+          if (e.id === currentParentId && e.isCollapsed) {
+            changed = true;
+            return { ...e, isCollapsed: false };
+          }
+          return e;
+        });
+        return changed ? { ...prev, containers: nextContainers, equipment: nextEquipment } : prev;
       });
     }
 
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
-    const targetCenterX = target.x + target.width / 2;
-    const targetCenterY = target.y + target.height / 2;
+    const targetW = ('isCollapsed' in target && target.isCollapsed)
+      ? (('collapsedWidth' in target && target.collapsedWidth) || 180)
+      : target.width;
+    const targetH = ('isCollapsed' in target && target.isCollapsed)
+      ? (('collapsedHeight' in target && target.collapsedHeight) || 64)
+      : target.height;
+    const targetCenterX = target.x + targetW / 2;
+    const targetCenterY = target.y + targetH / 2;
 
     const targetZoom = 1.0;
     const newPanX = windowWidth / 2 - targetCenterX * targetZoom;
@@ -1864,52 +1903,71 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSelectedId(nodeId);
   }, [state.equipment, state.containers]);
 
-  // Fit container to screen (fills the workspace)
-  const fitContainerToScreen = useCallback((containerId?: string) => {
-    const id = containerId || focusedContainerId || selectedId;
+  // Fit container or equipment to screen (fills the workspace)
+  const fitContainerToScreen = useCallback((nodeId?: string) => {
+    const id = nodeId || focusedContainerId || selectedId;
     if (!id) return;
     const cont = state.containers.find(c => c.id === id);
-    if (!cont) return;
+    const eq = state.equipment.find(e => e.id === id);
+    const target = cont || eq;
+    if (!target) return;
 
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
-    const fit = calculateContainerFitViewport(cont, viewportW, viewportH, 40, 56);
+    const fit = calculateNodeFitViewport(target, viewportW, viewportH, 50, 56);
     setViewport(fit);
-  }, [focusedContainerId, selectedId, state.containers]);
+  }, [focusedContainerId, selectedId, state.containers, state.equipment]);
 
-  // Enter Focus Mode for a Container (Container fills entire working window)
-  const enterFocusMode = useCallback((containerId: string) => {
-    const target = state.containers.find(c => c.id === containerId);
+  // Enter Focus Mode for a Container OR Equipment (Node fills entire working window)
+  const enterFocusMode = useCallback((nodeId: string) => {
+    const targetContainer = state.containers.find(c => c.id === nodeId);
+    const targetEquipment = state.equipment.find(e => e.id === nodeId);
+    const target = targetContainer || targetEquipment;
     if (!target) return;
 
-    // If target or any ancestor container is collapsed, uncollapse it!
+    // If target or any ancestor container or equipment is collapsed, uncollapse it!
     setState(prev => {
       let changed = false;
       const nextContainers = prev.containers.map(c => {
-        if (c.id === containerId && c.isCollapsed) {
+        if (c.id === nodeId && c.isCollapsed) {
           changed = true;
           return { ...c, isCollapsed: false };
         }
         return c;
       });
-      return changed ? { ...prev, containers: nextContainers } : prev;
+      const nextEquipment = prev.equipment.map(e => {
+        if (e.id === nodeId && e.isCollapsed) {
+          changed = true;
+          return { ...e, isCollapsed: false };
+        }
+        return e;
+      });
+      return changed ? { ...prev, containers: nextContainers, equipment: nextEquipment } : prev;
     });
 
-    setFocusedContainerId(containerId);
-    setSelectedId(containerId);
+    setFocusedContainerId(nodeId);
+    setSelectedId(nodeId);
 
-    // Zoom and center container to fill the working window
+    // Zoom and center node to fill the working window
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
-    const fit = calculateContainerFitViewport(target, viewportW, viewportH, 40, 56);
+    const fit = calculateNodeFitViewport(target, viewportW, viewportH, 50, 56);
     setViewport(fit);
 
-    showToast(
-      `Цех: [${target.tag}] ${target.name}`,
-      'Контейнер заполняет рабочее окно. Нажмите Esc для возврата.',
-      'info'
-    );
-  }, [state.containers, showToast]);
+    if (targetContainer) {
+      showToast(
+        `Цех: [${targetContainer.tag}] ${targetContainer.name}`,
+        'Контейнер заполняет рабочее окно. Нажмите Esc для возврата.',
+        'info'
+      );
+    } else if (targetEquipment) {
+      showToast(
+        `Оборудование: [${targetEquipment.tag}] ${targetEquipment.name}`,
+        'Фокусный режим на оборудовании. Нажмите Esc для возврата.',
+        'info'
+      );
+    }
+  }, [state.containers, state.equipment, showToast]);
 
   // Exit Focus Mode
   const exitFocusMode = useCallback(() => {
@@ -1919,8 +1977,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [showToast]);
 
   // Toggle Focus Mode
-  const toggleFocusMode = useCallback((containerId?: string) => {
-    const id = containerId || selectedId;
+  const toggleFocusMode = useCallback((nodeId?: string) => {
+    const id = nodeId || selectedId;
     if (!id) return;
     if (focusedContainerId === id) {
       exitFocusMode();
@@ -1962,7 +2020,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       } else if (e.key === 'l' || e.key === 'L') {
         setActiveTool('connect');
       } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
-        if (selectedId && state.containers.some(c => c.id === selectedId)) {
+        if (
+          selectedId &&
+          (state.containers.some(c => c.id === selectedId) || state.equipment.some(e => e.id === selectedId))
+        ) {
           e.preventDefault();
           toggleFocusMode(selectedId);
         }
@@ -2031,6 +2092,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateContainer,
         batchUpdatePositions,
         toggleContainerCollapse,
+        toggleEquipmentCollapse,
         addContainer,
         deleteContainer,
         addLink,

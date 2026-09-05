@@ -44,6 +44,7 @@ export const InspectorPanel: React.FC = () => {
     updateContainer,
     deleteContainer,
     toggleContainerCollapse,
+    toggleEquipmentCollapse,
     updateLink,
     deleteLink,
     currentUser,
@@ -227,8 +228,10 @@ export const InspectorPanel: React.FC = () => {
   // EQUIPMENT INSPECTOR
   if (selectedEquipment) {
     const locationPath = selectedEquipment.parentId 
-      ? getHierarchyPath(selectedEquipment.parentId, state.containers) 
+      ? getHierarchyPath(selectedEquipment.parentId, state.containers, state.equipment) 
       : 'Корень предприятия (вне контейнера)';
+
+    const directChildEquipment = state.equipment.filter(eq => eq.parentId === selectedEquipment.id);
 
     return (
       <>
@@ -261,6 +264,59 @@ export const InspectorPanel: React.FC = () => {
             className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Focus Mode Action for Equipment */}
+        <div className="my-3 space-y-1.5">
+          <button
+            id="equipment-focus-mode-toggle-btn"
+            onClick={() => toggleFocusMode(selectedEquipment.id)}
+            className={`w-full py-2.5 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer ${
+              focusedContainerId === selectedEquipment.id
+                ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400 shadow-blue-500/25 ring-2 ring-blue-500/40'
+                : 'bg-blue-50 dark:bg-blue-600/20 hover:bg-blue-100 dark:hover:bg-blue-600/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/40 hover:border-blue-300 dark:hover:border-blue-500/60'
+            }`}
+          >
+            {focusedContainerId === selectedEquipment.id ? (
+              <>
+                <Minimize2 className="w-4 h-4 text-white" />
+                <span>Выйти из оборудования (общий план)</span>
+              </>
+            ) : (
+              <>
+                <Maximize2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span>Фокусный режим оборудования (F)</span>
+              </>
+            )}
+          </button>
+
+          {focusedContainerId === selectedEquipment.id && (
+            <div className="pt-1">
+              <button
+                onClick={() => fitContainerToScreen(selectedEquipment.id)}
+                className="w-full py-2 px-3 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold border border-slate-200 dark:border-white/10 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                title="Подогнать под рабочее окно"
+              >
+                <Scan className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>По размеру рабочего окна</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Equipment Collapse Toggle */}
+        <div className="mb-3">
+          <button
+            onClick={() => toggleEquipmentCollapse(selectedEquipment.id)}
+            className="w-full py-2 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between transition-colors cursor-pointer"
+          >
+            <span>Состояние оборудования:</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+              selectedEquipment.isCollapsed ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+            }`}>
+              {selectedEquipment.isCollapsed ? 'Свернуто (Минимизировано)' : 'Развернуто (Видны вложенные)'}
+            </span>
           </button>
         </div>
 
@@ -377,9 +433,52 @@ export const InspectorPanel: React.FC = () => {
             </div>
           </div>
 
+          {/* Dimensions Controls */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                Ширина (px)
+              </label>
+              <input
+                type="number"
+                disabled={!canEdit}
+                value={selectedEquipment.isCollapsed ? (selectedEquipment.collapsedWidth || 180) : selectedEquipment.width}
+                onChange={(e) => {
+                  const val = Math.max(160, Number(e.target.value));
+                  if (selectedEquipment.isCollapsed) {
+                    updateEquipment(selectedEquipment.id, { collapsedWidth: val });
+                  } else {
+                    updateEquipment(selectedEquipment.id, { width: val });
+                  }
+                }}
+                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                Высота (px)
+              </label>
+              <input
+                type="number"
+                disabled={!canEdit}
+                value={selectedEquipment.isCollapsed ? (selectedEquipment.collapsedHeight || 64) : selectedEquipment.height}
+                onChange={(e) => {
+                  const val = Math.max(selectedEquipment.isCollapsed ? 48 : 80, Number(e.target.value));
+                  if (selectedEquipment.isCollapsed) {
+                    updateEquipment(selectedEquipment.id, { collapsedHeight: val });
+                  } else {
+                    updateEquipment(selectedEquipment.id, { height: val });
+                  }
+                }}
+                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
-              Расположение (Вложенность в контейнер)
+              Расположение (Вложенность в цех или оборудование)
             </label>
             <select
               disabled={!canAdmin}
@@ -387,12 +486,23 @@ export const InspectorPanel: React.FC = () => {
               onChange={(e) => updateEquipment(selectedEquipment.id, { parentId: e.target.value || null }, `Перемещено в ${e.target.value || 'корень'}`)}
               className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-[#17171C] text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             >
-              <option value="">(Без контейнера / Корень завода)</option>
-              {state.containers.map(c => (
-                <option key={c.id} value={c.id}>
-                  [{c.tag}] {c.name}
-                </option>
-              ))}
+              <option value="">(Без родителя / Корень завода)</option>
+              <optgroup label="Цехи и участки">
+                {state.containers.map(c => (
+                  <option key={c.id} value={c.id}>
+                    📁 [{c.tag}] {c.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Оборудование (вложить внутрь)">
+                {state.equipment
+                  .filter(eq => eq.id !== selectedEquipment.id && eq.parentId !== selectedEquipment.id)
+                  .map(eq => (
+                    <option key={eq.id} value={eq.id}>
+                      ⚙️ [{eq.tag}] {eq.name}
+                    </option>
+                  ))}
+              </optgroup>
             </select>
             <div className="text-[10px] text-slate-500 mt-1 truncate">
               Путь: {locationPath}
@@ -596,6 +706,38 @@ export const InspectorPanel: React.FC = () => {
             </form>
           )}
         </div>
+
+        {/* Nested Child Equipment */}
+        {directChildEquipment.length > 0 && (
+          <div className="pt-3 border-t border-slate-200 dark:border-white/10 my-3">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center justify-between">
+              <span>Вложенное оборудование ({directChildEquipment.length} ед.)</span>
+            </div>
+            <div className="space-y-1 text-xs max-h-36 overflow-y-auto">
+              {directChildEquipment.map(child => (
+                <div 
+                  key={child.id}
+                  onClick={() => focusNode(child.id)}
+                  className="p-1.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                >
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate flex-1">
+                    ⚙️ [{child.tag}] {child.name}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      enterFocusMode(child.id);
+                    }}
+                    className="p-1 rounded-md hover:bg-blue-100 dark:hover:bg-blue-500/20 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
+                    title="Фокус на этом оборудовании"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Delete action */}
         {canAdmin && (
