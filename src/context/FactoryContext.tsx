@@ -485,13 +485,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
         }
 
-        const saveRes = await saveProjectToDirectory(res.handle, state, filename);
+        const saveRes = await saveProjectToDirectory(res.handle, state, filename, true);
         if (saveRes.success) {
           if (saveRes.lastModified) {
             lastSelfWrittenFileMtimeRef.current = saveRes.lastModified;
             lastKnownFolderFileMtimeRef.current = saveRes.lastModified;
             lastKnownFolderFileSizeRef.current = saveRes.size || 0;
           }
+          setHasDirectoryPermission(true);
           setSaveStatus('saved');
           setLastSavedTime(Date.now());
           setLastSavedFilePath(`${res.dirName}/${filename}`);
@@ -501,9 +502,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             'success'
           );
           return true;
+        } else if (saveRes.permissionRequired) {
+          setHasDirectoryPermission(false);
+          setSaveStatus('saved');
+          showToast('Папка выбрана', `Папка «${res.dirName}» выбрана, но браузер требует подтвердить права доступа при записи. Нажмите «Подтвердить доступ» вверху.`, 'warning');
+          return true;
         } else {
-          setSaveStatus('error');
-          showToast('Ошибка сохранения', saveRes.error || 'Не удалось записать в выбранную папку', 'error');
+          setSaveStatus('saved');
+          showToast('Предупреждение при записи', saveRes.error || 'Не удалось записать в выбранную папку', 'warning');
           return false;
         }
       } else if (!res.aborted && res.error) {
@@ -525,10 +531,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.removeItem('promschema_target_folder');
     } catch {}
     await clearStoredDirectoryHandle();
-    setSaveStatus('no_folder');
+    setSaveStatus('saved');
     showToast(
       'Папка сброшена',
-      'Автосохранение в локальную папку приостановлено. Выберите папку снова, чтобы включить автосохранение.',
+      'Связь с папкой на диске отключена. Проект продолжает сохраняться на сервере и в кэше браузера.',
       'info'
     );
   }, [showToast]);
@@ -538,21 +544,33 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!targetDirectoryHandleRef.current) {
       return await selectTargetFolder();
     }
-    const granted = await verifyDirectoryPermission(targetDirectoryHandleRef.current, true);
-    setHasDirectoryPermission(granted);
-    if (granted) {
-      setSaveStatus('saving');
-      const filename = targetProjectFilenameRef.current || 'promschema_project.json';
-      const saveRes = await saveProjectToDirectory(targetDirectoryHandleRef.current, state, filename);
-      if (saveRes.success) {
-        setSaveStatus('saved');
-        setLastSavedTime(Date.now());
-        setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
-        showToast('Доступ предоставлен', `Схема сохранена в «${targetDirectory?.name}/${filename}»`, 'success');
-        return true;
+    try {
+      const granted = await verifyDirectoryPermission(targetDirectoryHandleRef.current, true);
+      setHasDirectoryPermission(granted);
+      if (granted) {
+        setSaveStatus('saving');
+        const filename = targetProjectFilenameRef.current || 'promschema_project.json';
+        const saveRes = await saveProjectToDirectory(targetDirectoryHandleRef.current, state, filename, true);
+        if (saveRes.success) {
+          setSaveStatus('saved');
+          setLastSavedTime(Date.now());
+          setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
+          showToast('Доступ подтвержден 📂', `Схема синхронизирована с файлом «${targetDirectory?.name}/${filename}»`, 'success');
+          return true;
+        } else {
+          showToast('Предупреждение', saveRes.error || 'Не удалось записать в папку', 'warning');
+          setSaveStatus('saved');
+        }
+      } else {
+        showToast(
+          'Доступ не подтвержден',
+          `Браузер ожидает подтверждения доступа к папке «${targetDirectory?.name || ''}». Если папка была перемещена, выберите папку заново.`,
+          'warning'
+        );
       }
-    } else {
-      showToast('Доступ не получен', 'Для автосохранения в локальную папку необходимо подтвердить доступ в браузере', 'warning');
+    } catch (err: any) {
+      console.warn('requestDirectoryAccess error:', err);
+      showToast('Доступ к папке', 'Не удалось подтвердить права доступа к папке. Выберите папку повторно.', 'warning');
     }
     return false;
   }, [selectTargetFolder, state, targetDirectory?.name, showToast]);
@@ -773,22 +791,35 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (handle) {
         try {
           const filename = targetProjectFilenameRef.current || 'promschema_project.json';
-          const saveRes = await saveProjectToDirectory(handle, newState, filename);
-          if (saveRes.success) {
-            if (saveRes.lastModified) {
-              lastSelfWrittenFileMtimeRef.current = saveRes.lastModified;
-              lastKnownFolderFileMtimeRef.current = saveRes.lastModified;
-              lastKnownFolderFileSizeRef.current = saveRes.size || 0;
+          // Check permission non-interactively in background
+          const hasPerm = await verifyDirectoryPermission(handle, false);
+          setHasDirectoryPermission(hasPerm);
+
+          if (hasPerm) {
+            const saveRes = await saveProjectToDirectory(handle, newState, filename, false);
+            if (saveRes.success) {
+              if (saveRes.lastModified) {
+                lastSelfWrittenFileMtimeRef.current = saveRes.lastModified;
+                lastKnownFolderFileMtimeRef.current = saveRes.lastModified;
+                lastKnownFolderFileSizeRef.current = saveRes.size || 0;
+              }
+              setSaveStatus('saved');
+              setLastSavedTime(Date.now());
+              setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
+            } else if (saveRes.permissionRequired) {
+              setHasDirectoryPermission(false);
+              setSaveStatus('saved');
+            } else {
+              // Local state and server state are intact
+              setSaveStatus('saved');
             }
-            setSaveStatus('saved');
-            setLastSavedTime(Date.now());
-            setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
           } else {
-            setSaveStatus('error');
+            // Awaiting user gesture to re-grant folder write permission
+            setSaveStatus('saved');
           }
         } catch (err) {
           console.warn('[AutoSave] Error saving to directory:', err);
-          setSaveStatus('error');
+          setSaveStatus('saved');
         }
       } else {
         // Without local folder, state is successfully autosaved to Server + LocalStorage
@@ -802,8 +833,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const syncStateToServer = triggerLocalAutoSave;
 
   // Force instant save to server and target folder
-  const forceSave = useCallback(async (): Promise<boolean> => {
+  const forceSave = useCallback(async (overrideFilename?: string): Promise<{ success: boolean; savedLocally?: boolean; filename?: string; error?: string }> => {
     setSaveStatus('saving');
+    const filename = overrideFilename || targetProjectFilenameRef.current || 'promschema_project.json';
+
     try {
       localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(state));
 
@@ -814,20 +847,22 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           state,
           reason: 'Принудительное сохранение пользователем',
           senderId: currentUser.id,
+          senderName: currentUser.name,
         }));
       } else {
         await fetch('/api/state', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state, reason: 'Принудительное сохранение' }),
-        });
+          body: JSON.stringify({ state, reason: 'Принудительное сохранение', userName: currentUser.name }),
+        }).catch(err => console.warn('[forceSave] REST save warning:', err));
       }
 
       const handle = targetDirectoryHandleRef.current;
       if (handle) {
-        const filename = targetProjectFilenameRef.current || 'promschema_project.json';
-        const saveRes = await saveProjectToDirectory(handle, state, filename);
+        // Interactive = true because forceSave is triggered by user gesture (click/shortcut)
+        const saveRes = await saveProjectToDirectory(handle, state, filename, true);
         if (saveRes.success) {
+          setHasDirectoryPermission(true);
           if (saveRes.lastModified) {
             lastSelfWrittenFileMtimeRef.current = saveRes.lastModified;
             lastKnownFolderFileMtimeRef.current = saveRes.lastModified;
@@ -836,25 +871,35 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setSaveStatus('saved');
           setLastSavedTime(Date.now());
           setLastSavedFilePath(`${targetDirectory?.name || 'Папка'}/${filename}`);
-          showToast('Сохранено', `Схема успешно сохранена на сервере и в выбранную папку: «${targetDirectory?.name}/${filename}»`, 'success');
-          return true;
+          showToast('Сохранено на диск 📂', `Схема успешно сохранена на сервере и в папку «${targetDirectory?.name || 'Папка'}/${filename}»`, 'success');
+          return { success: true, savedLocally: true, filename };
+        } else if (saveRes.permissionRequired) {
+          setHasDirectoryPermission(false);
+          setSaveStatus('saved');
+          setLastSavedTime(Date.now());
+          showToast(
+            'Сохранено в кэш (папка ожидает доступ)',
+            `Изменения сохранены в браузере и на сервере. Для записи на диск нажмите кнопку папки вверху («Подтвердить доступ»).`,
+            'warning'
+          );
+          return { success: true, savedLocally: false, filename, error: saveRes.error };
         } else {
           setSaveStatus('error');
-          showToast('Ошибка сохранения', saveRes.error || 'Не удалось сохранить в папку', 'error');
-          return false;
+          showToast('Ошибка сохранения в папку', saveRes.error || 'Не удалось сохранить в выбранную папку', 'error');
+          return { success: false, savedLocally: false, filename, error: saveRes.error };
         }
       }
 
       setSaveStatus('saved');
       setLastSavedTime(Date.now());
       showToast('Сохранено', 'Схема успешно сохранена на сервере и в локальном кэше браузера', 'success');
-      return true;
+      return { success: true, savedLocally: false, filename };
     } catch (e: any) {
       setSaveStatus('error');
       showToast('Ошибка сохранения', e?.message || 'Не удалось сохранить проект', 'error');
-      return false;
+      return { success: false, error: e?.message || 'Не удалось сохранить проект' };
     }
-  }, [state, targetDirectory?.name, currentUser.id, showToast]);
+  }, [state, targetDirectory?.name, currentUser.id, currentUser.name, showToast]);
 
   // Prevent navigation loss during active save operation
   useEffect(() => {
@@ -975,9 +1020,9 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               }
               // If target directory is active on this machine, autosave it too
               const handle = targetDirectoryHandleRef.current;
-              if (handle) {
+              if (handle && hasDirectoryPermission) {
                 const filename = targetProjectFilenameRef.current || 'promschema_project.json';
-                saveProjectToDirectory(handle, msg.state, filename).then(res => {
+                saveProjectToDirectory(handle, msg.state, filename, false).then(res => {
                   if (res.success && res.lastModified) {
                     lastSelfWrittenFileMtimeRef.current = res.lastModified;
                     lastKnownFolderFileMtimeRef.current = res.lastModified;
@@ -1628,12 +1673,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ) {
         lastSnapshotHashRef.current = currentHash;
         const handle = targetDirectoryHandleRef.current;
-        if (handle) {
+        if (handle && hasDirectoryPermission) {
           const dateStr = new Date().toISOString().slice(0, 10);
           const timeStr = new Date().toTimeString().slice(0, 5).replace(':', '-');
           const snapshotName = `promschema_snapshot_${dateStr}_${timeStr}.json`;
           try {
-            await saveProjectToDirectory(handle, state, snapshotName);
+            await saveProjectToDirectory(handle, state, snapshotName, false);
             setLastSavedTime(Date.now());
           } catch (e) {
             console.warn('[Snapshot] Error writing snapshot to directory:', e);

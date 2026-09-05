@@ -133,8 +133,6 @@ const AppContent: React.FC = () => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'ы' || e.key === 'S')) {
         e.preventDefault();
         forceSave();
-        exportToJSON(state);
-        showToast('Проект сохранен (Ctrl+S)', 'Файл .json сохранен на диск, данные синхронизированы.', 'success');
         return;
       }
 

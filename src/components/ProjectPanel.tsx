@@ -174,11 +174,19 @@ export const ProjectPanel: React.FC = () => {
       const res = await forceSave(cleanName);
       if (res.success) {
         setTargetProjectFilename(cleanName);
-        showToast(
-          'Сохранено в целевую папку',
-          `Файл «${cleanName}» записан в «${targetDirectory.name}»`,
-          'success'
-        );
+        if (res.savedLocally) {
+          showToast(
+            'Сохранено в целевую папку',
+            `Файл «${cleanName}» записан в «${targetDirectory.name}»`,
+            'success'
+          );
+        } else {
+          showToast(
+            'Сохранено в кэш и на сервер',
+            `Файл сохранен в памяти и на сервере. Для записи в папку на диске подтвердите доступ в браузере.`,
+            'info'
+          );
+        }
         setIsSaveAsOpen(false);
       } else {
         showToast('Ошибка записи', res.error || 'Не удалось записать в выбранную папку', 'error');
@@ -214,15 +222,12 @@ export const ProjectPanel: React.FC = () => {
   const handleQuickSave = async () => {
     const res = await forceSave();
     if (res.success && res.savedLocally) {
-      showToast(
-        'Файл сохранен',
-        `Файл «${res.filename || targetProjectFilename}» записан в папку «${targetDirectory?.name}»`,
-        'success'
-      );
-    } else {
-      exportToJSON(state, targetProjectFilename.replace(/\.json$/i, ''));
-      showToast('Файл проекта сохранен', 'Файл .json загружен. Все данные схемы сохранены.', 'success');
+      // Toast already displayed by forceSave with full folder path
+      return;
     }
+    // Fallback download if no folder or folder permission restricted
+    exportToJSON(state, targetProjectFilename.replace(/\.json$/i, ''));
+    showToast('Файл проекта скачан', 'Файл .json сохранен через системные загрузки браузера.', 'success');
   };
 
   // File Import handler

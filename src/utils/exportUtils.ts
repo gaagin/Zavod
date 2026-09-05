@@ -588,12 +588,52 @@ export async function selectSystemDirectory(): Promise<{
 export async function saveProjectToDirectory(
   dirHandle: any,
   factory: FactoryState,
-  filename?: string
-): Promise<{ success: boolean; filename?: string; lastModified?: number; size?: number; error?: string }> {
+  filename?: string,
+  interactive: boolean = false
+): Promise<{
+  success: boolean;
+  filename?: string;
+  lastModified?: number;
+  size?: number;
+  error?: string;
+  permissionRequired?: boolean;
+  folderNotFound?: boolean;
+}> {
+  if (!dirHandle) {
+    return { success: false, error: 'Папка не выбрана' };
+  }
+
+  let name = filename?.trim() || 'promschema_project.json';
+  if (!name.toLowerCase().endsWith('.json')) {
+    name += '.json';
+  }
+
   try {
-    let name = filename?.trim() || 'promschema_project.json';
-    if (!name.toLowerCase().endsWith('.json')) {
-      name += '.json';
+    // 1. Verify readwrite permission before attempting file operations
+    if (typeof dirHandle.queryPermission === 'function') {
+      try {
+        const currentPerm = await dirHandle.queryPermission({ mode: 'readwrite' });
+        if (currentPerm !== 'granted') {
+          if (interactive && typeof dirHandle.requestPermission === 'function') {
+            const req = await dirHandle.requestPermission({ mode: 'readwrite' });
+            if (req !== 'granted') {
+              return {
+                success: false,
+                permissionRequired: true,
+                error: `Доступ к папке «${dirHandle.name || 'папка'}» не был подтвержден в диалоге браузера.`,
+              };
+            }
+          } else {
+            return {
+              success: false,
+              permissionRequired: true,
+              error: `Требуется подтвердить доступ к папке «${dirHandle.name || 'папка'}» в браузере.`,
+            };
+          }
+        }
+      } catch (permErr: any) {
+        console.warn('[FS] Permission check query failed:', permErr);
+      }
     }
 
     const jsonStr = prepareSerializedProject(factory);
@@ -613,10 +653,35 @@ export async function saveProjectToDirectory(
 
     return { success: true, filename: name, lastModified, size };
   } catch (err: any) {
-    console.error('saveProjectToDirectory failed:', err);
+    console.warn('saveProjectToDirectory failed:', err);
+
+    const errMsg = String(err?.message || '');
+    const isPermissionError =
+      err?.name === 'NotAllowedError' ||
+      err?.name === 'SecurityError' ||
+      errMsg.includes('not allowed') ||
+      errMsg.includes('permission') ||
+      errMsg.includes('current context');
+
+    if (isPermissionError) {
+      return {
+        success: false,
+        permissionRequired: true,
+        error: `Браузер ограничил запись в папку «${dirHandle.name || ''}» в текущем окне. Нажмите кнопку папки вверху для подтверждения доступа.`,
+      };
+    }
+
+    if (err?.name === 'NotFoundError' || errMsg.includes('could not be found') || errMsg.includes('not found')) {
+      return {
+        success: false,
+        folderNotFound: true,
+        error: `Папка «${dirHandle.name || ''}» не найдена на диске (возможно, перемещена или удалена). Выберите папку заново.`,
+      };
+    }
+
     return {
       success: false,
-      error: err?.message || 'Ошибка записи в выбранную папку',
+      error: errMsg || 'Ошибка записи в выбранную папку',
     };
   }
 }
@@ -627,11 +692,35 @@ export async function saveProjectToDirectory(
 export async function readProjectFromDirectory(
   dirHandle: any,
   filename?: string
-): Promise<{ success: boolean; state?: FactoryState; lastModified?: number; size?: number; error?: string }> {
+): Promise<{
+  success: boolean;
+  state?: FactoryState;
+  lastModified?: number;
+  size?: number;
+  error?: string;
+  permissionRequired?: boolean;
+}> {
+  if (!dirHandle) {
+    return { success: false, error: 'Папка не выбрана' };
+  }
+
+  let name = filename?.trim() || 'promschema_project.json';
+  if (!name.toLowerCase().endsWith('.json')) {
+    name += '.json';
+  }
+
   try {
-    let name = filename?.trim() || 'promschema_project.json';
-    if (!name.toLowerCase().endsWith('.json')) {
-      name += '.json';
+    if (typeof dirHandle.queryPermission === 'function') {
+      try {
+        const perm = await dirHandle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') {
+          return {
+            success: false,
+            permissionRequired: true,
+            error: `Требуется подтвердить доступ к папке «${dirHandle.name || ''}»`,
+          };
+        }
+      } catch {}
     }
 
     const fileHandle = await dirHandle.getFileHandle(name);
@@ -649,9 +738,19 @@ export async function readProjectFromDirectory(
       size: file.size,
     };
   } catch (err: any) {
+    const errMsg = String(err?.message || '');
+    const isPermissionError =
+      err?.name === 'NotAllowedError' ||
+      err?.name === 'SecurityError' ||
+      errMsg.includes('not allowed') ||
+      errMsg.includes('permission');
+
     return {
       success: false,
-      error: err?.message || 'Ошибка чтения файла проекта из папки',
+      permissionRequired: isPermissionError,
+      error: isPermissionError
+        ? `Браузер ожидает подтверждения доступа к чтению папки «${dirHandle?.name || ''}»`
+        : (errMsg || 'Ошибка чтения файла проекта из папки'),
     };
   }
 }
@@ -662,11 +761,28 @@ export async function readProjectFromDirectory(
 export async function getFileMetadataInDirectory(
   dirHandle: any,
   filename?: string
-): Promise<{ exists: boolean; lastModified?: number; size?: number; error?: string }> {
+): Promise<{
+  exists: boolean;
+  lastModified?: number;
+  size?: number;
+  error?: string;
+  permissionRequired?: boolean;
+}> {
+  if (!dirHandle) return { exists: false };
+
+  let name = filename?.trim() || 'promschema_project.json';
+  if (!name.toLowerCase().endsWith('.json')) {
+    name += '.json';
+  }
+
   try {
-    let name = filename?.trim() || 'promschema_project.json';
-    if (!name.toLowerCase().endsWith('.json')) {
-      name += '.json';
+    if (typeof dirHandle.queryPermission === 'function') {
+      try {
+        const perm = await dirHandle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') {
+          return { exists: false, permissionRequired: true };
+        }
+      } catch {}
     }
 
     const fileHandle = await dirHandle.getFileHandle(name);
@@ -677,7 +793,18 @@ export async function getFileMetadataInDirectory(
       size: file.size,
     };
   } catch (err: any) {
-    return { exists: false, error: err?.message };
+    const errMsg = String(err?.message || '');
+    const isPermissionError =
+      err?.name === 'NotAllowedError' ||
+      err?.name === 'SecurityError' ||
+      errMsg.includes('not allowed') ||
+      errMsg.includes('permission');
+
+    return {
+      exists: false,
+      permissionRequired: isPermissionError,
+      error: isPermissionError ? 'Требуется подтвердить разрешение' : err?.message,
+    };
   }
 }
 

@@ -24,6 +24,7 @@ import {
   Cloud,
   CheckCircle2,
   AlertCircle,
+  ShieldAlert,
   HardDrive,
   Laptop,
   Smartphone,
@@ -504,18 +505,34 @@ export const Navbar: React.FC = () => {
                     </div>
                     {targetDirectory ? (
                       <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={handleCheckFolderNow}
-                          disabled={isCheckingFolder}
-                          title="Проверить изменения файла в папке прямо сейчас"
-                          className="p-1 rounded text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isCheckingFolder ? 'animate-spin text-emerald-400' : ''}`} />
-                        </button>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-mono">
-                          Активно
-                        </span>
+                        {hasDirectoryPermission ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleCheckFolderNow}
+                              disabled={isCheckingFolder}
+                              title="Проверить изменения файла в папке прямо сейчас"
+                              className="p-1 rounded text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isCheckingFolder ? 'animate-spin text-emerald-400' : ''}`} />
+                            </button>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-mono">
+                              Активно
+                            </span>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              requestDirectoryAccess();
+                              setAutosaveMenuOpen(false);
+                            }}
+                            className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
+                            title="Браузер ожидает разрешения на запись"
+                          >
+                            Подтвердить
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <button
@@ -591,23 +608,32 @@ export const Navbar: React.FC = () => {
             }}
             className={`hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono transition-all ${
               !hasDirectoryPermission
-                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/20 shadow-xs'
                 : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
             }`}
             title={
               !hasDirectoryPermission
-                ? 'Нажмите, чтобы подтвердить разрешение на запись в папку'
+                ? 'Доступ к папке требует подтверждения браузера. Нажмите, чтобы разрешить запись.'
                 : `Зеркалирование активно в папку: ${targetDirectory.name}/${targetProjectFilename}`
             }
           >
-            <FolderCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            {hasDirectoryPermission ? (
+              <FolderCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-amber-500 animate-pulse" />
+            )}
             <span className="truncate max-w-[110px] font-sans font-medium text-slate-800 dark:text-slate-200">
               {targetDirectory.name}
             </span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500">/</span>
-            <span className="truncate max-w-[100px] text-[11px] text-emerald-700 dark:text-emerald-400 font-mono">
+            <span className="truncate max-w-[100px] text-[11px] text-slate-600 dark:text-slate-300 font-mono">
               {targetProjectFilename}
             </span>
+            {!hasDirectoryPermission && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-sans font-semibold border border-amber-500/30">
+                Подтвердить доступ
+              </span>
+            )}
           </button>
         )}
 
