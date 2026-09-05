@@ -58,6 +58,13 @@ import {
   MousePointer,
   Undo2
 } from 'lucide-react';
+import {
+  AlignmentGuide,
+  calculateAlignmentGuides,
+  buildAlignmentCandidates,
+  checkAndExpandContainerBounds
+} from '../utils/alignmentGuides';
+import { AlignmentGuidesOverlay } from './AlignmentGuidesOverlay';
 
 export const Canvas: React.FC = () => {
   const {
@@ -130,12 +137,16 @@ export const Canvas: React.FC = () => {
   const [cursorPosOnCanvas, setCursorPosOnCanvas] = useState<{ x: number; y: number } | null>(null);
   const [connectingMousePos, setConnectingMousePos] = useState<{ x: number; y: number } | null>(null);
 
+  // Draw.io Style Alignment Guides State
+  const [activeGuides, setActiveGuides] = useState<AlignmentGuide[]>([]);
+
   // Global mouseup listener to avoid stuck drag when mouse leaves container
   useEffect(() => {
     const handleGlobalMouseUp = () => {
       setIsPanning(false);
       setDraggedNode(null);
       setResizingContainer(null);
+      setActiveGuides([]);
     };
     window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => {
@@ -182,6 +193,46 @@ export const Canvas: React.FC = () => {
     if (!gridSnap) return Math.round(val);
     const gridSize = 20;
     return Math.round(val / gridSize) * gridSize;
+  };
+
+  // Breadcrumbs path from factory root to current focused container
+  const breadcrumbs = useMemo(() => {
+    if (!focusedContainerId) return [];
+    return getContainerBreadcrumbs(focusedContainerId, state.containers);
+  }, [focusedContainerId, state.containers]);
+
+  const focusedSubtreeContainerIds = useMemo(() => {
+    if (!focusedContainerId) return null;
+    return getAllDescendantContainerIds(focusedContainerId, state.containers);
+  }, [focusedContainerId, state.containers]);
+
+  const focusedEquipment = useMemo(() => {
+    if (!focusedContainerId) return [];
+    return getAllDescendantEquipment(focusedContainerId, state.containers, state.equipment);
+  }, [focusedContainerId, state.containers, state.equipment]);
+
+  const focusedTotalKw = useMemo(() => {
+    return focusedEquipment.reduce((sum, e) => sum + (e.powerKw || 0), 0);
+  }, [focusedEquipment]);
+
+  const focusedCritCount = useMemo(() => {
+    return focusedEquipment.filter(e => e.status === 'critical').length;
+  }, [focusedEquipment]);
+
+  const handleToggleFullscreen = () => {
+    setIsFocusFullscreen(prev => {
+      const next = !prev;
+      if (next) {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen?.().catch(() => {});
+        }
+      } else {
+        if (document.fullscreenElement) {
+          document.exitFullscreen?.().catch(() => {});
+        }
+      }
+      return next;
+    });
   };
 
   // Zoom on wheel
@@ -289,8 +340,54 @@ export const Canvas: React.FC = () => {
 
       const rawNewX = draggedNode.initialX + dx;
       const rawNewY = draggedNode.initialY + dy;
-      const newX = snap(rawNewX);
-      const newY = snap(rawNewY);
+
+      // Extract width and height of dragged object
+      let draggedW = 220;
+      let draggedH = 120;
+      if (draggedNode.type === 'equipment') {
+        const eq = state.equipment.find(item => item.id === draggedNode.id);
+        if (eq) {
+          draggedW = eq.width;
+          draggedH = eq.height;
+        }
+      } else {
+        const cont = state.containers.find(c => c.id === draggedNode.id);
+        if (cont) {
+          draggedW = cont.isCollapsed ? cont.collapsedWidth : cont.width;
+          draggedH = cont.isCollapsed ? cont.collapsedHeight : cont.height;
+        }
+      }
+
+      // Collect candidate targets for draw.io smart guides
+      const candidates = buildAlignmentCandidates(
+        draggedNode.id,
+        state.equipment,
+        state.containers,
+        focusedContainerId,
+        focusedSubtreeContainerIds
+      );
+
+      // Calculate magnetic alignment guides and snapped position
+      const alignResult = calculateAlignmentGuides(
+        {
+          id: draggedNode.id,
+          type: draggedNode.type,
+          x: rawNewX,
+          y: rawNewY,
+          width: draggedW,
+          height: draggedH,
+        },
+        rawNewX,
+        rawNewY,
+        candidates,
+        viewport.zoom,
+        gridSnap
+      );
+
+      setActiveGuides(alignResult.guides);
+
+      const newX = alignResult.x;
+      const newY = alignResult.y;
 
       applyNodePositionChange(
         draggedNode.id,
@@ -316,6 +413,7 @@ export const Canvas: React.FC = () => {
     }
     setDraggedNode(null);
     setResizingContainer(null);
+    setActiveGuides([]);
   };
 
   // Container Resize Start (Expanded & Collapsed)
@@ -413,6 +511,78 @@ export const Canvas: React.FC = () => {
       equipment: Array<{ id: string; initialX: number; initialY: number }>;
     }
   ) => {
+    // 1. Auto-expand container when inside container focus mode and an element goes towards or exceeds container borders
+    if (focusedContainerId && id !== focusedContainerId) {
+      const focusedCont = state.containers.find(c => c.id === focusedContainerId);
+      if (focusedCont) {
+        let minX = newX;
+        let minY = newY;
+        let maxX = newX;
+        let maxY = newY;
+
+        if (type === 'equipment') {
+          const eq = state.equipment.find(item => item.id === id);
+          if (eq) {
+            maxX = newX + eq.width;
+            maxY = newY + eq.height;
+          }
+        } else if (type === 'container') {
+          const cont = state.containers.find(c => c.id === id);
+          if (cont) {
+            const curW = cont.isCollapsed ? cont.collapsedWidth : cont.width;
+            const curH = cont.isCollapsed ? cont.collapsedHeight : cont.height;
+            maxX = newX + curW;
+            maxY = newY + curH;
+
+            if (cachedDescendants) {
+              const shiftX = newX - cachedDescendants.initialX;
+              const shiftY = newY - cachedDescendants.initialY;
+              for (const c of cachedDescendants.containers) {
+                const childCont = state.containers.find(it => it.id === c.id);
+                const cW = childCont ? (childCont.isCollapsed ? childCont.collapsedWidth : childCont.width) : 260;
+                const cH = childCont ? (childCont.isCollapsed ? childCont.collapsedHeight : childCont.height) : 160;
+                minX = Math.min(minX, c.initialX + shiftX);
+                minY = Math.min(minY, c.initialY + shiftY);
+                maxX = Math.max(maxX, c.initialX + shiftX + cW);
+                maxY = Math.max(maxY, c.initialY + shiftY + cH);
+              }
+              for (const eq of cachedDescendants.equipment) {
+                const childEq = state.equipment.find(it => it.id === eq.id);
+                const eW = childEq ? childEq.width : 220;
+                const eH = childEq ? childEq.height : 120;
+                minX = Math.min(minX, eq.initialX + shiftX);
+                minY = Math.min(minY, eq.initialY + shiftY);
+                maxX = Math.max(maxX, eq.initialX + shiftX + eW);
+                maxY = Math.max(maxY, eq.initialY + shiftY + eH);
+              }
+            }
+          }
+        }
+
+        const expansion = checkAndExpandContainerBounds(
+          focusedCont,
+          { minX, minY, maxX, maxY },
+          40, // 40px margin
+          44, // 44px container header bar height
+          gridSnap
+        );
+
+        if (expansion.shouldUpdate) {
+          updateContainer(
+            focusedContainerId,
+            {
+              x: expansion.x,
+              y: expansion.y,
+              width: expansion.width,
+              height: expansion.height,
+            },
+            undefined,
+            true // skipHistory during active drag
+          );
+        }
+      }
+    }
+
     if (type === 'equipment') {
       const eq = state.equipment.find(item => item.id === id);
       if (eq && (eq.x !== newX || eq.y !== newY)) {
@@ -509,7 +679,7 @@ export const Canvas: React.FC = () => {
         }
       }
     }
-  }, [state.equipment, state.containers, updateEquipment, batchUpdatePositions]);
+  }, [state.equipment, state.containers, updateEquipment, batchUpdatePositions, focusedContainerId, gridSnap, updateContainer]);
 
   // Touch & Mobile Interaction Engine
   const touchStateRef = useRef({
@@ -520,6 +690,8 @@ export const Canvas: React.FC = () => {
     connectingSourceId,
     gridSnap,
     recordHistorySnapshot,
+    focusedContainerId,
+    focusedSubtreeContainerIds,
   });
   touchStateRef.current = {
     viewport,
@@ -529,6 +701,8 @@ export const Canvas: React.FC = () => {
     connectingSourceId,
     gridSnap,
     recordHistorySnapshot,
+    focusedContainerId,
+    focusedSubtreeContainerIds,
   };
 
   const touchTrackingRef = useRef<{
@@ -693,8 +867,51 @@ export const Canvas: React.FC = () => {
           if (t.hasMoved) {
             const rawX = t.initialNodeX + dx / curVp.zoom;
             const rawY = t.initialNodeY + dy / curVp.zoom;
-            const newX = curSnap ? Math.round(rawX / 20) * 20 : Math.round(rawX);
-            const newY = curSnap ? Math.round(rawY / 20) * 20 : Math.round(rawY);
+
+            let draggedW = 220;
+            let draggedH = 120;
+            if (t.draggedNodeType === 'equipment') {
+              const eq = touchStateRef.current.state.equipment.find(item => item.id === t.draggedNodeId);
+              if (eq) {
+                draggedW = eq.width;
+                draggedH = eq.height;
+              }
+            } else {
+              const cont = touchStateRef.current.state.containers.find(c => c.id === t.draggedNodeId);
+              if (cont) {
+                draggedW = cont.isCollapsed ? cont.collapsedWidth : cont.width;
+                draggedH = cont.isCollapsed ? cont.collapsedHeight : cont.height;
+              }
+            }
+
+            const candidates = buildAlignmentCandidates(
+              t.draggedNodeId,
+              touchStateRef.current.state.equipment,
+              touchStateRef.current.state.containers,
+              touchStateRef.current.focusedContainerId,
+              touchStateRef.current.focusedSubtreeContainerIds
+            );
+
+            const alignResult = calculateAlignmentGuides(
+              {
+                id: t.draggedNodeId,
+                type: t.draggedNodeType,
+                x: rawX,
+                y: rawY,
+                width: draggedW,
+                height: draggedH,
+              },
+              rawX,
+              rawY,
+              candidates,
+              curVp.zoom,
+              curSnap
+            );
+
+            setActiveGuides(alignResult.guides);
+
+            const newX = alignResult.x;
+            const newY = alignResult.y;
 
             applyNodePositionChange(
               t.draggedNodeId,
@@ -734,6 +951,7 @@ export const Canvas: React.FC = () => {
       }
 
       if (e.touches.length === 0) {
+        setActiveGuides([]);
         if (!t.hasMoved) {
           // Tap action!
           if (t.draggedNodeId) {
@@ -769,6 +987,7 @@ export const Canvas: React.FC = () => {
 
     const onTouchCancel = () => {
       const t = touchTrackingRef.current;
+      setActiveGuides([]);
       t.draggedNodeId = null;
       t.draggedNodeType = null;
       t.initialDescendantContainers = [];
@@ -799,45 +1018,7 @@ export const Canvas: React.FC = () => {
     return state.containers.find(c => c.id === focusedContainerId) || null;
   }, [focusedContainerId, state.containers]);
 
-  // Breadcrumbs path from factory root to current focused container
-  const breadcrumbs = useMemo(() => {
-    if (!focusedContainerId) return [];
-    return getContainerBreadcrumbs(focusedContainerId, state.containers);
-  }, [focusedContainerId, state.containers]);
 
-  const focusedSubtreeContainerIds = useMemo(() => {
-    if (!focusedContainerId) return null;
-    return getAllDescendantContainerIds(focusedContainerId, state.containers);
-  }, [focusedContainerId, state.containers]);
-
-  const focusedEquipment = useMemo(() => {
-    if (!focusedContainerId) return [];
-    return getAllDescendantEquipment(focusedContainerId, state.containers, state.equipment);
-  }, [focusedContainerId, state.containers, state.equipment]);
-
-  const focusedTotalKw = useMemo(() => {
-    return focusedEquipment.reduce((sum, e) => sum + (e.powerKw || 0), 0);
-  }, [focusedEquipment]);
-
-  const focusedCritCount = useMemo(() => {
-    return focusedEquipment.filter(e => e.status === 'critical').length;
-  }, [focusedEquipment]);
-
-  const handleToggleFullscreen = () => {
-    setIsFocusFullscreen(prev => {
-      const next = !prev;
-      if (next) {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen?.().catch(() => {});
-        }
-      } else {
-        if (document.fullscreenElement) {
-          document.exitFullscreen?.().catch(() => {});
-        }
-      }
-      return next;
-    });
-  };
 
   // Filter visible equipment:
   // When in focus mode, the container fills the entire working window.
@@ -854,18 +1035,20 @@ export const Canvas: React.FC = () => {
   }, [state.equipment, state.containers, focusedContainerId, focusedSubtreeContainerIds]);
 
   // Filter visible containers:
-  // When in focus mode, the focused container itself fills the entire working window.
-  // Only its child sub-containers nested inside are rendered on the floor.
-  // Outside containers are NOT rendered at all (clean view, no dimming).
+  // When in focus mode, the focused container boundary and its descendant sub-containers are rendered.
+  // Outside containers are NOT rendered at all.
   const visibleContainers = useMemo(() => {
+    let list: ContainerNode[];
     if (focusedContainerId && focusedSubtreeContainerIds) {
-      return state.containers.filter(c => 
-        c.id !== focusedContainerId && 
+      list = state.containers.filter(c => 
         focusedSubtreeContainerIds.has(c.id) &&
         !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers)
       );
+    } else {
+      list = state.containers.filter(c => !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers));
     }
-    return state.containers.filter(c => !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers));
+    // Sort containers by hierarchy depth ascending so parent containers render behind child containers
+    return list.slice().sort((a, b) => getContainerDepth(a.id, state.containers) - getContainerDepth(b.id, state.containers));
   }, [state.containers, focusedContainerId, focusedSubtreeContainerIds]);
 
   // Icons for equipment types
@@ -1313,6 +1496,7 @@ export const Canvas: React.FC = () => {
                 transform: `translate(${container.x}px, ${container.y}px)`,
                 width: container.width,
                 height: container.height,
+                zIndex: isThisFocused ? 0 : 2 + getContainerDepth(container.id, state.containers),
               }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -1322,12 +1506,12 @@ export const Canvas: React.FC = () => {
                 e.stopPropagation();
                 toggleFocusMode(container.id);
               }}
-              className={`absolute rounded-2xl border-2 transition-all bg-white/90 dark:bg-[#0F0F12]/30 backdrop-blur-xs shadow-md ${
+              className={`absolute rounded-2xl border-2 transition-all backdrop-blur-xs shadow-md ${
                 isThisFocused
-                  ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_60px_rgba(59,130,246,0.35)] z-20'
+                  ? 'ring-4 ring-blue-500/80 border-blue-500 shadow-[0_0_60px_rgba(59,130,246,0.3)] bg-white/95 dark:bg-[#0c0d12]/60'
                   : isSelected 
-                  ? 'ring-2 ring-blue-500 border-blue-500/60 shadow-xl' 
-                  : 'border-slate-300 dark:border-white/10 hover:border-slate-400 dark:hover:border-white/20'
+                  ? 'ring-2 ring-blue-500 border-blue-500/60 shadow-xl bg-white/90 dark:bg-[#0F0F12]/30' 
+                  : 'border-slate-300 dark:border-white/10 hover:border-slate-400 dark:hover:border-white/20 bg-white/90 dark:bg-[#0F0F12]/30'
               }`}
             >
               {/* Container Header Bar (Draggable) */}
@@ -1364,10 +1548,16 @@ export const Canvas: React.FC = () => {
                   </span>
 
                   {isThisFocused && (
-                    <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/40 animate-pulse">
-                      <Focus className="w-3 h-3" />
-                      <span>В ФОКУСЕ</span>
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/40 animate-pulse">
+                        <Focus className="w-3 h-3" />
+                        <span>В ФОКУСЕ</span>
+                      </span>
+                      <span className="hidden sm:flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                        <Maximize2 className="w-3 h-3" />
+                        <span>Авторасширение активно</span>
+                      </span>
+                    </div>
                   )}
 
                   {container.manager && (
@@ -1421,6 +1611,14 @@ export const Canvas: React.FC = () => {
                 <span>Общая нагрузка: {totalKw.toFixed(1)} кВт</span>
                 {critCount > 0 && <span className="text-red-500 font-bold">⚠️ Аварий: {critCount}</span>}
               </div>
+
+              {/* Focus mode dimension & auto-expand indicator */}
+              {isThisFocused && (
+                <div className="absolute bottom-2 right-6 pointer-events-none hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-blue-600 dark:text-blue-400 bg-blue-50/90 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 rounded-md shadow-xs">
+                  <Maximize2 className="w-3 h-3 text-blue-500" />
+                  <span>Границы: {container.width} × {container.height} px (авторасширение)</span>
+                </div>
+              )}
 
               {/* Resize handles for Expanded Container */}
               {canEdit && (
@@ -1625,8 +1823,14 @@ export const Canvas: React.FC = () => {
             </div>
           );
         })}
+
+        {/* Draw.io Style Alignment Guides Overlay (Renders guidelines & crosshairs on top of nodes) */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-40">
+          <AlignmentGuidesOverlay guides={activeGuides} zoom={viewport.zoom} />
+        </svg>
+
         {/* Empty Container State inside focus mode */}
-        {focusedContainer && visibleEquipment.length === 0 && visibleContainers.length === 0 && (
+        {focusedContainer && visibleEquipment.length === 0 && visibleContainers.filter(c => c.id !== focusedContainerId).length === 0 && (
           <div 
             style={{
               transform: `translate(${focusedContainer.x + 30}px, ${focusedContainer.y + 60}px)`,
@@ -1803,6 +2007,12 @@ export const Canvas: React.FC = () => {
                   </span>
                 </>
               )}
+            </div>
+
+            {/* Auto-expand dimensions badge */}
+            <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 font-mono" title="Текущие размеры цеха (автоматически увеличиваются при перемещении элементов к краю)">
+              <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{focusedContainer.width} × {focusedContainer.height} px</span>
             </div>
 
             {/* Fit to window */}
