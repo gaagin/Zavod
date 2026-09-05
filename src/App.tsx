@@ -19,6 +19,9 @@ const AppContent: React.FC = () => {
     redo,
     selectedId,
     setSelectedId,
+    selectedIds,
+    setSelectedIds,
+    batchDelete,
     deleteEquipment,
     deleteContainer,
     deleteLink,
@@ -177,18 +180,24 @@ const AppContent: React.FC = () => {
       }
 
       // Delete / Backspace: delete selected
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedIds.length > 0 || selectedId)) {
         if (currentUser.role === 'admin') {
-          if (state.equipment.some(eq => eq.id === selectedId)) {
-            deleteEquipment(selectedId);
-            setSelectedId(null);
-          } else if (state.containers.some(c => c.id === selectedId)) {
-            deleteContainer(selectedId);
-            setSelectedId(null);
+          if (selectedIds.length > 1) {
+            batchDelete(selectedIds);
+            return;
+          }
+          if (selectedId) {
+            if (state.equipment.some(eq => eq.id === selectedId)) {
+              deleteEquipment(selectedId);
+              setSelectedId(null);
+            } else if (state.containers.some(c => c.id === selectedId)) {
+              deleteContainer(selectedId);
+              setSelectedId(null);
+            }
           }
         }
         if (currentUser.role === 'admin' || currentUser.role === 'operator') {
-          if (state.links.some(l => l.id === selectedId)) {
+          if (selectedId && state.links.some(l => l.id === selectedId)) {
             deleteLink(selectedId);
             setSelectedId(null);
           }

@@ -69,6 +69,10 @@ export const Canvas: React.FC = () => {
     state,
     selectedId,
     setSelectedId,
+    selectedIds,
+    setSelectedIds,
+    toggleSelectId,
+    batchDelete,
     activeTool,
     setActiveTool,
     connectingSourceId,
@@ -110,6 +114,10 @@ export const Canvas: React.FC = () => {
   } = useFactory();
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const didDragRef = useRef(false);
+  const isMarqueeActiveRef = useRef(false);
+  const selectionBoxInitialIdsRef = useRef<string[]>([]);
+  const justShiftAddedRef = useRef<string | null>(null);
 
   // Interaction State
   const [isPanning, setIsPanning] = useState(false);
@@ -124,6 +132,23 @@ export const Canvas: React.FC = () => {
     initialDescendantContainers?: Array<{ id: string; initialX: number; initialY: number }>;
     initialDescendantEquipment?: Array<{ id: string; initialX: number; initialY: number }>;
   } | null>(null);
+
+  // Group Dragging State (Multiple items moved in sync)
+  const [draggedGroup, setDraggedGroup] = useState<{
+    mouseStartX: number;
+    mouseStartY: number;
+    initialContainers: Array<{ id: string; initialX: number; initialY: number; parentId?: string | null }>;
+    initialEquipment: Array<{ id: string; initialX: number; initialY: number; parentId?: string | null }>;
+  } | null>(null);
+
+  // Rubberband Marquee Selection Box State
+  const [selectionBox, setSelectionBox] = useState<{
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
+
   const [resizingNode, setResizingNode] = useState<{
     id: string;
     type: 'container' | 'equipment';
@@ -136,19 +161,6 @@ export const Canvas: React.FC = () => {
   } | null>(null);
   const [cursorPosOnCanvas, setCursorPosOnCanvas] = useState<{ x: number; y: number } | null>(null);
   const [connectingMousePos, setConnectingMousePos] = useState<{ x: number; y: number } | null>(null);
-
-  // Global mouseup listener to avoid stuck drag when mouse leaves container
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      setIsPanning(false);
-      setDraggedNode(null);
-      setResizingNode(null);
-    };
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => {
-      window.removeEventListener('mouseup', handleGlobalMouseUp);
-    };
-  }, []);
 
   // Spacebar panning support
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -220,13 +232,25 @@ export const Canvas: React.FC = () => {
     }
 
     if (e.button === 0) {
-      // Left click on empty canvas: deselect or cancel connect
       if (connectingSourceId) {
         setConnectingSourceId(null);
         setConnectingMousePos(null);
-      } else {
-        setSelectedId(null);
+        return;
       }
+
+      // Start rubberband marquee selection box on canvas background
+      const canvasPt = screenToCanvas(e.clientX, e.clientY);
+      setSelectionBox({
+        startX: canvasPt.x,
+        startY: canvasPt.y,
+        currentX: canvasPt.x,
+        currentY: canvasPt.y,
+      });
+
+      const isMulti = e.shiftKey || e.ctrlKey || e.metaKey;
+      selectionBoxInitialIdsRef.current = isMulti ? [...selectedIds] : [];
+      isMarqueeActiveRef.current = true;
+      didDragRef.current = false;
     }
   };
 
@@ -249,6 +273,48 @@ export const Canvas: React.FC = () => {
 
     if (connectingSourceId) {
       setConnectingMousePos(canvasPt);
+    }
+
+    // Rubberband selection box update
+    if (selectionBox && isMarqueeActiveRef.current) {
+      setSelectionBox(prev => prev ? { ...prev, currentX: canvasPt.x, currentY: canvasPt.y } : null);
+
+      const minX = Math.min(selectionBox.startX, canvasPt.x);
+      const maxX = Math.max(selectionBox.startX, canvasPt.x);
+      const minY = Math.min(selectionBox.startY, canvasPt.y);
+      const maxY = Math.max(selectionBox.startY, canvasPt.y);
+
+      if (Math.abs(maxX - minX) > 4 || Math.abs(maxY - minY) > 4) {
+        didDragRef.current = true;
+        const enclosedIds: string[] = [];
+
+        // Hit-test visible containers
+        visibleContainers.forEach(c => {
+          const w = c.isCollapsed ? (c.collapsedWidth || 200) : c.width;
+          const h = c.isCollapsed ? (c.collapsedHeight || 64) : c.height;
+          const overlaps = !(c.x + w < minX || c.x > maxX || c.y + h < minY || c.y > maxY);
+          if (overlaps) {
+            enclosedIds.push(c.id);
+          }
+        });
+
+        // Hit-test visible equipment
+        visibleEquipment.forEach(eq => {
+          const w = eq.isCollapsed ? (eq.collapsedWidth || 200) : eq.width;
+          const h = eq.isCollapsed ? (eq.collapsedHeight || 64) : eq.height;
+          const overlaps = !(eq.x + w < minX || eq.x > maxX || eq.y + h < minY || eq.y > maxY);
+          if (overlaps) {
+            enclosedIds.push(eq.id);
+          }
+        });
+
+        if (selectionBoxInitialIdsRef.current.length > 0) {
+          setSelectedIds(Array.from(new Set([...selectionBoxInitialIdsRef.current, ...enclosedIds])));
+        } else {
+          setSelectedIds(enclosedIds);
+        }
+      }
+      return;
     }
 
     // Handle Node Resizing (Container or Equipment, both expanded and collapsed modes)
@@ -306,25 +372,54 @@ export const Canvas: React.FC = () => {
           }, undefined, true);
         } else {
           let newW = resizingNode.direction !== 's' 
-            ? Math.max(160, Math.round(resizingNode.initialWidth + dx)) 
+            ? Math.max(220, Math.round(resizingNode.initialWidth + dx)) 
             : resizingNode.initialWidth;
           let newH = resizingNode.direction !== 'e' 
-            ? Math.max(80, Math.round(resizingNode.initialHeight + dy)) 
+            ? Math.max(140, Math.round(resizingNode.initialHeight + dy)) 
             : resizingNode.initialHeight;
           if (gridSnap) {
             newW = snap(newW);
             newH = snap(newH);
           }
           updateEquipment(resizingNode.id, {
-            width: Math.max(160, newW),
-            height: Math.max(80, newH),
+            width: Math.max(220, newW),
+            height: Math.max(140, newH),
           }, undefined, true);
         }
       }
       return;
     }
 
+    // Handle Group Dragging (Moving multiple nodes simultaneously)
+    if (draggedGroup && (currentUser.role === 'admin' || currentUser.role === 'operator')) {
+      didDragRef.current = true;
+      const dx = (e.clientX - draggedGroup.mouseStartX) / viewport.zoom;
+      const dy = (e.clientY - draggedGroup.mouseStartY) / viewport.zoom;
+
+      const rawDx = gridSnap ? snap(dx) : Math.round(dx);
+      const rawDy = gridSnap ? snap(dy) : Math.round(dy);
+
+      const contUpdates = draggedGroup.initialContainers.map(c => ({
+        id: c.id,
+        x: c.initialX + rawDx,
+        y: c.initialY + rawDy,
+        parentId: c.parentId,
+      }));
+
+      const eqUpdates = draggedGroup.initialEquipment.map(eq => ({
+        id: eq.id,
+        x: eq.initialX + rawDx,
+        y: eq.initialY + rawDy,
+        parentId: eq.parentId,
+      }));
+
+      batchUpdatePositions(contUpdates, eqUpdates, undefined, true);
+      return;
+    }
+
+    // Handle Single Node Dragging
     if (draggedNode && (currentUser.role === 'admin' || currentUser.role === 'operator')) {
+      didDragRef.current = true;
       const dx = (e.clientX - draggedNode.mouseStartX) / viewport.zoom;
       const dy = (e.clientY - draggedNode.mouseStartY) / viewport.zoom;
 
@@ -350,14 +445,38 @@ export const Canvas: React.FC = () => {
     }
   };
 
-  const handleCanvasMouseUp = () => {
+  const handleCanvasMouseUp = useCallback(() => {
     setIsPanning(false);
-    if (draggedNode || resizingNode) {
+    if (draggedGroup || draggedNode || resizingNode) {
       triggerInstantSync();
     }
+
+    if (isMarqueeActiveRef.current) {
+      // If user clicked without dragging (pure click on empty canvas) -> clear selection
+      if (!didDragRef.current) {
+        setSelectedId(null);
+        setSelectedIds([]);
+      }
+      isMarqueeActiveRef.current = false;
+      selectionBoxInitialIdsRef.current = [];
+    }
+
+    setSelectionBox(null);
+    setDraggedGroup(null);
     setDraggedNode(null);
     setResizingNode(null);
-  };
+  }, [draggedGroup, draggedNode, resizingNode, triggerInstantSync, setSelectedId, setSelectedIds]);
+
+  // Global mouseup listener to avoid stuck drag when mouse leaves container
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      handleCanvasMouseUp();
+    };
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [handleCanvasMouseUp]);
 
   // Unified Node Resize Start (Containers & Equipment, Expanded & Collapsed)
   const startResizeNode = (
@@ -399,34 +518,88 @@ export const Canvas: React.FC = () => {
 
     if (e.button !== 0 || isSpacePressed || activeTool === 'pan') return;
     e.stopPropagation();
+    didDragRef.current = false;
+    justShiftAddedRef.current = null;
 
-    setSelectedId(id);
+    const isMultiKey = e.shiftKey || e.ctrlKey || e.metaKey;
+
+    let targetSelection = selectedIds;
+
+    if (isMultiKey) {
+      // If node is not selected yet, add it immediately to selection
+      if (!selectedIds.includes(id)) {
+        targetSelection = [...selectedIds, id];
+        setSelectedIds(targetSelection);
+        justShiftAddedRef.current = id;
+      }
+    } else {
+      // If clicked node is not in current selection, select only this node
+      if (!selectedIds.includes(id)) {
+        setSelectedId(id);
+        targetSelection = [id];
+      }
+    }
+
     if (currentUser.role === 'admin' || currentUser.role === 'operator') {
       recordHistorySnapshot();
 
-      let initialDescendantContainers: Array<{ id: string; initialX: number; initialY: number }> = [];
-      let initialDescendantEquipment: Array<{ id: string; initialX: number; initialY: number }> = [];
+      if (targetSelection.length > 1) {
+        // Group Drag: collect all selected containers and equipment + their descendants
+        const selContIds = new Set<string>(targetSelection.filter(sId => state.containers.some(c => c.id === sId)));
+        const selEqIds = new Set<string>(targetSelection.filter(sId => state.equipment.some(e => e.id === sId)));
 
-      if (type === 'container') {
-        const { containers: descConts, equipment: descEq } = findAllDescendantsOfContainer(id, state.containers, state.equipment);
+        selContIds.forEach(cId => {
+          const { containers: descC, equipment: descE } = findAllDescendantsOfContainer(cId, state.containers, state.equipment);
+          descC.forEach(c => selContIds.add(c.id));
+          descE.forEach(e => selEqIds.add(e.id));
+        });
 
-        initialDescendantContainers = descConts.map(c => ({ id: c.id, initialX: c.x, initialY: c.y }));
-        initialDescendantEquipment = descEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
-      } else if (type === 'equipment') {
-        const { equipment: descEq } = findAllDescendantsOfEquipment(id, state.equipment);
-        initialDescendantEquipment = descEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
+        selEqIds.forEach(eId => {
+          const { equipment: descE } = findAllDescendantsOfEquipment(eId, state.equipment);
+          descE.forEach(e => selEqIds.add(e.id));
+        });
+
+        const initialContainers = state.containers
+          .filter(c => selContIds.has(c.id))
+          .map(c => ({ id: c.id, initialX: c.x, initialY: c.y, parentId: c.parentId }));
+
+        const initialEquipment = state.equipment
+          .filter(e => selEqIds.has(e.id))
+          .map(e => ({ id: e.id, initialX: e.x, initialY: e.y, parentId: e.parentId }));
+
+        setDraggedGroup({
+          mouseStartX: e.clientX,
+          mouseStartY: e.clientY,
+          initialContainers,
+          initialEquipment,
+        });
+        setDraggedNode(null);
+      } else {
+        // Single node drag
+        setDraggedGroup(null);
+        let initialDescendantContainers: Array<{ id: string; initialX: number; initialY: number }> = [];
+        let initialDescendantEquipment: Array<{ id: string; initialX: number; initialY: number }> = [];
+
+        if (type === 'container') {
+          const { containers: descConts, equipment: descEq } = findAllDescendantsOfContainer(id, state.containers, state.equipment);
+          initialDescendantContainers = descConts.map(c => ({ id: c.id, initialX: c.x, initialY: c.y }));
+          initialDescendantEquipment = descEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
+        } else if (type === 'equipment') {
+          const { equipment: descEq } = findAllDescendantsOfEquipment(id, state.equipment);
+          initialDescendantEquipment = descEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
+        }
+
+        setDraggedNode({
+          id,
+          type,
+          initialX,
+          initialY,
+          mouseStartX: e.clientX,
+          mouseStartY: e.clientY,
+          initialDescendantContainers,
+          initialDescendantEquipment,
+        });
       }
-
-      setDraggedNode({
-        id,
-        type,
-        initialX,
-        initialY,
-        mouseStartX: e.clientX,
-        mouseStartY: e.clientY,
-        initialDescendantContainers,
-        initialDescendantEquipment,
-      });
     }
   };
 
@@ -1200,7 +1373,7 @@ export const Canvas: React.FC = () => {
             const { from: ptFrom, to: ptTo } = getBestConnectionPoints(fromRect, toRect);
             const { pathD, midPoint } = generateLinkPath(ptFrom, ptTo, link.style);
 
-            const isSelected = selectedId === link.id;
+            const isSelected = selectedId === link.id || selectedIds.includes(link.id);
             const markerId = `arrow-${link.type || 'default'}`;
 
             return (
@@ -1216,7 +1389,11 @@ export const Canvas: React.FC = () => {
                   strokeWidth="20"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelectedId(link.id);
+                    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                      toggleSelectId(link.id, true);
+                    } else {
+                      setSelectedId(link.id);
+                    }
                   }}
                 />
 
@@ -1242,7 +1419,11 @@ export const Canvas: React.FC = () => {
                   markerEnd={`url(#${markerId})`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelectedId(link.id);
+                    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                      toggleSelectId(link.id, true);
+                    } else {
+                      setSelectedId(link.id);
+                    }
                   }}
                 />
 
@@ -1252,7 +1433,11 @@ export const Canvas: React.FC = () => {
                     transform={`translate(${midPoint.x}, ${midPoint.y})`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedId(link.id);
+                      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                        toggleSelectId(link.id, true);
+                      } else {
+                        setSelectedId(link.id);
+                      }
                     }}
                   >
                     <rect
@@ -1302,7 +1487,7 @@ export const Canvas: React.FC = () => {
 
         {/* Containers Layer (Deep nesting supported) */}
         {visibleContainers.map(container => {
-          const isSelected = selectedId === container.id;
+          const isSelected = selectedId === container.id || selectedIds.includes(container.id);
           const isThisFocused = focusedContainerId === container.id;
           const descendantEquipment = getAllDescendantEquipment(container.id, state.containers, state.equipment);
           const okCount = descendantEquipment.filter(e => e.status === 'normal').length;
@@ -1326,7 +1511,14 @@ export const Canvas: React.FC = () => {
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedId(container.id);
+                  if (didDragRef.current) return;
+                  if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                    if (justShiftAddedRef.current !== container.id) {
+                      toggleSelectId(container.id, true);
+                    }
+                  } else {
+                    setSelectedId(container.id);
+                  }
                 }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
@@ -1341,6 +1533,13 @@ export const Canvas: React.FC = () => {
                     : isSelected ? 'ring-2 ring-blue-500 shadow-xl' : 'hover:border-slate-400 dark:hover:border-white/40'
                 }`}
               >
+                {/* Multi-Selection Checkmark Badge */}
+                {isSelected && selectedIds.length > 1 && (
+                  <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
+                    ✓
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-white/10 pb-2">
                   <div className="flex items-center gap-2 overflow-hidden">
                     <button
@@ -1439,7 +1638,14 @@ export const Canvas: React.FC = () => {
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedId(container.id);
+                if (didDragRef.current) return;
+                if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                  if (justShiftAddedRef.current !== container.id) {
+                    toggleSelectId(container.id, true);
+                  }
+                } else {
+                  setSelectedId(container.id);
+                }
               }}
               onDoubleClick={(e) => {
                 e.stopPropagation();
@@ -1453,6 +1659,13 @@ export const Canvas: React.FC = () => {
                   : 'border-slate-300 dark:border-white/10 hover:border-slate-400 dark:hover:border-white/20'
               }`}
             >
+              {/* Multi-Selection Checkmark Badge */}
+              {isSelected && selectedIds.length > 1 && (
+                <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
+                  ✓
+                </div>
+              )}
+
               {/* Container Header Bar (Draggable) */}
               <div
                 data-node-id={container.id}
@@ -1576,7 +1789,7 @@ export const Canvas: React.FC = () => {
 
         {/* Equipment Blocks Layer */}
         {visibleEquipment.map(equipment => {
-          const isSelected = selectedId === equipment.id;
+          const isSelected = selectedId === equipment.id || selectedIds.includes(equipment.id);
           const isThisFocused = focusedContainerId === equipment.id;
           const statusStyle = getStatusStyles(equipment.status);
           const StatusIcon = statusStyle.icon;
@@ -1599,7 +1812,12 @@ export const Canvas: React.FC = () => {
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (activeTool === 'connect') {
+                  if (didDragRef.current) return;
+                  if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                    if (justShiftAddedRef.current !== equipment.id) {
+                      toggleSelectId(equipment.id, true);
+                    }
+                  } else if (activeTool === 'connect') {
                     handleNodeConnectClick(equipment.id);
                   } else {
                     setSelectedId(equipment.id);
@@ -1622,6 +1840,13 @@ export const Canvas: React.FC = () => {
                   connectingSourceId === equipment.id ? 'ring-2 ring-blue-400 animate-pulse' : ''
                 }`}
               >
+                {/* Multi-Selection Checkmark Badge */}
+                {isSelected && selectedIds.length > 1 && (
+                  <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
+                    ✓
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between gap-1.5 overflow-hidden">
                   <div className="flex items-center gap-1.5 overflow-hidden">
                     <button
@@ -1722,7 +1947,12 @@ export const Canvas: React.FC = () => {
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (activeTool === 'connect') {
+                if (didDragRef.current) return;
+                if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                  if (justShiftAddedRef.current !== equipment.id) {
+                    toggleSelectId(equipment.id, true);
+                  }
+                } else if (activeTool === 'connect') {
                   handleNodeConnectClick(equipment.id);
                 } else {
                   setSelectedId(equipment.id);
@@ -1745,6 +1975,13 @@ export const Canvas: React.FC = () => {
                 connectingSourceId === equipment.id ? 'ring-2 ring-blue-400 animate-pulse' : ''
               }`}
             >
+              {/* Multi-Selection Checkmark Badge */}
+              {isSelected && selectedIds.length > 1 && (
+                <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
+                  ✓
+                </div>
+              )}
+
               {/* Card Header: Collapse button, Tag, Icon, Focus button, Status */}
               <div>
                 <div className="flex items-center justify-between gap-1.5 mb-1.5">
@@ -1981,7 +2218,65 @@ export const Canvas: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Rubberband Marquee Selection Box */}
+        {selectionBox && (
+          <div
+            style={{
+              position: 'absolute',
+              left: Math.min(selectionBox.startX, selectionBox.currentX),
+              top: Math.min(selectionBox.startY, selectionBox.currentY),
+              width: Math.abs(selectionBox.currentX - selectionBox.startX),
+              height: Math.abs(selectionBox.currentY - selectionBox.startY),
+              pointerEvents: 'none',
+            }}
+            className="border-2 border-blue-500 bg-blue-500/15 rounded-sm z-50 backdrop-blur-[0.5px]"
+          />
+        )}
       </div>
+
+      {/* Group Selection Floating Action Pill */}
+      {selectedIds.length > 1 && (
+        <div
+          id="group-selection-hud"
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl border border-slate-200 dark:border-white/15 px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-3 select-none"
+        >
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+            <span className="text-xs font-bold text-slate-900 dark:text-white">
+              Выбрано: <span className="font-mono text-blue-600 dark:text-blue-400">{selectedIds.length}</span>
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-200 dark:bg-white/10" />
+
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">
+            Перетаскивайте для синхронного смещения
+          </div>
+
+          {currentUser.role === 'admin' && (
+            <button
+              onClick={() => batchDelete(selectedIds)}
+              className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/20 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Удалить выбранные объекты (Delete)"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Удалить ({selectedIds.length})</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              setSelectedId(null);
+              setSelectedIds([]);
+            }}
+            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+            title="Снять выделение (Esc)"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Interactive Minimap (Bottom Right) */}
       <div 

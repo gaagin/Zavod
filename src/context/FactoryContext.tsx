@@ -51,6 +51,10 @@ interface FactoryContextType {
   // Selection & Tools
   selectedId: string | null;
   setSelectedId: (id: string | null) => void;
+  selectedIds: string[];
+  setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
+  toggleSelectId: (id: string, multi?: boolean) => void;
+  batchDelete: (ids?: string[], reason?: string) => void;
   activeTool: CanvasTool;
   setActiveTool: (tool: CanvasTool) => void;
   connectingSourceId: string | null;
@@ -263,7 +267,36 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Canvas Viewport & Tools
   const [viewport, setViewport] = useState({ panX: 200, panY: 150, zoom: 0.85 });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedIdState] = useState<string | null>(null);
+  const [selectedIds, setSelectedIdsRaw] = useState<string[]>([]);
+
+  const setSelectedIds = useCallback((idsOrUpdater: string[] | ((prev: string[]) => string[])) => {
+    setSelectedIdsRaw(prev => {
+      const next = typeof idsOrUpdater === 'function' ? idsOrUpdater(prev) : idsOrUpdater;
+      setSelectedIdState(next.length > 0 ? next[next.length - 1] : null);
+      return next;
+    });
+  }, []);
+
+  const setSelectedId = useCallback((id: string | null) => {
+    setSelectedIdState(id);
+    setSelectedIdsRaw(id ? [id] : []);
+  }, []);
+
+  const toggleSelectId = useCallback((id: string, multi: boolean = false) => {
+    if (!multi) {
+      setSelectedIdState(id);
+      setSelectedIdsRaw(id ? [id] : []);
+    } else {
+      setSelectedIdsRaw(prev => {
+        const exists = prev.includes(id);
+        const next = exists ? prev.filter(item => item !== id) : [...prev, id];
+        setSelectedIdState(next.length > 0 ? next[next.length - 1] : null);
+        return next;
+      });
+    }
+  }, []);
+
   const [activeTool, setActiveTool] = useState<CanvasTool>('select');
   const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null);
   const [linkDraftType, setLinkDraftType] = useState<LinkType>('power');
@@ -652,11 +685,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 senderName: 'Второе устройство (через папку)',
               });
 
-              showToast(
-                'Синхронизация из папки 📂⚡',
-                `Файл «${filename}» изменен другим устройством. Изменения выведены на экран в реальном времени!`,
-                'success'
-              );
+              // Silent sync per user request (no intrusive toast or banner)
 
               // Broadcast to WebSocket so other connected views stay aligned
               if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -1010,7 +1039,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   containersCount: (msg.state.containers || []).length,
                 });
                 setLastFolderSyncTime(Date.now());
-                showToast('Синхронизация из папки 📂⚡', 'Файл схемы изменен на диске в общей папке. Изменения выведены на экран в реальном времени!', 'success');
+                // Silent sync per user request
               }
 
               // Synchronously autosave incoming remote update into local cache
@@ -1565,6 +1594,76 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [state, pushHistory, currentUser]);
 
+  const batchDelete = useCallback((idsToDelete?: string[], reason?: string) => {
+    const ids = idsToDelete || selectedIds;
+    if (!ids || ids.length === 0) return;
+    if (currentUser.role !== 'admin') return;
+
+    pushHistory(state);
+    const idSet = new Set(ids);
+
+    setState(prev => {
+      // Find deleted containers to re-parent orphan children
+      const deletedContainers = prev.containers.filter(c => idSet.has(c.id));
+      const containerParentMap = new Map(deletedContainers.map(c => [c.id, c.parentId || null]));
+
+      // Also if any equipment is a parent of other equipment and is deleted, re-parent children
+      const deletedEq = prev.equipment.filter(e => idSet.has(e.id));
+      const eqParentMap = new Map(deletedEq.map(e => [e.id, e.parentId || null]));
+
+      const nextEq = prev.equipment
+        .filter(e => !idSet.has(e.id))
+        .map(e => {
+          if (e.parentId && idSet.has(e.parentId)) {
+            const fallbackParent = containerParentMap.get(e.parentId) || eqParentMap.get(e.parentId) || null;
+            return { ...e, parentId: fallbackParent };
+          }
+          return e;
+        });
+
+      const nextContainers = prev.containers
+        .filter(c => !idSet.has(c.id))
+        .map(c => {
+          if (c.parentId && idSet.has(c.parentId)) {
+            const fallbackParent = containerParentMap.get(c.parentId) || null;
+            return { ...c, parentId: fallbackParent };
+          }
+          return c;
+        });
+
+      const nextLinks = prev.links.filter(l => 
+        !idSet.has(l.id) && !idSet.has(l.fromId) && !idSet.has(l.toId)
+      );
+
+      const logDesc = reason || `Удалена группа объектов (${ids.length} шт.)`;
+      const newLog = createEventLog({
+        targetId: ids[0],
+        targetName: `${ids.length} объектов`,
+        targetType: 'system',
+        eventType: 'deleted',
+        severity: 'warning',
+        description: logDesc,
+        userName: currentUser.name,
+        userRole: currentUser.role
+      });
+      const nextLogs = [newLog, ...prev.eventLogs.filter(l => l.id !== newLog.id)].slice(0, 200);
+
+      const nextState = {
+        ...prev,
+        containers: nextContainers,
+        equipment: nextEq,
+        links: nextLinks,
+        eventLogs: nextLogs
+      };
+
+      syncStateToServer(nextState, logDesc);
+      return nextState;
+    });
+
+    setSelectedIdState(null);
+    setSelectedIds([]);
+  }, [selectedIds, currentUser, state, pushHistory]);
+
   // Links CRUD
   const addLink = useCallback((fromId: string, toId: string, type: LinkType = 'power', style: LinkStyle = 'orthogonal') => {
     if (fromId === toId) return;
@@ -2027,26 +2126,41 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           e.preventDefault();
           toggleFocusMode(selectedId);
         }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A' || e.key === 'ф' || e.key === 'Ф')) {
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+        e.preventDefault();
+        const allIds = [
+          ...state.containers.map(c => c.id),
+          ...state.equipment.map(e => e.id)
+        ];
+        setSelectedIds(allIds);
+        if (allIds.length > 0) setSelectedIdState(allIds[0]);
       } else if (e.key === 'Escape') {
         if (focusedContainerId) {
           exitFocusMode();
           return;
         }
-        setSelectedId(null);
+        setSelectedIdState(null);
+        setSelectedIds([]);
         setConnectingSourceId(null);
         setActiveTool('select');
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedId && currentUser.role === 'admin') {
-          // Check if equipment or container or link
-          if (state.equipment.some(eq => eq.id === selectedId)) {
-            deleteEquipment(selectedId);
-            setSelectedId(null);
-          } else if (state.containers.some(c => c.id === selectedId)) {
-            deleteContainer(selectedId);
-            setSelectedId(null);
-          } else if (state.links.some(l => l.id === selectedId)) {
-            deleteLink(selectedId);
-            setSelectedId(null);
+        if (currentUser.role === 'admin') {
+          if (selectedIds.length > 1) {
+            batchDelete(selectedIds);
+          } else if (selectedId) {
+            // Check if equipment or container or link
+            if (state.equipment.some(eq => eq.id === selectedId)) {
+              deleteEquipment(selectedId);
+              setSelectedId(null);
+            } else if (state.containers.some(c => c.id === selectedId)) {
+              deleteContainer(selectedId);
+              setSelectedId(null);
+            } else if (state.links.some(l => l.id === selectedId)) {
+              deleteLink(selectedId);
+              setSelectedId(null);
+            }
           }
         }
       }
@@ -2054,7 +2168,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, currentUser.role, state, undo, redo, deleteEquipment, deleteContainer, deleteLink, focusedContainerId, exitFocusMode, toggleFocusMode]);
+  }, [selectedId, selectedIds, currentUser.role, state, undo, redo, deleteEquipment, deleteContainer, deleteLink, batchDelete, focusedContainerId, exitFocusMode, toggleFocusMode]);
 
   return (
     <FactoryContext.Provider
@@ -2066,6 +2180,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         connectionStatus,
         selectedId,
         setSelectedId,
+        selectedIds,
+        setSelectedIds,
+        toggleSelectId,
+        batchDelete,
         activeTool,
         setActiveTool,
         connectingSourceId,
