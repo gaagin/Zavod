@@ -144,7 +144,7 @@ export const Toolbar: React.FC = () => {
       y: centerCanvasY - 180,
       width: 500,
       height: 360,
-      isCollapsed: false,
+      isCollapsed: true,
       collapsedWidth: 280,
       collapsedHeight: 90,
       color: randomColor,

@@ -616,8 +616,8 @@ export function calculateFocusFitViewport(options: FocusFitViewportOptions): {
   let maxY = target.y + targetH;
 
   for (const c of childContainers) {
-    const cW = c.width || c.collapsedWidth || 240;
-    const cH = c.height || c.collapsedHeight || 90;
+    const cW = c.isCollapsed ? (c.collapsedWidth || 240) : (c.width || 240);
+    const cH = c.isCollapsed ? (c.collapsedHeight || 90) : (c.height || 90);
     minX = Math.min(minX, c.x);
     minY = Math.min(minY, c.y);
     maxX = Math.max(maxX, c.x + cW);

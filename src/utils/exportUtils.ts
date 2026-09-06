@@ -993,7 +993,7 @@ export function parseAndValidateProject(rawText: string): {
         width: Number.isFinite(Number(item.width)) ? Math.max(200, Number(item.width)) : 400,
         height: Number.isFinite(Number(item.height)) ? Math.max(150, Number(item.height)) : 300,
         parentId: item.parentId ? String(item.parentId) : null,
-        isCollapsed: item.isCollapsed !== undefined ? Boolean(item.isCollapsed) : true,
+        isCollapsed: true, // Контейнеры всегда в свернутом виде
         collapsedWidth: Number.isFinite(Number(item.collapsedWidth)) ? Number(item.collapsedWidth) : (item.collapsedWidth || 260),
         collapsedHeight: Number.isFinite(Number(item.collapsedHeight)) ? Number(item.collapsedHeight) : (item.collapsedHeight || 90),
         color: item.color || '#3b82f6',

@@ -1073,7 +1073,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 ...prev,
                 ...msg.state,
                 equipment: msg.state.equipment !== undefined ? dedupeById(msg.state.equipment) : prev.equipment,
-                containers: msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers,
+                containers: (msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers).map((c: ContainerNode) => ({
+                  ...c,
+                  isCollapsed: true, // Все контейнеры всегда по умолчанию в свернутом виде
+                })),
                 links: msg.state.links !== undefined ? dedupeById(msg.state.links) : prev.links,
                 eventLogs: msg.state.eventLogs !== undefined ? dedupeById(msg.state.eventLogs) : prev.eventLogs,
               }));
@@ -1245,7 +1248,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             })),
             containers: dedupeById(serverState.containers).map((c: any) => ({
               ...c,
-              isCollapsed: isFirstPull ? true : (c.isCollapsed !== undefined ? c.isCollapsed : true),
+              isCollapsed: true, // Все контейнеры всегда по умолчанию в свернутом виде
             })),
             links: dedupeById(serverState.links),
             eventLogs: dedupeById(serverState.eventLogs),
@@ -1586,7 +1589,21 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const target = prev.containers.find(c => c.id === id);
       if (!target) return prev;
       const willBeCollapsed = !target.isCollapsed;
-      const nextContainers = prev.containers.map(c => c.id === id ? { ...c, isCollapsed: willBeCollapsed } : c);
+
+      // Find all descendant containers inside target
+      const descContIds = getAllDescendantContainerIds(id, prev.containers);
+      descContIds.delete(id);
+
+      const nextContainers = prev.containers.map(c => {
+        if (c.id === id) {
+          return { ...c, isCollapsed: willBeCollapsed };
+        }
+        // When toggling container id, ensure all nested/descendant containers inside it are collapsed!
+        if (descContIds.has(c.id) || c.parentId === id) {
+          return { ...c, isCollapsed: true };
+        }
+        return c;
+      });
       const logDesc = willBeCollapsed ? `Свернут контейнер [${target.tag}] ${target.name}` : `Раскрыт контейнер [${target.tag}] ${target.name}`;
       const newLog = createEventLog({
         targetId: id,
@@ -1662,7 +1679,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const expandAllNodes = useCallback(() => {
     pushHistory(state);
     setState(prev => {
-      const nextContainers = prev.containers.map(c => ({ ...c, isCollapsed: false }));
+      // Контейнеры при любых вариантах сохраняются в свернутом виде
+      const nextContainers = prev.containers.map(c => ({ ...c, isCollapsed: true }));
       const nextEquipment = prev.equipment.map(e => ({ ...e, isCollapsed: false }));
       const newLog = createEventLog({
         targetId: 'all',
@@ -1670,22 +1688,26 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         targetType: 'system',
         eventType: 'property_edit',
         severity: 'info',
-        description: 'Раскрыты все контейнеры и оборудование',
+        description: 'Раскрыто все оборудование (контейнеры сохранены в свернутом виде)',
         userName: currentUser.name,
         userRole: currentUser.role
       });
       const nextLogs = [newLog, ...prev.eventLogs.filter(l => l.id !== newLog.id)].slice(0, 200);
       const nextState = { ...prev, containers: nextContainers, equipment: nextEquipment, eventLogs: nextLogs };
-      syncStateToServer(nextState, 'Развернуты все контейнеры и оборудование');
+      syncStateToServer(nextState, 'Раскрыто оборудование схемы');
       return nextState;
     });
-    showToast('Развернуты все узлы', 'Все контейнеры и оборудование переведены в раскрытое состояние', 'info');
+    showToast('Раскрыто оборудование', 'Все оборудование раскрыто, контейнеры сохранены в свернутом виде', 'info');
   }, [state, pushHistory, currentUser, syncStateToServer, showToast]);
 
   const addContainer = useCallback((container: ContainerNode, reason?: string) => {
     pushHistory(state);
     setState(prev => {
-      const nextContainers = [...prev.containers.filter(c => c.id !== container.id), container];
+      const ensuredContainer: ContainerNode = {
+        ...container,
+        isCollapsed: true, // Всегда создаем контейнеры в свернутом виде
+      };
+      const nextContainers = [...prev.containers.filter(c => c.id !== container.id), ensuredContainer];
       const logDesc = reason || `Создан контейнер цеха/участка: [${container.tag}] ${container.name}`;
       const newLog = createEventLog({
         targetId: container.id,
@@ -2359,7 +2381,6 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       currParentId = parentC?.parentId;
     }
 
-    const uncollapseContSet = new Set([nodeId, ...descContIds, ...ancestorContIds]);
     const uncollapseEqSet = new Set([nodeId, ...descEqIds]);
 
     // 3. Compute viewport fit so target and ALL internal elements are completely framed on screen
@@ -2380,7 +2401,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ? Math.max(targetContainer.height, Math.round(fit.boundingBox.maxY - targetContainer.y + 50))
       : 0;
 
-    // 5. Uncollapse target, its ancestors, and ALL elements inside it!
+    // 5. Uncollapse only target container and its ancestors. All nested/descendant containers inside target MUST remain collapsed!
     setState(prev => {
       let changed = false;
       const nextContainers = prev.containers.map(c => {
@@ -2389,9 +2410,18 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           changed = true;
           updated = { ...updated, width: neededWidth, height: neededHeight };
         }
-        if (uncollapseContSet.has(c.id) && c.isCollapsed) {
-          changed = true;
-          updated = { ...updated, isCollapsed: false };
+        if (c.id === nodeId || ancestorContIds.has(c.id)) {
+          if (c.isCollapsed) {
+            changed = true;
+            updated = { ...updated, isCollapsed: false };
+          }
+        } else {
+          // Все остальные контейнеры (особенно вложенные дочерние контейнеры внутри открываемого)
+          // при любых вариантах должны быть в свернутом состоянии!
+          if (!c.isCollapsed) {
+            changed = true;
+            updated = { ...updated, isCollapsed: true };
+          }
         }
         return updated;
       });
