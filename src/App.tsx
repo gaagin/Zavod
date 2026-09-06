@@ -8,6 +8,7 @@ import { ProjectPanel } from './components/ProjectPanel';
 import { SearchModal } from './components/SearchModal';
 import { ReportModal } from './components/ReportModal';
 import { CreateEquipmentModal } from './components/CreateEquipmentModal';
+import { ShareLinkModal } from './components/ShareLinkModal';
 import { ToastContainer } from './components/ToastContainer';
 import { FolderSyncBanner } from './components/FolderSyncBanner';
 import { exportToJSON } from './utils/exportUtils';
@@ -42,6 +43,8 @@ const AppContent: React.FC = () => {
     isFocusFullscreen,
     addEmptyEquipment,
     setIsCreateEquipmentOpen,
+    shareModalNodeId,
+    closeShareModal,
   } = useFactory();
 
   const [isWindowDragOver, setIsWindowDragOver] = useState(false);
@@ -272,6 +275,11 @@ const AppContent: React.FC = () => {
       <SearchModal />
       <ReportModal />
       <CreateEquipmentModal />
+      <ShareLinkModal 
+        nodeId={shareModalNodeId} 
+        isOpen={Boolean(shareModalNodeId)} 
+        onClose={closeShareModal} 
+      />
 
       {/* Global Toast Notifications */}
       <ToastContainer />

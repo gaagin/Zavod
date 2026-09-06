@@ -16,7 +16,9 @@ import {
   Flame, 
   Radio, 
   Sparkles,
-  Layers
+  Layers,
+  Barcode,
+  Tag
 } from 'lucide-react';
 
 interface PropDraft {
@@ -48,6 +50,8 @@ export const CreateEquipmentModal: React.FC = () => {
   const [model, setModel] = useState<string>('');
   const [serialNumber, setSerialNumber] = useState<string>('');
   const [manufacturer, setManufacturer] = useState<string>('');
+  const [barcode, setBarcode] = useState<string>('');
+  const [stockCode, setStockCode] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
   // Custom properties draft
@@ -70,6 +74,8 @@ export const CreateEquipmentModal: React.FC = () => {
       setModel('');
       setSerialNumber('');
       setManufacturer('');
+      setBarcode('');
+      setStockCode('');
       setNotes('');
       setCustomProps([]);
       setNewPropName('');
@@ -163,6 +169,10 @@ export const CreateEquipmentModal: React.FC = () => {
       model: model.trim() || undefined,
       serialNumber: serialNumber.trim() || undefined,
       manufacturer: manufacturer.trim() || undefined,
+      barcode: barcode.trim() || undefined,
+      barkod: barcode.trim() || undefined,
+      stockCode: stockCode.trim() || undefined,
+      stokKod: stockCode.trim() || undefined,
       notes: notes.trim() || undefined,
       properties: formattedProps,
       commissionDate: new Date().toISOString().slice(0, 10),
@@ -376,6 +386,36 @@ export const CreateEquipmentModal: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                  <Barcode className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Barkod</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="8690123456789"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg bg-[#17171C] border border-white/10 text-slate-200 font-mono placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                  <Tag className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Stok kod</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="STK-001"
+                  value={stockCode}
+                  onChange={(e) => setStockCode(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg bg-[#17171C] border border-white/10 text-slate-200 font-mono placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
                 <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                   Изготовитель / Бренд
                 </label>
@@ -420,6 +460,8 @@ export const CreateEquipmentModal: React.FC = () => {
               <div className="text-[10px] text-slate-500 mb-1.5">Быстро добавить частый параметр:</div>
               <div className="flex flex-wrap gap-1.5">
                 {[
+                  { name: 'Barkod', unit: '', defaultVal: '8690123456789' },
+                  { name: 'Stok kod', unit: '', defaultVal: 'STK-001' },
                   { name: 'Температура', unit: '°C', defaultVal: '45' },
                   { name: 'Давление', unit: 'бар', defaultVal: '6.2' },
                   { name: 'Вибрация', unit: 'мм/с', defaultVal: '1.4' },

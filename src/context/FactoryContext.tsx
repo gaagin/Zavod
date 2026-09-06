@@ -12,7 +12,8 @@ import {
   LinkType,
   LinkStyle,
   AutoSaveConfig,
-  FolderFileChangeNotice
+  FolderFileChangeNotice,
+  ElementReference
 } from '../types';
 import { initialFactoryState } from '../data/initialFactory';
 import { 
@@ -22,7 +23,14 @@ import {
   readProjectFromDirectory,
   getFileMetadataInDirectory 
 } from '../utils/exportUtils';
-import { calculateContainerFitViewport, calculateNodeFitViewport } from '../utils/geometry';
+import { calculateContainerFitViewport, calculateNodeFitViewport, isNodeInSubtree } from '../utils/geometry';
+import {
+  generateElementUrl,
+  copyTextToClipboard,
+  parseElementFromLocation,
+  findElementInState,
+  LinkParamType
+} from '../utils/linkUtils';
 import {
   storeDirectoryHandle,
   getStoredDirectoryHandle,
@@ -167,6 +175,17 @@ interface FactoryContextType {
   requestDirectoryAccess: () => Promise<boolean>;
   forceSave: (overrideFilename?: string) => Promise<{ success: boolean; savedLocally?: boolean; filename?: string; error?: string }>;
   loadFactoryPreset: () => void;
+
+  // Element Deep Linking & References
+  highlightedNodeId: string | null;
+  setHighlightedNodeId: (id: string | null) => void;
+  shareModalNodeId: string | null;
+  setShareModalNodeId: (id: string | null) => void;
+  openShareModal: (nodeId: string) => void;
+  closeShareModal: () => void;
+  addElementLink: (sourceId: string, targetId: string, relationship?: string) => void;
+  removeElementLink: (sourceId: string, linkId: string) => void;
+  copyElementLink: (nodeId: string, paramType?: LinkParamType) => Promise<boolean>;
 }
 
 export function dedupeById<T extends { id: string }>(items?: T[]): T[] {
@@ -313,6 +332,19 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isEventLogsOpen, setIsEventLogsOpen] = useState(false);
   const [isProjectPanelOpen, setIsProjectPanelOpen] = useState(false);
+
+  // Element Deep Linking & Highlight
+  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<any>(null);
+  const [shareModalNodeId, setShareModalNodeId] = useState<string | null>(null);
+
+  const openShareModal = useCallback((nodeId: string) => {
+    setShareModalNodeId(nodeId);
+  }, []);
+
+  const closeShareModal = useCallback(() => {
+    setShareModalNodeId(null);
+  }, []);
 
   // In-app Toasts
   const [toasts, setToasts] = useState<AppToast[]>([]);
@@ -1953,27 +1985,35 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setViewport({ panX: 200, panY: 150, zoom: 0.85 });
   };
 
-  // Focus node by ID (centers and zooms onto the element)
+  // Focus node by ID (centers and zooms onto the element, uncollapses ancestors, highlights)
   const focusNode = useCallback((nodeId: string) => {
     const eq = state.equipment.find(e => e.id === nodeId);
     const cont = state.containers.find(c => c.id === nodeId);
     const target = eq || cont;
     if (!target) return;
 
-    // If target has collapsed ancestor (container or equipment), uncollapse it so it's visible!
-    let currentParentId = target.parentId;
-    if (currentParentId) {
+    // Uncollapse all ancestor containers or equipment up the hierarchy
+    const ancestorIds = new Set<string>();
+    let curr: string | null | undefined = target.parentId;
+    while (curr) {
+      ancestorIds.add(curr);
+      const parentCont = state.containers.find(c => c.id === curr);
+      const parentEq = state.equipment.find(e => e.id === curr);
+      curr = parentCont?.parentId || parentEq?.parentId;
+    }
+
+    if (ancestorIds.size > 0) {
       setState(prev => {
         let changed = false;
         const nextContainers = prev.containers.map(c => {
-          if (c.id === currentParentId && c.isCollapsed) {
+          if (ancestorIds.has(c.id) && c.isCollapsed) {
             changed = true;
             return { ...c, isCollapsed: false };
           }
           return c;
         });
         const nextEquipment = prev.equipment.map(e => {
-          if (e.id === currentParentId && e.isCollapsed) {
+          if (ancestorIds.has(e.id) && e.isCollapsed) {
             changed = true;
             return { ...e, isCollapsed: false };
           }
@@ -1981,6 +2021,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
         return changed ? { ...prev, containers: nextContainers, equipment: nextEquipment } : prev;
       });
+    }
+
+    // If locked inside another container focus mode, exit focus mode so target is visible
+    if (focusedContainerId && focusedContainerId !== nodeId) {
+      const isDescendant = isNodeInSubtree(nodeId, focusedContainerId, state.containers, state.equipment);
+      if (!isDescendant) {
+        setFocusedContainerId(null);
+      }
     }
 
     const windowWidth = window.innerWidth;
@@ -2000,7 +2048,125 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setViewport({ panX: newPanX, panY: newPanY, zoom: targetZoom });
     setSelectedId(nodeId);
-  }, [state.equipment, state.containers]);
+
+    // Set glowing halo highlight on target node
+    setHighlightedNodeId(nodeId);
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedNodeId(null);
+    }, 4500);
+
+    // Update browser URL query parameter without page reload
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('element', nodeId);
+      window.history.replaceState({ element: nodeId }, '', url.toString());
+    } catch {}
+  }, [state.equipment, state.containers, focusedContainerId]);
+
+  // Add cross-reference link from one element to another
+  const addElementLink = useCallback((sourceId: string, targetId: string, relationship?: string) => {
+    setState(prev => {
+      const isEq = prev.equipment.some(e => e.id === sourceId);
+      const isCont = prev.containers.some(c => c.id === sourceId);
+      const newRef: ElementReference = {
+        id: 'ref-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        targetId,
+        relationship: relationship?.trim() || 'Связанный узел'
+      };
+
+      if (isEq) {
+        return {
+          ...prev,
+          equipment: prev.equipment.map(e => {
+            if (e.id === sourceId) {
+              const currentLinks = e.elementLinks || [];
+              return { ...e, elementLinks: [...currentLinks, newRef] };
+            }
+            return e;
+          })
+        };
+      } else if (isCont) {
+        return {
+          ...prev,
+          containers: prev.containers.map(c => {
+            if (c.id === sourceId) {
+              const currentLinks = c.elementLinks || [];
+              return { ...c, elementLinks: [...currentLinks, newRef] };
+            }
+            return c;
+          })
+        };
+      }
+      return prev;
+    });
+
+    const target = state.equipment.find(e => e.id === targetId) || state.containers.find(c => c.id === targetId);
+    showToast('Ссылка создана 🔗', `Элемент связан с «${target?.name || targetId}»`, 'success');
+  }, [state.equipment, state.containers, showToast]);
+
+  // Remove cross-reference link
+  const removeElementLink = useCallback((sourceId: string, linkId: string) => {
+    setState(prev => ({
+      ...prev,
+      equipment: prev.equipment.map(e => {
+        if (e.id === sourceId && e.elementLinks) {
+          return { ...e, elementLinks: e.elementLinks.filter(l => l.id !== linkId) };
+        }
+        return e;
+      }),
+      containers: prev.containers.map(c => {
+        if (c.id === sourceId && c.elementLinks) {
+          return { ...c, elementLinks: c.elementLinks.filter(l => l.id !== linkId) };
+        }
+        return c;
+      })
+    }));
+    showToast('Ссылка удалена', 'Связь между элементами снята', 'info');
+  }, [showToast]);
+
+  // Copy link to element
+  const copyElementLink = useCallback(async (nodeId: string, paramType: LinkParamType = 'element'): Promise<boolean> => {
+    const target = state.equipment.find(e => e.id === nodeId) || state.containers.find(c => c.id === nodeId);
+    if (!target) return false;
+    const url = generateElementUrl(target, paramType);
+    const success = await copyTextToClipboard(url);
+    if (success) {
+      showToast('Ссылка скопирована! 🔗', `Прямой URL для «${target.name}» скопирован в буфер обмена`, 'success');
+    } else {
+      showToast('Ошибка копирования', 'Пожалуйста, скопируйте ссылку вручную', 'error');
+    }
+    return success;
+  }, [state.equipment, state.containers, showToast]);
+
+  // Check deep link URL on initial load and browser navigation
+  useEffect(() => {
+    const handleUrlNavigation = () => {
+      const parsed = parseElementFromLocation();
+      if (!parsed) return;
+      const found = findElementInState(state, parsed);
+      if (found) {
+        focusNode(found.id);
+        showToast(
+          'Переход по ссылке 🔗',
+          `Выполнен переход к «${found.name}» (${found.tag})`,
+          'info'
+        );
+      }
+    };
+
+    const timer = setTimeout(handleUrlNavigation, 400);
+
+    window.addEventListener('popstate', handleUrlNavigation);
+    window.addEventListener('hashchange', handleUrlNavigation);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('popstate', handleUrlNavigation);
+      window.removeEventListener('hashchange', handleUrlNavigation);
+    };
+  }, [state.equipment.length, state.containers.length]);
 
   // Fit container or equipment to screen (fills the workspace)
   const fitContainerToScreen = useCallback((nodeId?: string) => {
@@ -2305,6 +2471,15 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         requestDirectoryAccess,
         forceSave,
         loadFactoryPreset,
+        highlightedNodeId,
+        setHighlightedNodeId,
+        shareModalNodeId,
+        setShareModalNodeId,
+        openShareModal,
+        closeShareModal,
+        addElementLink,
+        removeElementLink,
+        copyElementLink,
       }}
     >
       {children}

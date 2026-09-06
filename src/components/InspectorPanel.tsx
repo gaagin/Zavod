@@ -31,8 +31,11 @@ import {
   Maximize2,
   Minimize2,
   Focus,
-  Scan
+  Scan,
+  Barcode,
+  Tag
 } from 'lucide-react';
+import { ElementLinksSection } from './ElementLinksSection';
 
 export const InspectorPanel: React.FC = () => {
   const {
@@ -58,6 +61,7 @@ export const InspectorPanel: React.FC = () => {
     exitFocusMode,
     toggleFocusMode,
     fitContainerToScreen,
+    openShareModal,
   } = useFactory();
 
   const [newPropName, setNewPropName] = useState('');
@@ -468,12 +472,21 @@ export const InspectorPanel: React.FC = () => {
               Свойства оборудования
             </span>
           </div>
-          <button
-            onClick={() => setSelectedId(null)}
-            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => openShareModal(selectedEquipment.id)}
+              className="p-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/20 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+              title="Поделиться ссылкой или QR-кодом (для внешних сервисов)"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setSelectedId(null)}
+              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Focus Mode Action for Equipment */}
@@ -748,6 +761,38 @@ export const InspectorPanel: React.FC = () => {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
+                <Barcode className="w-3 h-3 text-blue-500" />
+                <span>Barkod</span>
+              </label>
+              <input
+                type="text"
+                disabled={!canEdit}
+                placeholder="8690123456789"
+                value={selectedEquipment.barcode || selectedEquipment.barkod || ''}
+                onChange={(e) => updateEquipment(selectedEquipment.id, { barcode: e.target.value, barkod: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-400 font-mono text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
+                <Tag className="w-3 h-3 text-indigo-500" />
+                <span>Stok kod</span>
+              </label>
+              <input
+                type="text"
+                disabled={!canEdit}
+                placeholder="STK-001"
+                value={selectedEquipment.stockCode || selectedEquipment.stokKod || ''}
+                onChange={(e) => updateEquipment(selectedEquipment.id, { stockCode: e.target.value, stokKod: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-400 font-mono text-xs"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
               Изготовитель / Бренд
@@ -795,6 +840,8 @@ export const InspectorPanel: React.FC = () => {
               <div className="text-[10px] text-slate-500 mb-1">Быстро добавить свойство:</div>
               <div className="flex flex-wrap gap-1">
                 {[
+                  { name: 'Barkod', unit: '', val: '8690123456789' },
+                  { name: 'Stok kod', unit: '', val: 'STK-001' },
                   { name: 'Температура', unit: '°C', val: '40' },
                   { name: 'Давление', unit: 'бар', val: '6.0' },
                   { name: 'Вибрация', unit: 'мм/с', val: '1.2' },
@@ -948,6 +995,9 @@ export const InspectorPanel: React.FC = () => {
           </div>
         )}
 
+        {/* Element Links & Navigation */}
+        <ElementLinksSection node={selectedEquipment} canEdit={canEdit} />
+
         {/* Delete action */}
         {canAdmin && (
           <div className="pt-3 border-t border-slate-200 dark:border-white/10">
@@ -1005,12 +1055,21 @@ export const InspectorPanel: React.FC = () => {
               Контейнер участка/цеха
             </span>
           </div>
-          <button
-            onClick={() => setSelectedId(null)}
-            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => openShareModal(selectedContainer.id)}
+              className="p-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/20 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+              title="Поделиться ссылкой или QR-кодом (для внешних сервисов)"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setSelectedId(null)}
+              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Focus Mode Action Banner */}
@@ -1253,6 +1312,9 @@ export const InspectorPanel: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {/* Element Links & Navigation */}
+        <ElementLinksSection node={selectedContainer} canEdit={canAdmin} />
 
         {canAdmin && (
           <div className="pt-3 border-t border-slate-200 dark:border-white/10">

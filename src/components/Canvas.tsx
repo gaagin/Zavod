@@ -57,11 +57,13 @@ import {
   X,
   Sliders,
   Sparkles,
+  Barcode,
   ZoomIn,
   ZoomOut,
   Hand,
   MousePointer,
-  Undo2
+  Undo2,
+  Link2
 } from 'lucide-react';
 
 export const Canvas: React.FC = () => {
@@ -111,6 +113,7 @@ export const Canvas: React.FC = () => {
     undo,
     canUndo,
     recordHistorySnapshot,
+    highlightedNodeId,
   } = useFactory();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1983,7 +1986,9 @@ export const Canvas: React.FC = () => {
                 className={`absolute rounded-2xl border-2 bg-white dark:bg-[#0F0F12]/95 backdrop-blur-md shadow-lg p-3 transition-all touch-none select-none ${
                   touchDraggingNodeId === container.id ? 'ring-4 ring-blue-400 scale-[1.02] shadow-2xl z-30' : ''
                 } ${
-                  isThisFocused 
+                  highlightedNodeId === container.id
+                    ? 'ring-4 ring-amber-400 dark:ring-amber-400 shadow-[0_0_60px_rgba(251,191,36,0.7)] scale-[1.03] z-50 animate-pulse'
+                    : isThisFocused 
                     ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_50px_rgba(59,130,246,0.35)] z-20' 
                     : isSelected ? 'ring-2 ring-blue-500 shadow-xl' : 'hover:border-slate-400 dark:hover:border-white/40'
                 }`}
@@ -1992,6 +1997,14 @@ export const Canvas: React.FC = () => {
                 {isSelected && selectedIds.length > 1 && (
                   <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
                     ✓
+                  </div>
+                )}
+
+                {/* Highlighted Deep-Link Anchor Banner */}
+                {highlightedNodeId === container.id && (
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-extrabold shadow-xl flex items-center gap-1 z-50 whitespace-nowrap animate-bounce pointer-events-none ring-2 ring-white/40">
+                    <Link2 className="w-3 h-3" />
+                    <span>Переход по ссылке на цех</span>
                   </div>
                 )}
 
@@ -2146,7 +2159,9 @@ export const Canvas: React.FC = () => {
                 toggleFocusMode(container.id);
               }}
               className={`absolute rounded-2xl border-2 transition-all bg-white/90 dark:bg-[#0F0F12]/30 backdrop-blur-xs shadow-md ${
-                isThisFocused
+                highlightedNodeId === container.id
+                  ? 'ring-4 ring-amber-400 dark:ring-amber-400 shadow-[0_0_60px_rgba(251,191,36,0.7)] z-50 animate-pulse'
+                  : isThisFocused
                   ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_60px_rgba(59,130,246,0.35)] z-20'
                   : isSelected 
                   ? 'ring-2 ring-blue-500 border-blue-500/60 shadow-xl' 
@@ -2157,6 +2172,14 @@ export const Canvas: React.FC = () => {
               {isSelected && selectedIds.length > 1 && (
                 <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
                   ✓
+                </div>
+              )}
+
+              {/* Highlighted Deep-Link Anchor Banner */}
+              {highlightedNodeId === container.id && (
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-extrabold shadow-xl flex items-center gap-1 z-50 whitespace-nowrap animate-bounce pointer-events-none ring-2 ring-white/40">
+                  <Link2 className="w-3 h-3" />
+                  <span>Переход по ссылке на цех</span>
                 </div>
               )}
 
@@ -2366,7 +2389,9 @@ export const Canvas: React.FC = () => {
                 } ${
                   touchDraggingNodeId === equipment.id ? 'ring-4 ring-blue-400 scale-[1.03] shadow-2xl z-30' : ''
                 } ${
-                  isThisFocused
+                  highlightedNodeId === equipment.id
+                    ? 'ring-4 ring-amber-400 dark:ring-amber-400 shadow-[0_0_50px_rgba(251,191,36,0.7)] scale-[1.03] z-50 animate-pulse'
+                    : isThisFocused
                     ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_40px_rgba(59,130,246,0.35)] z-20'
                     : isSelected ? 'ring-2 ring-blue-500 shadow-xl' : 'hover:border-slate-300 dark:hover:border-white/30'
                 } ${
@@ -2377,6 +2402,14 @@ export const Canvas: React.FC = () => {
                 {isSelected && selectedIds.length > 1 && (
                   <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
                     ✓
+                  </div>
+                )}
+
+                {/* Highlighted Deep-Link Anchor Banner */}
+                {highlightedNodeId === equipment.id && (
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-extrabold shadow-xl flex items-center gap-1 z-50 whitespace-nowrap animate-bounce pointer-events-none ring-2 ring-white/40">
+                    <Link2 className="w-3 h-3" />
+                    <span>Переход по ссылке</span>
                   </div>
                 )}
 
@@ -2427,6 +2460,12 @@ export const Canvas: React.FC = () => {
                     {childEquipment.length > 0 && (
                       <span className="px-1 py-0.2 rounded bg-blue-500/15 text-blue-400 font-mono text-[9px] font-bold">
                         {childEquipment.length} влож.
+                      </span>
+                    )}
+                    {equipment.elementLinks && equipment.elementLinks.length > 0 && (
+                      <span className="px-1 py-0.2 rounded bg-blue-500/15 text-blue-400 font-mono text-[8.5px] font-bold flex items-center gap-0.5" title={`Связи: ${equipment.elementLinks.length}`}>
+                        <Link2 className="w-2 h-2" />
+                        <span>{equipment.elementLinks.length}</span>
                       </span>
                     )}
                     {equipment.powerKw !== undefined && (
@@ -2540,7 +2579,9 @@ export const Canvas: React.FC = () => {
               } ${
                 touchDraggingNodeId === equipment.id ? 'ring-4 ring-blue-400 scale-[1.03] shadow-2xl z-30' : ''
               } ${
-                isThisFocused
+                highlightedNodeId === equipment.id
+                  ? 'ring-4 ring-amber-400 dark:ring-amber-400 shadow-[0_0_50px_rgba(251,191,36,0.7)] scale-[1.02] z-50 animate-pulse'
+                  : isThisFocused
                   ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_50px_rgba(59,130,246,0.35)] z-20'
                   : isSelected ? 'ring-2 ring-blue-500 shadow-xl scale-[1.01]' : 'hover:border-slate-300 dark:hover:border-white/30'
               } ${
@@ -2551,6 +2592,14 @@ export const Canvas: React.FC = () => {
               {isSelected && selectedIds.length > 1 && (
                 <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
                   ✓
+                </div>
+              )}
+
+              {/* Highlighted Deep-Link Anchor Banner */}
+              {highlightedNodeId === equipment.id && (
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-extrabold shadow-xl flex items-center gap-1 z-50 whitespace-nowrap animate-bounce pointer-events-none ring-2 ring-white/40">
+                  <Link2 className="w-3 h-3" />
+                  <span>Переход по ссылке</span>
                 </div>
               )}
 
@@ -2617,6 +2666,23 @@ export const Canvas: React.FC = () => {
                     {equipment.model}
                   </div>
                 )}
+
+                {/* Barcode & Stock Code Badges */}
+                {Boolean((equipment.barcode || equipment.barkod) || (equipment.stockCode || equipment.stokKod)) && (
+                  <div className="flex items-center gap-1.5 flex-wrap text-[9px] font-mono mt-1">
+                    {(equipment.barcode || equipment.barkod) && (
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 text-slate-700 dark:text-slate-300 flex items-center gap-1 shrink-0" title={`Barkod: ${equipment.barcode || equipment.barkod}`}>
+                        <Barcode className="w-2.5 h-2.5 text-blue-500" />
+                        <span className="truncate max-w-[85px]">{equipment.barcode || equipment.barkod}</span>
+                      </span>
+                    )}
+                    {(equipment.stockCode || equipment.stokKod) && (
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200/80 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold shrink-0" title={`Stok kod: ${equipment.stockCode || equipment.stokKod}`}>
+                        {equipment.stockCode || equipment.stokKod}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Dynamic Telemetry / Property Chips */}
@@ -2658,9 +2724,24 @@ export const Canvas: React.FC = () => {
 
               {/* Card Footer: Connector Anchor Target button on hover */}
               <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-white/10 text-[9px] text-slate-500 dark:text-slate-400">
-                <span className="truncate">
-                  {equipment.lastMaintenanceDate ? `ТО: ${equipment.lastMaintenanceDate.slice(5)}` : 'Штатно'}
-                </span>
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  <span className="truncate">
+                    {equipment.lastMaintenanceDate ? `ТО: ${equipment.lastMaintenanceDate.slice(5)}` : 'Штатно'}
+                  </span>
+                  {equipment.elementLinks && equipment.elementLinks.length > 0 && (
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedId(equipment.id);
+                      }}
+                      className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-600 dark:text-blue-400 font-semibold cursor-pointer transition-colors text-[8.5px] shrink-0"
+                      title={`Перекрёстные ссылки: ${equipment.elementLinks.length} шт.`}
+                    >
+                      <Link2 className="w-2 h-2" />
+                      <span>{equipment.elementLinks.length}</span>
+                    </span>
+                  )}
+                </div>
 
                 <button
                   onClick={(e) => {

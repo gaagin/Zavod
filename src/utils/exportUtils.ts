@@ -72,6 +72,8 @@ export function exportToCSV(factory: FactoryState, targetContainerId?: string): 
     'Модель',
     'Серийный номер',
     'Производитель',
+    'Barkod',
+    'Stok kod',
     'Мощность (кВт)',
     'Напряжение (В)',
     'Дата ввода',
@@ -137,6 +139,8 @@ export function exportToCSV(factory: FactoryState, targetContainerId?: string): 
       eq.model || '',
       eq.serialNumber || '',
       eq.manufacturer || '',
+      eq.barcode || eq.barkod || '',
+      eq.stockCode || eq.stokKod || '',
       eq.powerKw !== undefined ? String(eq.powerKw) : '',
       eq.voltageV !== undefined ? String(eq.voltageV) : '',
       eq.commissionDate || '',
@@ -229,12 +233,14 @@ export function exportToExcel(factory: FactoryState, targetContainerId?: string)
   </Style>
  </Styles>
  <Worksheet ss:Name="Оборудование">
-  <Table>
+   <Table>
    <Column ss:Width="100"/>
    <Column ss:Width="180"/>
    <Column ss:Width="120"/>
    <Column ss:Width="110"/>
    <Column ss:Width="160"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="120"/>
    <Column ss:Width="90"/>
    <Column ss:Width="90"/>
    <Column ss:Width="90"/>
@@ -244,6 +250,8 @@ export function exportToExcel(factory: FactoryState, targetContainerId?: string)
     <Cell ss:StyleID="Header"><Data ss:Type="String">Тип</Data></Cell>
     <Cell ss:StyleID="Header"><Data ss:Type="String">Статус</Data></Cell>
     <Cell ss:StyleID="Header"><Data ss:Type="String">Цех / Участок</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Barkod</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Stok kod</Data></Cell>
     <Cell ss:StyleID="Header"><Data ss:Type="String">Мощность (кВт)</Data></Cell>
     <Cell ss:StyleID="Header"><Data ss:Type="String">Напряжение (В)</Data></Cell>
     <Cell ss:StyleID="Header"><Data ss:Type="String">Посл. ТО</Data></Cell>
@@ -261,6 +269,8 @@ export function exportToExcel(factory: FactoryState, targetContainerId?: string)
       <Cell><Data ss:Type="String">${escapeXML(eq.type)}</Data></Cell>
       <Cell ss:StyleID="${style}"><Data ss:Type="String">${escapeXML(statusLabels[eq.status] || eq.status)}</Data></Cell>
       <Cell><Data ss:Type="String">${escapeXML(loc)}</Data></Cell>
+      <Cell><Data ss:Type="String">${escapeXML(eq.barcode || eq.barkod || '—')}</Data></Cell>
+      <Cell><Data ss:Type="String">${escapeXML(eq.stockCode || eq.stokKod || '—')}</Data></Cell>
       <Cell><Data ss:Type="${eq.powerKw ? 'Number' : 'String'}">${eq.powerKw || '—'}</Data></Cell>
       <Cell><Data ss:Type="${eq.voltageV ? 'Number' : 'String'}">${eq.voltageV || '—'}</Data></Cell>
       <Cell><Data ss:Type="String">${escapeXML(eq.lastMaintenanceDate || '—')}</Data></Cell>
@@ -948,6 +958,8 @@ export function parseAndValidateProject(rawText: string): {
         model: item.model ? String(item.model) : undefined,
         serialNumber: item.serialNumber ? String(item.serialNumber) : undefined,
         manufacturer: item.manufacturer ? String(item.manufacturer) : undefined,
+        barcode: (item.barcode || item.barkod) ? String(item.barcode || item.barkod) : undefined,
+        stockCode: (item.stockCode || item.stokKod || item.stok_kod || item.stock_code) ? String(item.stockCode || item.stokKod || item.stok_kod || item.stock_code) : undefined,
         powerKw: Number.isFinite(Number(item.powerKw)) ? Number(item.powerKw) : undefined,
         voltageV: Number.isFinite(Number(item.voltageV)) ? Number(item.voltageV) : undefined,
         commissionDate: item.commissionDate ? String(item.commissionDate) : undefined,

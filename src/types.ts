@@ -46,6 +46,10 @@ export interface EquipmentNode {
   model?: string;
   serialNumber?: string;
   manufacturer?: string;
+  barcode?: string;      // Barkod
+  barkod?: string;       // Barkod alias
+  stockCode?: string;    // Stok kod
+  stokKod?: string;      // Stok kod alias
   powerKw?: number;
   voltageV?: number;
   commissionDate?: string;
@@ -53,6 +57,14 @@ export interface EquipmentNode {
   nextMaintenanceDate?: string;
   notes?: string;
   color?: string;
+  elementLinks?: ElementReference[];
+}
+
+export interface ElementReference {
+  id: string;
+  targetId: string;
+  relationship?: string;
+  notes?: string;
 }
 
 export interface ContainerNode {
@@ -71,6 +83,7 @@ export interface ContainerNode {
   color: string;
   description?: string;
   manager?: string;
+  elementLinks?: ElementReference[];
 }
 
 export type CanvasNode = EquipmentNode | ContainerNode;

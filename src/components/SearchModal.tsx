@@ -47,13 +47,15 @@ export const SearchModal: React.FC = () => {
       if (statusFilter !== 'all' && eq.status !== statusFilter) return false;
       if (!q) return true;
 
-      // Match name, tag, model, serial, manufacturer, notes
+      // Match name, tag, model, serial, manufacturer, notes, barcode, stockCode
       const matchBasic = 
         eq.name.toLowerCase().includes(q) ||
         eq.tag.toLowerCase().includes(q) ||
         (eq.model && eq.model.toLowerCase().includes(q)) ||
         (eq.serialNumber && eq.serialNumber.toLowerCase().includes(q)) ||
         (eq.manufacturer && eq.manufacturer.toLowerCase().includes(q)) ||
+        ((eq.barcode || eq.barkod) && (eq.barcode || eq.barkod)!.toLowerCase().includes(q)) ||
+        ((eq.stockCode || eq.stokKod) && (eq.stockCode || eq.stokKod)!.toLowerCase().includes(q)) ||
         (eq.notes && eq.notes.toLowerCase().includes(q));
 
       if (matchBasic) return true;
@@ -402,7 +404,7 @@ export const SearchModal: React.FC = () => {
                             </div>
 
                             <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                              📍 {location}  |  ⚡ {eq.powerKw ? `${eq.powerKw} кВт` : 'Питание штатно'} {eq.model ? `| ${eq.model}` : ''}
+                              📍 {location}  |  ⚡ {eq.powerKw ? `${eq.powerKw} кВт` : 'Питание штатно'} {eq.model ? `| ${eq.model}` : ''} {(eq.barcode || eq.barkod) ? `| Barkod: ${eq.barcode || eq.barkod}` : ''} {(eq.stockCode || eq.stokKod) ? `| Stok: ${eq.stockCode || eq.stokKod}` : ''}
                             </div>
                           </div>
                         </div>
