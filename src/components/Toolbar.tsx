@@ -13,6 +13,8 @@ import {
   ZoomOut, 
   Maximize2, 
   Minimize2,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Focus,
   Grid, 
   Zap, 
@@ -55,6 +57,8 @@ export const Toolbar: React.FC = () => {
     focusedContainerId,
     toggleFocusMode,
     exitFocusMode,
+    collapseAllNodes,
+    expandAllNodes,
   } = useFactory();
 
   const selectedContainer = state.containers.find(c => c.id === selectedId);
@@ -465,6 +469,28 @@ export const Toolbar: React.FC = () => {
           <Maximize2 className="w-4 h-4" />
         </button>
       )}
+
+      {/* Collapse All / Expand All Nodes */}
+      <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg p-0.5 shrink-0" title="Управление отображением узлов схемы">
+        <button
+          id="toolbar-collapse-all-btn"
+          type="button"
+          onClick={collapseAllNodes}
+          className="p-1.5 hover:bg-white dark:hover:bg-white/10 rounded text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+          title="Свернуть все узлы (все контейнеры и оборудование в компактный вид)"
+        >
+          <ChevronsDownUp className="w-3.5 h-3.5" />
+        </button>
+        <button
+          id="toolbar-expand-all-btn"
+          type="button"
+          onClick={expandAllNodes}
+          className="p-1.5 hover:bg-white dark:hover:bg-white/10 rounded text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+          title="Развернуть все узлы схемы"
+        >
+          <ChevronsUpDown className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
       {/* Smart Guides (draw.io style) Toggle */}
       <button

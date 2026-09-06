@@ -37,8 +37,16 @@ function loadPersistedState(): FactoryState {
         return {
           ...initialFactoryState,
           ...parsed,
-          equipment: dedupeById(parsed.equipment || initialFactoryState.equipment),
-          containers: dedupeById(parsed.containers || initialFactoryState.containers),
+          equipment: dedupeById(parsed.equipment || initialFactoryState.equipment).map((e: any) => ({
+            ...e,
+            isCollapsed: e.isCollapsed !== undefined ? e.isCollapsed : true,
+            collapsedWidth: e.collapsedWidth || 180,
+            collapsedHeight: e.collapsedHeight || 64,
+          })),
+          containers: dedupeById(parsed.containers || initialFactoryState.containers).map((c: any) => ({
+            ...c,
+            isCollapsed: c.isCollapsed !== undefined ? c.isCollapsed : true,
+          })),
           links: dedupeById(parsed.links || initialFactoryState.links),
           eventLogs: dedupeById(parsed.eventLogs || initialFactoryState.eventLogs),
         };
@@ -49,8 +57,16 @@ function loadPersistedState(): FactoryState {
   }
   return {
     ...initialFactoryState,
-    equipment: dedupeById(initialFactoryState.equipment),
-    containers: dedupeById(initialFactoryState.containers),
+    equipment: dedupeById(initialFactoryState.equipment).map((e: any) => ({
+      ...e,
+      isCollapsed: true,
+      collapsedWidth: e.collapsedWidth || 180,
+      collapsedHeight: e.collapsedHeight || 64,
+    })),
+    containers: dedupeById(initialFactoryState.containers).map((c: any) => ({
+      ...c,
+      isCollapsed: true,
+    })),
     links: dedupeById(initialFactoryState.links),
     eventLogs: dedupeById(initialFactoryState.eventLogs),
   };
@@ -448,8 +464,16 @@ app.post('/api/backups/:id/restore', (req, res) => {
     currentState = {
       ...initialFactoryState,
       ...restored,
-      equipment: dedupeById(restored.equipment || initialFactoryState.equipment),
-      containers: dedupeById(restored.containers || initialFactoryState.containers),
+      equipment: dedupeById(restored.equipment || initialFactoryState.equipment).map((e: any) => ({
+        ...e,
+        isCollapsed: true, // По умолчанию при открытии/восстановлении проекта в нераскрытом состоянии
+        collapsedWidth: e.collapsedWidth || 180,
+        collapsedHeight: e.collapsedHeight || 64,
+      })),
+      containers: dedupeById(restored.containers || initialFactoryState.containers).map((c: any) => ({
+        ...c,
+        isCollapsed: true, // По умолчанию при открытии/восстановлении проекта в нераскрытом состоянии
+      })),
       links: dedupeById(restored.links || initialFactoryState.links),
       eventLogs: dedupeById(restored.eventLogs || currentState.eventLogs).slice(0, 200),
       backups: existingBackups, // keep backup history

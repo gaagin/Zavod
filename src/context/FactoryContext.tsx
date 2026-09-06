@@ -101,6 +101,8 @@ interface FactoryContextType {
   ) => void;
   toggleContainerCollapse: (id: string) => void;
   toggleEquipmentCollapse: (id: string) => void;
+  collapseAllNodes: () => void;
+  expandAllNodes: () => void;
   addContainer: (container: ContainerNode, reason?: string) => void;
   deleteContainer: (id: string, reason?: string) => void;
   addLink: (fromId: string, toId: string, type?: LinkType, style?: LinkStyle) => void;
@@ -227,8 +229,16 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return {
           ...initialFactoryState,
           ...parsed,
-          equipment: dedupeById(parsed.equipment || initialFactoryState.equipment),
-          containers: dedupeById(parsed.containers || initialFactoryState.containers),
+          equipment: dedupeById(parsed.equipment || initialFactoryState.equipment).map((e: EquipmentNode) => ({
+            ...e,
+            isCollapsed: true, // По умолчанию при открытии проекта все оборудование в нераскрытом состоянии
+            collapsedWidth: e.collapsedWidth || 180,
+            collapsedHeight: e.collapsedHeight || 64,
+          })),
+          containers: dedupeById(parsed.containers || initialFactoryState.containers).map((c: ContainerNode) => ({
+            ...c,
+            isCollapsed: true, // По умолчанию при открытии проекта все контейнеры в нераскрытом состоянии
+          })),
           links: dedupeById(parsed.links || initialFactoryState.links),
           eventLogs: dedupeById(parsed.eventLogs || initialFactoryState.eventLogs),
         };
@@ -238,8 +248,16 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     return {
       ...initialFactoryState,
-      equipment: dedupeById(initialFactoryState.equipment),
-      containers: dedupeById(initialFactoryState.containers),
+      equipment: dedupeById(initialFactoryState.equipment).map((e: EquipmentNode) => ({
+        ...e,
+        isCollapsed: true,
+        collapsedWidth: e.collapsedWidth || 180,
+        collapsedHeight: e.collapsedHeight || 64,
+      })),
+      containers: dedupeById(initialFactoryState.containers).map((c: ContainerNode) => ({
+        ...c,
+        isCollapsed: true,
+      })),
       links: dedupeById(initialFactoryState.links),
       eventLogs: dedupeById(initialFactoryState.eventLogs),
     };
@@ -1178,6 +1196,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, []);
 
+  const hasInitialSessionPulledRef = useRef(false);
+
   // Resilience: pull server state on initial load, tab refocus/visibility change, and periodic heartbeat
   useEffect(() => {
     let isMounted = true;
@@ -1203,11 +1223,22 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             reason: 'Автоматическая сверка версий',
             senderName: 'Сервер синхронизации',
           });
+          const isFirstPull = !hasInitialSessionPulledRef.current;
+          hasInitialSessionPulledRef.current = true;
+
           setState(prev => ({
             ...prev,
             ...serverState,
-            equipment: dedupeById(serverState.equipment),
-            containers: dedupeById(serverState.containers),
+            equipment: dedupeById(serverState.equipment).map((e: any) => ({
+              ...e,
+              isCollapsed: isFirstPull ? true : (e.isCollapsed !== undefined ? e.isCollapsed : true),
+              collapsedWidth: e.collapsedWidth || 180,
+              collapsedHeight: e.collapsedHeight || 64,
+            })),
+            containers: dedupeById(serverState.containers).map((c: any) => ({
+              ...c,
+              isCollapsed: isFirstPull ? true : (c.isCollapsed !== undefined ? c.isCollapsed : true),
+            })),
             links: dedupeById(serverState.links),
             eventLogs: dedupeById(serverState.eventLogs),
           }));
@@ -1592,6 +1623,57 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [currentUser]);
 
+  const collapseAllNodes = useCallback(() => {
+    pushHistory(state);
+    setState(prev => {
+      const nextContainers = prev.containers.map(c => ({ ...c, isCollapsed: true }));
+      const nextEquipment = prev.equipment.map(e => ({
+        ...e,
+        isCollapsed: true,
+        collapsedWidth: e.collapsedWidth || 180,
+        collapsedHeight: e.collapsedHeight || 64,
+      }));
+      const newLog = createEventLog({
+        targetId: 'all',
+        targetName: 'Все узлы схемы',
+        targetType: 'system',
+        eventType: 'property_edit',
+        severity: 'info',
+        description: 'Свернуты все контейнеры и оборудование в компактный вид',
+        userName: currentUser.name,
+        userRole: currentUser.role
+      });
+      const nextLogs = [newLog, ...prev.eventLogs.filter(l => l.id !== newLog.id)].slice(0, 200);
+      const nextState = { ...prev, containers: nextContainers, equipment: nextEquipment, eventLogs: nextLogs };
+      syncStateToServer(nextState, 'Свернуты все контейнеры и оборудование');
+      return nextState;
+    });
+    showToast('Свернуты все узлы', 'Все контейнеры и оборудование переведены в нераскрытое состояние', 'info');
+  }, [state, pushHistory, currentUser, syncStateToServer, showToast]);
+
+  const expandAllNodes = useCallback(() => {
+    pushHistory(state);
+    setState(prev => {
+      const nextContainers = prev.containers.map(c => ({ ...c, isCollapsed: false }));
+      const nextEquipment = prev.equipment.map(e => ({ ...e, isCollapsed: false }));
+      const newLog = createEventLog({
+        targetId: 'all',
+        targetName: 'Все узлы схемы',
+        targetType: 'system',
+        eventType: 'property_edit',
+        severity: 'info',
+        description: 'Раскрыты все контейнеры и оборудование',
+        userName: currentUser.name,
+        userRole: currentUser.role
+      });
+      const nextLogs = [newLog, ...prev.eventLogs.filter(l => l.id !== newLog.id)].slice(0, 200);
+      const nextState = { ...prev, containers: nextContainers, equipment: nextEquipment, eventLogs: nextLogs };
+      syncStateToServer(nextState, 'Развернуты все контейнеры и оборудование');
+      return nextState;
+    });
+    showToast('Развернуты все узлы', 'Все контейнеры и оборудование переведены в раскрытое состояние', 'info');
+  }, [state, pushHistory, currentUser, syncStateToServer, showToast]);
+
   const addContainer = useCallback((container: ContainerNode, reason?: string) => {
     pushHistory(state);
     setState(prev => {
@@ -1769,8 +1851,16 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const sanitized: FactoryState = {
       ...initialFactoryState,
       ...newState,
-      equipment: dedupeById(newState.equipment || initialFactoryState.equipment),
-      containers: dedupeById(newState.containers || initialFactoryState.containers),
+      equipment: dedupeById(newState.equipment || initialFactoryState.equipment).map(e => ({
+        ...e,
+        isCollapsed: true, // По умолчанию при открытии проекта нераскрытое состояние
+        collapsedWidth: e.collapsedWidth || 180,
+        collapsedHeight: e.collapsedHeight || 64,
+      })),
+      containers: dedupeById(newState.containers || initialFactoryState.containers).map(c => ({
+        ...c,
+        isCollapsed: true, // По умолчанию при открытии проекта нераскрытое состояние
+      })),
       links: dedupeById(newState.links || initialFactoryState.links),
       eventLogs: dedupeById(newState.eventLogs || initialFactoryState.eventLogs).slice(0, 200),
       backups: newState.backups || state.backups || [],
@@ -2427,6 +2517,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         batchUpdatePositions,
         toggleContainerCollapse,
         toggleEquipmentCollapse,
+        collapseAllNodes,
+        expandAllNodes,
         addContainer,
         deleteContainer,
         addLink,
