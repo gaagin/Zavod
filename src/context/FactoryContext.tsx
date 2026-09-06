@@ -23,7 +23,15 @@ import {
   readProjectFromDirectory,
   getFileMetadataInDirectory 
 } from '../utils/exportUtils';
-import { calculateContainerFitViewport, calculateNodeFitViewport, isNodeInSubtree } from '../utils/geometry';
+import { 
+  calculateContainerFitViewport, 
+  calculateNodeFitViewport, 
+  calculateFocusFitViewport, 
+  findAllDescendantsOfContainer, 
+  findAllDescendantsOfEquipment, 
+  getAllDescendantContainerIds, 
+  isNodeInSubtree 
+} from '../utils/geometry';
 import {
   generateElementUrl,
   copyTextToClipboard,
@@ -2276,7 +2284,24 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [state.equipment.length, state.containers.length]);
 
-  // Fit container or equipment to screen (fills the workspace)
+  // Helper to get exact canvas container viewport dimensions
+  const getCanvasDimensions = useCallback(() => {
+    if (typeof document !== 'undefined') {
+      const canvasEl = document.getElementById('factory-canvas-container');
+      if (canvasEl) {
+        const rect = canvasEl.getBoundingClientRect();
+        if (rect.width > 50 && rect.height > 50) {
+          return { width: rect.width, height: rect.height };
+        }
+      }
+    }
+    const isLg = typeof window !== 'undefined' && window.innerWidth >= 1024;
+    const fallbackW = typeof window !== 'undefined' ? (isLg ? window.innerWidth - 320 : window.innerWidth) : 1000;
+    const fallbackH = typeof window !== 'undefined' ? (window.innerHeight - 56) : 700;
+    return { width: fallbackW, height: fallbackH };
+  }, []);
+
+  // Fit container or equipment to screen (fills the workspace with the node and all internal elements)
   const fitContainerToScreen = useCallback((nodeId?: string) => {
     const id = nodeId || focusedContainerId || selectedId;
     if (!id) return;
@@ -2285,31 +2310,93 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const target = cont || eq;
     if (!target) return;
 
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-    const fit = calculateNodeFitViewport(target, viewportW, viewportH, 50, 56);
-    setViewport(fit);
-  }, [focusedContainerId, selectedId, state.containers, state.equipment]);
+    const dims = getCanvasDimensions();
+    const fit = calculateFocusFitViewport({
+      nodeId: id,
+      containers: state.containers,
+      equipment: state.equipment,
+      viewWidth: dims.width,
+      viewHeight: dims.height,
+    });
+    setViewport({ panX: fit.panX, panY: fit.panY, zoom: fit.zoom });
+  }, [focusedContainerId, selectedId, state.containers, state.equipment, getCanvasDimensions]);
 
-  // Enter Focus Mode for a Container OR Equipment (Node fills entire working window)
+  // Enter Focus Mode for a Container OR Equipment (All elements inside are visible on screen)
   const enterFocusMode = useCallback((nodeId: string) => {
     const targetContainer = state.containers.find(c => c.id === nodeId);
     const targetEquipment = state.equipment.find(e => e.id === nodeId);
     const target = targetContainer || targetEquipment;
     if (!target) return;
 
-    // If target or any ancestor container or equipment is collapsed, uncollapse it!
+    // 1. Identify all descendant containers and equipment (both hierarchy and geometric containment)
+    let descContIds = new Set<string>();
+    let descEqIds = new Set<string>();
+
+    if (targetContainer) {
+      const descendants = findAllDescendantsOfContainer(nodeId, state.containers, state.equipment);
+      const subtreeContIds = getAllDescendantContainerIds(nodeId, state.containers);
+      subtreeContIds.delete(nodeId);
+      descContIds = new Set([...Array.from(subtreeContIds), ...descendants.containers.map(c => c.id)]);
+      descEqIds = new Set([
+        ...descendants.equipment.map(e => e.id),
+        ...state.equipment
+          .filter(e => e.parentId && (subtreeContIds.has(e.parentId) || e.parentId === nodeId))
+          .map(e => e.id)
+      ]);
+    } else if (targetEquipment) {
+      const descendants = findAllDescendantsOfEquipment(nodeId, state.equipment);
+      descEqIds = new Set(descendants.equipment.map(e => e.id));
+    }
+
+    // 2. Identify ancestors up to root so nothing hides this node or its contents
+    const ancestorContIds = new Set<string>();
+    let currParentId = target.parentId;
+    const visited = new Set<string>();
+    while (currParentId && !visited.has(currParentId)) {
+      visited.add(currParentId);
+      ancestorContIds.add(currParentId);
+      const parentC = state.containers.find(c => c.id === currParentId);
+      currParentId = parentC?.parentId;
+    }
+
+    const uncollapseContSet = new Set([nodeId, ...descContIds, ...ancestorContIds]);
+    const uncollapseEqSet = new Set([nodeId, ...descEqIds]);
+
+    // 3. Compute viewport fit so target and ALL internal elements are completely framed on screen
+    const dims = getCanvasDimensions();
+    const fit = calculateFocusFitViewport({
+      nodeId,
+      containers: state.containers,
+      equipment: state.equipment,
+      viewWidth: dims.width,
+      viewHeight: dims.height,
+    });
+
+    // 4. If container boundary is smaller than its internal children, expand container width/height
+    const neededWidth = targetContainer
+      ? Math.max(targetContainer.width, Math.round(fit.boundingBox.maxX - targetContainer.x + 50))
+      : 0;
+    const neededHeight = targetContainer
+      ? Math.max(targetContainer.height, Math.round(fit.boundingBox.maxY - targetContainer.y + 50))
+      : 0;
+
+    // 5. Uncollapse target, its ancestors, and ALL elements inside it!
     setState(prev => {
       let changed = false;
       const nextContainers = prev.containers.map(c => {
-        if (c.id === nodeId && c.isCollapsed) {
+        let updated = c;
+        if (c.id === nodeId && targetContainer && (neededWidth > c.width || neededHeight > c.height)) {
           changed = true;
-          return { ...c, isCollapsed: false };
+          updated = { ...updated, width: neededWidth, height: neededHeight };
         }
-        return c;
+        if (uncollapseContSet.has(c.id) && c.isCollapsed) {
+          changed = true;
+          updated = { ...updated, isCollapsed: false };
+        }
+        return updated;
       });
       const nextEquipment = prev.equipment.map(e => {
-        if (e.id === nodeId && e.isCollapsed) {
+        if (uncollapseEqSet.has(e.id) && e.isCollapsed) {
           changed = true;
           return { ...e, isCollapsed: false };
         }
@@ -2321,26 +2408,23 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setFocusedContainerId(nodeId);
     setSelectedId(nodeId);
 
-    // Zoom and center node to fill the working window
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-    const fit = calculateNodeFitViewport(target, viewportW, viewportH, 50, 56);
-    setViewport(fit);
+    // 6. Set the calculated viewport framing all elements inside
+    setViewport({ panX: fit.panX, panY: fit.panY, zoom: fit.zoom });
 
     if (targetContainer) {
       showToast(
         `Цех: [${targetContainer.tag}] ${targetContainer.name}`,
-        'Контейнер заполняет рабочее окно. Нажмите Esc для возврата.',
+        'Все элементы внутри отображены на экране. Нажмите Esc для возврата.',
         'info'
       );
     } else if (targetEquipment) {
       showToast(
         `Оборудование: [${targetEquipment.tag}] ${targetEquipment.name}`,
-        'Фокусный режим на оборудовании. Нажмите Esc для возврата.',
+        'Все элементы внутри отображены на экране. Нажмите Esc для возврата.',
         'info'
       );
     }
-  }, [state.containers, state.equipment, showToast]);
+  }, [state.containers, state.equipment, getCanvasDimensions, showToast]);
 
   // Exit Focus Mode: collapses containers and equipment to unexpanded state per user request
   const exitFocusMode = useCallback(() => {

@@ -1473,15 +1473,33 @@ export const Canvas: React.FC = () => {
     let items: Array<{ x: number; y: number; width: number; height: number }> = [];
 
     if (focusedNode.type === 'container') {
-      const childEq = state.equipment.filter(e => e.parentId === nodeId);
-      const childC = state.containers.filter(c => c.parentId === nodeId);
+      const subtreeIds = getAllDescendantContainerIds(nodeId, state.containers);
+      subtreeIds.delete(nodeId);
+      const desc = findAllDescendantsOfContainer(nodeId, state.containers, state.equipment);
+
+      const allChildContIds = new Set([
+        ...Array.from(subtreeIds),
+        ...desc.containers.map(c => c.id)
+      ]);
+      const childContainers = state.containers.filter(c => allChildContIds.has(c.id));
+
+      const allChildEqIds = new Set([
+        ...desc.equipment.map(e => e.id),
+        ...state.equipment
+          .filter(e => e.parentId && (allChildContIds.has(e.parentId) || e.parentId === nodeId))
+          .map(e => e.id)
+      ]);
+      const childEquipment = state.equipment.filter(e => allChildEqIds.has(e.id));
+
       items = [
-        ...childEq.map(e => ({ x: e.x, y: e.y, width: e.isCollapsed ? (e.collapsedWidth || 180) : e.width, height: e.isCollapsed ? (e.collapsedHeight || 64) : e.height })),
-        ...childC.map(c => ({ x: c.x, y: c.y, width: c.isCollapsed ? (c.collapsedWidth || 180) : c.width, height: c.isCollapsed ? (c.collapsedHeight || 54) : c.height })),
+        ...childEquipment.map(e => ({ x: e.x, y: e.y, width: e.isCollapsed ? (e.collapsedWidth || 180) : e.width, height: e.isCollapsed ? (e.collapsedHeight || 64) : e.height })),
+        ...childContainers.map(c => ({ x: c.x, y: c.y, width: c.isCollapsed ? (c.collapsedWidth || 180) : c.width, height: c.isCollapsed ? (c.collapsedHeight || 54) : c.height })),
       ];
     } else {
-      const childEq = state.equipment.filter(e => e.parentId === nodeId);
-      items = childEq.map(e => ({ x: e.x, y: e.y, width: e.isCollapsed ? (e.collapsedWidth || 180) : e.width, height: e.isCollapsed ? (e.collapsedHeight || 64) : e.height }));
+      const descendants = findAllDescendantsOfEquipment(nodeId, state.equipment);
+      const allEqIds = new Set(descendants.equipment.map(e => e.id));
+      const childEquipment = state.equipment.filter(e => allEqIds.has(e.id));
+      items = childEquipment.map(e => ({ x: e.x, y: e.y, width: e.isCollapsed ? (e.collapsedWidth || 180) : e.width, height: e.isCollapsed ? (e.collapsedHeight || 64) : e.height }));
     }
 
     if (items.length === 0) return;
@@ -1501,7 +1519,7 @@ export const Canvas: React.FC = () => {
 
   // Filter visible equipment:
   // When in focus mode, the focused node fills the working window.
-  // ONLY equipment belonging to this focused subtree is rendered.
+  // ALL equipment belonging to this focused subtree is rendered and visible.
   // Outside equipment is NOT rendered.
   const visibleEquipment = useMemo(() => {
     if (focusedContainerId) {
@@ -1510,13 +1528,20 @@ export const Canvas: React.FC = () => {
         const descIds = new Set(desc.map(d => d.id));
         return state.equipment.filter(eq => 
           descIds.has(eq.id) &&
-          !isNodeHiddenByCollapsedAncestor(eq.parentId, state.containers, state.equipment)
+          !isNodeHiddenByCollapsedAncestor(eq.parentId, state.containers, state.equipment, focusedContainerId)
         );
       } else {
         const subtreeIds = getAllDescendantContainerIds(focusedContainerId, state.containers);
+        const desc = findAllDescendantsOfContainer(focusedContainerId, state.containers, state.equipment);
+        const descEqIds = new Set([
+          ...desc.equipment.map(e => e.id),
+          ...state.equipment
+            .filter(e => e.parentId && (subtreeIds.has(e.parentId) || e.parentId === focusedContainerId))
+            .map(e => e.id)
+        ]);
         return state.equipment.filter(eq => 
-          Boolean(eq.parentId && (subtreeIds.has(eq.parentId) || isNodeInSubtree(eq.id, focusedContainerId, state.containers, state.equipment))) &&
-          !isNodeHiddenByCollapsedAncestor(eq.parentId, state.containers, state.equipment)
+          (descEqIds.has(eq.id) || isNodeInSubtree(eq.id, focusedContainerId, state.containers, state.equipment)) &&
+          !isNodeHiddenByCollapsedAncestor(eq.parentId, state.containers, state.equipment, focusedContainerId)
         );
       }
     }
@@ -1524,7 +1549,7 @@ export const Canvas: React.FC = () => {
   }, [state.equipment, state.containers, focusedContainerId, focusedNode]);
 
   // Filter visible containers:
-  // When in focus mode of a container, its nested child sub-containers are rendered.
+  // When in focus mode of a container, its nested child sub-containers are rendered and visible.
   // When in focus mode of an equipment, no containers are shown.
   const visibleContainers = useMemo(() => {
     if (focusedContainerId) {
@@ -1532,10 +1557,15 @@ export const Canvas: React.FC = () => {
         return [];
       }
       const subtreeIds = getAllDescendantContainerIds(focusedContainerId, state.containers);
+      const desc = findAllDescendantsOfContainer(focusedContainerId, state.containers, state.equipment);
+      const allChildContIds = new Set([
+        ...Array.from(subtreeIds),
+        ...desc.containers.map(c => c.id)
+      ]);
       return state.containers.filter(c => 
         c.id !== focusedContainerId && 
-        subtreeIds.has(c.id) &&
-        !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers, state.equipment)
+        allChildContIds.has(c.id) &&
+        !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers, state.equipment, focusedContainerId)
       );
     }
     return state.containers.filter(c => !isNodeHiddenByCollapsedAncestor(c.parentId, state.containers, state.equipment));
@@ -1732,12 +1762,14 @@ export const Canvas: React.FC = () => {
             const fromHidden = isNodeHiddenByCollapsedAncestor(
               state.equipment.find(e => e.id === link.fromId)?.parentId || state.containers.find(c => c.id === link.fromId)?.parentId,
               state.containers,
-              state.equipment
+              state.equipment,
+              focusedContainerId
             );
             const toHidden = isNodeHiddenByCollapsedAncestor(
               state.equipment.find(e => e.id === link.toId)?.parentId || state.containers.find(c => c.id === link.toId)?.parentId,
               state.containers,
-              state.equipment
+              state.equipment,
+              focusedContainerId
             );
 
             if (fromHidden || toHidden) return null;

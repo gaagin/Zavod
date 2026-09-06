@@ -49,9 +49,11 @@ export function getNodeRect(
 export function isNodeHiddenByCollapsedAncestor(
   parentId: string | null | undefined,
   containers: ContainerNode[],
-  equipment?: EquipmentNode[]
+  equipment?: EquipmentNode[],
+  stopAtAncestorId?: string | null
 ): boolean {
   if (!parentId) return false;
+  if (stopAtAncestorId && parentId === stopAtAncestorId) return false;
   const containerMap = new Map(containers.map(c => [c.id, c]));
   const eqMap = equipment ? new Map(equipment.map(e => [e.id, e])) : null;
 
@@ -59,6 +61,9 @@ export function isNodeHiddenByCollapsedAncestor(
   const visited = new Set<string>();
 
   while (currentId && !visited.has(currentId)) {
+    if (stopAtAncestorId && currentId === stopAtAncestorId) {
+      break;
+    }
     visited.add(currentId);
 
     // Check if parent is a container
@@ -532,6 +537,139 @@ export function calculateNodeFitViewport(
   const panY = Math.round(topOffset + safeH / 2 - centerY * targetZoom);
 
   return { panX, panY, zoom: targetZoom };
+}
+
+export interface FocusFitViewportOptions {
+  nodeId: string;
+  containers: ContainerNode[];
+  equipment: EquipmentNode[];
+  viewWidth: number;
+  viewHeight: number;
+  padding?: {
+    top?: number;
+    bottom?: number;
+    left?: number;
+    right?: number;
+  } | number;
+}
+
+/**
+ * Calculates panX, panY, zoom to frame the focused container/equipment AND ALL internal elements
+ * (nested child containers, child equipment, and descendants) completely visible on the screen.
+ */
+export function calculateFocusFitViewport(options: FocusFitViewportOptions): {
+  panX: number;
+  panY: number;
+  zoom: number;
+  boundingBox: { minX: number; minY: number; maxX: number; maxY: number };
+} {
+  const { nodeId, containers, equipment, viewWidth, viewHeight, padding } = options;
+  const targetContainer = containers.find(c => c.id === nodeId);
+  const targetEquipment = equipment.find(e => e.id === nodeId);
+  const target = targetContainer || targetEquipment;
+
+  if (!target) {
+    return {
+      panX: 0,
+      panY: 0,
+      zoom: 1,
+      boundingBox: { minX: 0, minY: 0, maxX: 0, maxY: 0 }
+    };
+  }
+
+  // 1. Collect all elements inside target (both hierarchy and geometric containment)
+  let childContainers: ContainerNode[] = [];
+  let childEquipment: EquipmentNode[] = [];
+
+  if (targetContainer) {
+    const subtreeContIds = getAllDescendantContainerIds(targetContainer.id, containers);
+    subtreeContIds.delete(targetContainer.id);
+    const descendants = findAllDescendantsOfContainer(targetContainer.id, containers, equipment);
+
+    const allDescContIds = new Set([
+      ...Array.from(subtreeContIds),
+      ...descendants.containers.map(c => c.id)
+    ]);
+    childContainers = containers.filter(c => allDescContIds.has(c.id));
+
+    const allDescEqIds = new Set([
+      ...descendants.equipment.map(e => e.id),
+      ...equipment
+        .filter(e => e.parentId && (allDescContIds.has(e.parentId) || e.parentId === targetContainer.id))
+        .map(e => e.id)
+    ]);
+    childEquipment = equipment.filter(e => allDescEqIds.has(e.id));
+  } else if (targetEquipment) {
+    const descendants = findAllDescendantsOfEquipment(targetEquipment.id, equipment);
+    const allDescEqIds = new Set(descendants.equipment.map(e => e.id));
+    childEquipment = equipment.filter(e => allDescEqIds.has(e.id));
+  }
+
+  // 2. Compute bounding box encompassing target AND all elements inside.
+  // In focus mode, elements inside are uncollapsed so we use their expanded dimensions.
+  const targetW = target.width || (target.isCollapsed ? (target.collapsedWidth || 180) : 180);
+  const targetH = target.height || (target.isCollapsed ? (target.collapsedHeight || 64) : 64);
+
+  let minX = target.x;
+  let minY = target.y;
+  let maxX = target.x + targetW;
+  let maxY = target.y + targetH;
+
+  for (const c of childContainers) {
+    const cW = c.width || c.collapsedWidth || 240;
+    const cH = c.height || c.collapsedHeight || 90;
+    minX = Math.min(minX, c.x);
+    minY = Math.min(minY, c.y);
+    maxX = Math.max(maxX, c.x + cW);
+    maxY = Math.max(maxY, c.y + cH);
+  }
+
+  for (const eq of childEquipment) {
+    const eqW = eq.width || eq.collapsedWidth || 170;
+    const eqH = eq.height || eq.collapsedHeight || 120;
+    minX = Math.min(minX, eq.x);
+    minY = Math.min(minY, eq.y);
+    maxX = Math.max(maxX, eq.x + eqW);
+    maxY = Math.max(maxY, eq.y + eqH);
+  }
+
+  // 3. Screen padding:
+  // Top: room for the focus mode navigation / breadcrumbs bar (~50px)
+  // Bottom: room for the floating toolbar (~64px)
+  // Sides: comfortable breathing margin
+  const padTop = typeof padding === 'number' ? padding : (padding?.top ?? 68);
+  const padBottom = typeof padding === 'number' ? padding : (padding?.bottom ?? 76);
+  const padLeft = typeof padding === 'number' ? padding : (padding?.left ?? 48);
+  const padRight = typeof padding === 'number' ? padding : (padding?.right ?? 48);
+
+  const safeW = Math.max(200, viewWidth);
+  const safeH = Math.max(200, viewHeight);
+
+  const availW = Math.max(100, safeW - padLeft - padRight);
+  const availH = Math.max(100, safeH - padTop - padBottom);
+
+  const contentW = Math.max(50, maxX - minX);
+  const contentH = Math.max(50, maxY - minY);
+
+  const zoomX = availW / contentW;
+  const zoomY = availH / contentH;
+  const zoom = Number(Math.max(0.15, Math.min(2.0, Math.min(zoomX, zoomY))).toFixed(3));
+
+  const centerX = minX + contentW / 2;
+  const centerY = minY + contentH / 2;
+
+  const screenCenterX = padLeft + availW / 2;
+  const screenCenterY = padTop + availH / 2;
+
+  const panX = Math.round(screenCenterX - centerX * zoom);
+  const panY = Math.round(screenCenterY - centerY * zoom);
+
+  return {
+    panX,
+    panY,
+    zoom,
+    boundingBox: { minX, minY, maxX, maxY }
+  };
 }
 
 /**
