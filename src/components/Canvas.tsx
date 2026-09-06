@@ -27,6 +27,12 @@ import {
   calculateNodeFitViewport
 } from '../utils/geometry';
 import { 
+  computeSmartAlignment, 
+  BoundingBox, 
+  AlignmentGuide 
+} from '../utils/alignmentGuides';
+import { SmartGuidesOverlay } from './SmartGuidesOverlay';
+import { 
   Cpu, 
   Zap, 
   Droplet, 
@@ -97,6 +103,7 @@ export const Canvas: React.FC = () => {
     userCursors,
     broadcastCursor,
     gridSnap,
+    smartGuides,
     triggerInstantSync,
     focusNode,
     focusedContainerId,
@@ -135,6 +142,9 @@ export const Canvas: React.FC = () => {
     initialDescendantContainers?: Array<{ id: string; initialX: number; initialY: number }>;
     initialDescendantEquipment?: Array<{ id: string; initialX: number; initialY: number }>;
   } | null>(null);
+
+  // Draw.io style smart alignment guidelines currently active on canvas
+  const [activeGuides, setActiveGuides] = useState<AlignmentGuide[]>([]);
 
   // Group Dragging State (Multiple items moved in sync)
   const [draggedGroup, setDraggedGroup] = useState<{
@@ -435,20 +445,104 @@ export const Canvas: React.FC = () => {
       const dx = (e.clientX - draggedGroup.mouseStartX) / viewport.zoom;
       const dy = (e.clientY - draggedGroup.mouseStartY) / viewport.zoom;
 
-      const rawDx = gridSnap ? snap(dx) : Math.round(dx);
-      const rawDy = gridSnap ? snap(dy) : Math.round(dy);
+      let effectiveDx = dx;
+      let effectiveDy = dy;
+
+      if (smartGuides && !e.altKey) {
+        let minInitX = Infinity, minInitY = Infinity, maxInitX = -Infinity, maxInitY = -Infinity;
+        const groupForbiddenIds = new Set<string>();
+
+        draggedGroup.initialContainers.forEach(c => {
+          groupForbiddenIds.add(c.id);
+          const cont = state.containers.find(it => it.id === c.id);
+          const w = cont?.isCollapsed ? (cont.collapsedWidth || 280) : (cont?.width || 300);
+          const h = cont?.isCollapsed ? (cont.collapsedHeight || 90) : (cont?.height || 200);
+          minInitX = Math.min(minInitX, c.initialX);
+          minInitY = Math.min(minInitY, c.initialY);
+          maxInitX = Math.max(maxInitX, c.initialX + w);
+          maxInitY = Math.max(maxInitY, c.initialY + h);
+        });
+
+        draggedGroup.initialEquipment.forEach(eq => {
+          groupForbiddenIds.add(eq.id);
+          const item = state.equipment.find(it => it.id === eq.id);
+          const w = item?.isCollapsed ? (item.collapsedWidth || 200) : (item?.width || 200);
+          const h = item?.isCollapsed ? (item.collapsedHeight || 64) : (item?.height || 120);
+          minInitX = Math.min(minInitX, eq.initialX);
+          minInitY = Math.min(minInitY, eq.initialY);
+          maxInitX = Math.max(maxInitX, eq.initialX + w);
+          maxInitY = Math.max(maxInitY, eq.initialY + h);
+        });
+
+        const groupWidth = maxInitX - minInitX;
+        const groupHeight = maxInitY - minInitY;
+
+        if (isFinite(groupWidth) && groupWidth > 0 && isFinite(minInitX)) {
+          const rawGroupX = minInitX + dx;
+          const rawGroupY = minInitY + dy;
+
+          const targets: BoundingBox[] = [];
+          visibleContainers.forEach(c => {
+            if (!groupForbiddenIds.has(c.id)) {
+              targets.push({
+                id: c.id,
+                x: c.x,
+                y: c.y,
+                width: c.isCollapsed ? (c.collapsedWidth || 280) : c.width,
+                height: c.isCollapsed ? (c.collapsedHeight || 90) : c.height,
+                name: c.name,
+              });
+            }
+          });
+          visibleEquipment.forEach(eq => {
+            if (!groupForbiddenIds.has(eq.id)) {
+              targets.push({
+                id: eq.id,
+                x: eq.x,
+                y: eq.y,
+                width: eq.isCollapsed ? (eq.collapsedWidth || 200) : eq.width,
+                height: eq.isCollapsed ? (eq.collapsedHeight || 64) : eq.height,
+                name: eq.name,
+                tag: eq.tag,
+              });
+            }
+          });
+
+          const snapRes = computeSmartAlignment(
+            { x: rawGroupX, y: rawGroupY, width: groupWidth, height: groupHeight },
+            targets,
+            viewport.zoom,
+            true
+          );
+
+          const snappedGroupX = snapRes.snappedX ? snapRes.x : (gridSnap ? snap(rawGroupX) : Math.round(rawGroupX));
+          const snappedGroupY = snapRes.snappedY ? snapRes.y : (gridSnap ? snap(rawGroupY) : Math.round(rawGroupY));
+
+          effectiveDx = snappedGroupX - minInitX;
+          effectiveDy = snappedGroupY - minInitY;
+          setActiveGuides(snapRes.guides);
+        } else {
+          effectiveDx = gridSnap ? snap(dx) : Math.round(dx);
+          effectiveDy = gridSnap ? snap(dy) : Math.round(dy);
+          if (activeGuides.length > 0) setActiveGuides([]);
+        }
+      } else {
+        effectiveDx = gridSnap ? snap(dx) : Math.round(dx);
+        effectiveDy = gridSnap ? snap(dy) : Math.round(dy);
+        if (activeGuides.length > 0) setActiveGuides([]);
+      }
 
       const contUpdates = draggedGroup.initialContainers.map(c => ({
         id: c.id,
-        x: c.initialX + rawDx,
-        y: c.initialY + rawDy,
+        x: c.initialX + effectiveDx,
+        y: c.initialY + effectiveDy,
         parentId: c.parentId,
       }));
 
       const eqUpdates = draggedGroup.initialEquipment.map(eq => ({
         id: eq.id,
-        x: eq.initialX + rawDx,
-        y: eq.initialY + rawDy,
+        x: eq.initialX + effectiveDx,
+        y: eq.initialY + effectiveDy,
         parentId: eq.parentId,
       }));
 
@@ -464,8 +558,88 @@ export const Canvas: React.FC = () => {
 
       const rawNewX = draggedNode.initialX + dx;
       const rawNewY = draggedNode.initialY + dy;
-      const newX = snap(rawNewX);
-      const newY = snap(rawNewY);
+
+      let newX = rawNewX;
+      let newY = rawNewY;
+
+      // Determine dimensions of the dragged node
+      let nodeWidth = 200;
+      let nodeHeight = 120;
+      if (draggedNode.type === 'container') {
+        const cont = state.containers.find(c => c.id === draggedNode.id);
+        if (cont) {
+          nodeWidth = cont.isCollapsed ? (cont.collapsedWidth || 280) : cont.width;
+          nodeHeight = cont.isCollapsed ? (cont.collapsedHeight || 90) : cont.height;
+        }
+      } else {
+        const eq = state.equipment.find(item => item.id === draggedNode.id);
+        if (eq) {
+          nodeWidth = eq.isCollapsed ? (eq.collapsedWidth || 200) : eq.width;
+          nodeHeight = eq.isCollapsed ? (eq.collapsedHeight || 64) : eq.height;
+        }
+      }
+
+      if (smartGuides && !e.altKey) {
+        // Collect forbidden IDs (self and all descendants)
+        const forbiddenIds = new Set<string>();
+        forbiddenIds.add(draggedNode.id);
+        if (draggedNode.initialDescendantContainers) {
+          draggedNode.initialDescendantContainers.forEach(c => forbiddenIds.add(c.id));
+        }
+        if (draggedNode.initialDescendantEquipment) {
+          draggedNode.initialDescendantEquipment.forEach(eq => forbiddenIds.add(eq.id));
+        }
+
+        const targets: BoundingBox[] = [];
+
+        // Add visible containers
+        for (const c of visibleContainers) {
+          if (!forbiddenIds.has(c.id)) {
+            const w = c.isCollapsed ? (c.collapsedWidth || 280) : c.width;
+            const h = c.isCollapsed ? (c.collapsedHeight || 90) : c.height;
+            targets.push({
+              id: c.id,
+              x: c.x,
+              y: c.y,
+              width: w,
+              height: h,
+              name: c.name,
+            });
+          }
+        }
+
+        // Add visible equipment
+        for (const eq of visibleEquipment) {
+          if (!forbiddenIds.has(eq.id)) {
+            const w = eq.isCollapsed ? (eq.collapsedWidth || 200) : eq.width;
+            const h = eq.isCollapsed ? (eq.collapsedHeight || 64) : eq.height;
+            targets.push({
+              id: eq.id,
+              x: eq.x,
+              y: eq.y,
+              width: w,
+              height: h,
+              name: eq.name,
+              tag: eq.tag,
+            });
+          }
+        }
+
+        const snapRes = computeSmartAlignment(
+          { x: rawNewX, y: rawNewY, width: nodeWidth, height: nodeHeight },
+          targets,
+          viewport.zoom,
+          true
+        );
+
+        newX = snapRes.snappedX ? snapRes.x : (gridSnap ? snap(rawNewX) : Math.round(rawNewX));
+        newY = snapRes.snappedY ? snapRes.y : (gridSnap ? snap(rawNewY) : Math.round(rawNewY));
+        setActiveGuides(snapRes.guides);
+      } else {
+        newX = gridSnap ? snap(rawNewX) : Math.round(rawNewX);
+        newY = gridSnap ? snap(rawNewY) : Math.round(rawNewY);
+        if (activeGuides.length > 0) setActiveGuides([]);
+      }
 
       applyNodePositionChange(
         draggedNode.id,
@@ -486,6 +660,7 @@ export const Canvas: React.FC = () => {
 
   const handleCanvasMouseUp = useCallback(() => {
     setIsPanning(false);
+    setActiveGuides([]);
     if (draggedGroup || draggedNode || resizingNode) {
       triggerInstantSync();
     }
@@ -888,6 +1063,7 @@ export const Canvas: React.FC = () => {
     currentUser,
     connectingSourceId,
     gridSnap,
+    smartGuides,
     recordHistorySnapshot,
   });
   touchStateRef.current = {
@@ -897,6 +1073,7 @@ export const Canvas: React.FC = () => {
     currentUser,
     connectingSourceId,
     gridSnap,
+    smartGuides,
     recordHistorySnapshot,
   };
 
@@ -1026,7 +1203,7 @@ export const Canvas: React.FC = () => {
       // Prevent browser default window scrolling and elastic bounce
       e.preventDefault();
 
-      const { viewport: curVp, currentUser: curUsr, gridSnap: curSnap } = touchStateRef.current;
+      const { viewport: curVp, currentUser: curUsr, gridSnap: curSnap, smartGuides: curSmartGuides } = touchStateRef.current;
       const t = touchTrackingRef.current;
 
       if (t.isPinching && e.touches.length >= 2) {
@@ -1065,8 +1242,72 @@ export const Canvas: React.FC = () => {
           if (t.hasMoved) {
             const rawX = t.initialNodeX + dx / curVp.zoom;
             const rawY = t.initialNodeY + dy / curVp.zoom;
-            const newX = curSnap ? Math.round(rawX / 20) * 20 : Math.round(rawX);
-            const newY = curSnap ? Math.round(rawY / 20) * 20 : Math.round(rawY);
+            let newX = rawX;
+            let newY = rawY;
+
+            if (curSmartGuides) {
+              let nodeWidth = 200;
+              let nodeHeight = 120;
+              if (t.draggedNodeType === 'container') {
+                const cont = state.containers.find(c => c.id === t.draggedNodeId);
+                if (cont) {
+                  nodeWidth = cont.isCollapsed ? (cont.collapsedWidth || 280) : cont.width;
+                  nodeHeight = cont.isCollapsed ? (cont.collapsedHeight || 90) : cont.height;
+                }
+              } else {
+                const eq = state.equipment.find(item => item.id === t.draggedNodeId);
+                if (eq) {
+                  nodeWidth = eq.isCollapsed ? (eq.collapsedWidth || 200) : eq.width;
+                  nodeHeight = eq.isCollapsed ? (eq.collapsedHeight || 64) : eq.height;
+                }
+              }
+
+              const forbiddenIds = new Set<string>();
+              forbiddenIds.add(t.draggedNodeId);
+              t.initialDescendantContainers.forEach(c => forbiddenIds.add(c.id));
+              t.initialDescendantEquipment.forEach(eq => forbiddenIds.add(eq.id));
+
+              const targets: BoundingBox[] = [];
+              for (const c of visibleContainers) {
+                if (!forbiddenIds.has(c.id)) {
+                  targets.push({
+                    id: c.id,
+                    x: c.x,
+                    y: c.y,
+                    width: c.isCollapsed ? (c.collapsedWidth || 280) : c.width,
+                    height: c.isCollapsed ? (c.collapsedHeight || 90) : c.height,
+                    name: c.name,
+                  });
+                }
+              }
+              for (const eq of visibleEquipment) {
+                if (!forbiddenIds.has(eq.id)) {
+                  targets.push({
+                    id: eq.id,
+                    x: eq.x,
+                    y: eq.y,
+                    width: eq.isCollapsed ? (eq.collapsedWidth || 200) : eq.width,
+                    height: eq.isCollapsed ? (eq.collapsedHeight || 64) : eq.height,
+                    name: eq.name,
+                    tag: eq.tag,
+                  });
+                }
+              }
+
+              const snapRes = computeSmartAlignment(
+                { x: rawX, y: rawY, width: nodeWidth, height: nodeHeight },
+                targets,
+                curVp.zoom,
+                true
+              );
+              newX = snapRes.snappedX ? snapRes.x : (curSnap ? Math.round(rawX / 20) * 20 : Math.round(rawX));
+              newY = snapRes.snappedY ? snapRes.y : (curSnap ? Math.round(rawY / 20) * 20 : Math.round(rawY));
+              setActiveGuides(snapRes.guides);
+            } else {
+              newX = curSnap ? Math.round(rawX / 20) * 20 : Math.round(rawX);
+              newY = curSnap ? Math.round(rawY / 20) * 20 : Math.round(rawY);
+              if (activeGuides.length > 0) setActiveGuides([]);
+            }
 
             applyNodePositionChange(
               t.draggedNodeId,
@@ -1096,6 +1337,7 @@ export const Canvas: React.FC = () => {
     };
 
     const onTouchEnd = (e: TouchEvent) => {
+      setActiveGuides([]);
       const { activeTool: curTool, connectingSourceId: curSrc } = touchStateRef.current;
       const t = touchTrackingRef.current;
 
@@ -1140,6 +1382,7 @@ export const Canvas: React.FC = () => {
     };
 
     const onTouchCancel = () => {
+      setActiveGuides([]);
       const t = touchTrackingRef.current;
       t.draggedNodeId = null;
       t.draggedNodeType = null;
@@ -2910,6 +3153,9 @@ export const Canvas: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Draw.io Smart Alignment Guidelines Overlay */}
+        <SmartGuidesOverlay guides={activeGuides} zoom={viewport.zoom} />
 
         {/* Rubberband Marquee Selection Box */}
         {selectionBox && (

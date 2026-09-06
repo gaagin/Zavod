@@ -23,7 +23,8 @@ import {
   ChevronDown,
   Sliders,
   Sparkles,
-  Plus
+  Plus,
+  Magnet
 } from 'lucide-react';
 
 export const Toolbar: React.FC = () => {
@@ -44,6 +45,8 @@ export const Toolbar: React.FC = () => {
     viewport,
     gridSnap,
     setGridSnap,
+    smartGuides,
+    setSmartGuides,
     currentUser,
     addEquipment,
     addEmptyEquipment,
@@ -462,6 +465,21 @@ export const Toolbar: React.FC = () => {
           <Maximize2 className="w-4 h-4" />
         </button>
       )}
+
+      {/* Smart Guides (draw.io style) Toggle */}
+      <button
+        id="smart-guides-snap-btn"
+        type="button"
+        onClick={() => setSmartGuides(!smartGuides)}
+        className={`p-2 sm:p-2 rounded-xl sm:rounded-lg shrink-0 transition-all ${
+          smartGuides
+            ? 'bg-sky-50 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold ring-1 ring-sky-500/20'
+            : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-700 dark:text-slate-300'
+        }`}
+        title={smartGuides ? 'Умные направляющие (draw.io): ВКЛ (выравнивание по краям и центрам)' : 'Умные направляющие (draw.io): ВЫКЛ'}
+      >
+        <Magnet className="w-4 h-4" />
+      </button>
 
       {/* Grid Snap Toggle */}
       <button

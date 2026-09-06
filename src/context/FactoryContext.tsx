@@ -151,6 +151,8 @@ interface FactoryContextType {
   setIsProjectPanelOpen: (open: boolean) => void;
   gridSnap: boolean;
   setGridSnap: (snap: boolean) => void;
+  smartGuides: boolean;
+  setSmartGuides: (enabled: boolean) => void;
 
   // Auto-Save Management & Multi-Device Live Sync
   autoSaveConfig: AutoSaveConfig;
@@ -320,6 +322,22 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [connectingSourceId, setConnectingSourceId] = useState<string | null>(null);
   const [linkDraftType, setLinkDraftType] = useState<LinkType>('power');
   const [gridSnap, setGridSnap] = useState<boolean>(true);
+  const [smartGuides, setSmartGuidesState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('factory_smart_guides') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
+  const setSmartGuides = useCallback((enabled: boolean) => {
+    setSmartGuidesState(enabled);
+    try {
+      localStorage.setItem('factory_smart_guides', String(enabled));
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Container Focus Mode State (Selected container fills the entire working window)
   const [focusedContainerId, setFocusedContainerId] = useState<string | null>(null);
@@ -2449,6 +2467,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsProjectPanelOpen,
         gridSnap,
         setGridSnap,
+        smartGuides,
+        setSmartGuides,
         autoSaveConfig,
         setAutoSaveConfig,
         saveStatus,
