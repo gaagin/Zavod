@@ -153,11 +153,13 @@ export const Canvas: React.FC = () => {
     id: string;
     type: 'container' | 'equipment';
     isCollapsed: boolean;
+    initialX: number;
+    initialY: number;
     initialWidth: number;
     initialHeight: number;
     initialMouseX: number;
     initialMouseY: number;
-    direction: 'se' | 'e' | 's';
+    direction: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
   } | null>(null);
   const [cursorPosOnCanvas, setCursorPosOnCanvas] = useState<{ x: number; y: number } | null>(null);
   const [connectingMousePos, setConnectingMousePos] = useState<{ x: number; y: number } | null>(null);
@@ -202,6 +204,73 @@ export const Canvas: React.FC = () => {
     const gridSize = 20;
     return Math.round(val / gridSize) * gridSize;
   };
+
+  // Resizing bounds computer supporting all 4 sides (N, S, E, W) and 4 corners (NW, NE, SW, SE)
+  const computeResizedBounds = useCallback((
+    resizing: {
+      initialX: number;
+      initialY: number;
+      initialWidth: number;
+      initialHeight: number;
+      initialMouseX: number;
+      initialMouseY: number;
+      direction: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+      type: 'container' | 'equipment';
+      isCollapsed: boolean;
+    },
+    currentMouseX: number,
+    currentMouseY: number
+  ) => {
+    const dx = (currentMouseX - resizing.initialMouseX) / viewport.zoom;
+    const dy = (currentMouseY - resizing.initialMouseY) / viewport.zoom;
+
+    let minW = 220;
+    let minH = 120;
+    if (resizing.type === 'container') {
+      minW = resizing.isCollapsed ? 160 : 220;
+      minH = resizing.isCollapsed ? 54 : 120;
+    } else {
+      minW = resizing.isCollapsed ? 160 : 220;
+      minH = resizing.isCollapsed ? 48 : 140;
+    }
+
+    let newX = resizing.initialX;
+    let newY = resizing.initialY;
+    let newW = resizing.initialWidth;
+    let newH = resizing.initialHeight;
+
+    const dir = resizing.direction;
+
+    // Horizontal calculation (East moves right edge, West moves left edge & shifts X)
+    if (dir === 'e' || dir === 'ne' || dir === 'se') {
+      const rawW = resizing.initialWidth + dx;
+      const snappedW = gridSnap ? snap(rawW) : Math.round(rawW);
+      newW = Math.max(minW, snappedW);
+    } else if (dir === 'w' || dir === 'nw' || dir === 'sw') {
+      const initialRight = resizing.initialX + resizing.initialWidth;
+      const maxAllowedX = initialRight - minW;
+      const tentativeX = resizing.initialX + dx;
+      const snappedX = gridSnap ? snap(tentativeX) : Math.round(tentativeX);
+      newX = Math.min(maxAllowedX, snappedX);
+      newW = initialRight - newX;
+    }
+
+    // Vertical calculation (South moves bottom edge, North moves top edge & shifts Y)
+    if (dir === 's' || dir === 'se' || dir === 'sw') {
+      const rawH = resizing.initialHeight + dy;
+      const snappedH = gridSnap ? snap(rawH) : Math.round(rawH);
+      newH = Math.max(minH, snappedH);
+    } else if (dir === 'n' || dir === 'ne' || dir === 'nw') {
+      const initialBottom = resizing.initialY + resizing.initialHeight;
+      const maxAllowedY = initialBottom - minH;
+      const tentativeY = resizing.initialY + dy;
+      const snappedY = gridSnap ? snap(tentativeY) : Math.round(tentativeY);
+      newY = Math.min(maxAllowedY, snappedY);
+      newH = initialBottom - newY;
+    }
+
+    return { x: newX, y: newY, width: newW, height: newH };
+  }, [viewport.zoom, gridSnap]);
 
   // Zoom on wheel
   const handleWheel = (e: React.WheelEvent) => {
@@ -317,73 +386,40 @@ export const Canvas: React.FC = () => {
       return;
     }
 
-    // Handle Node Resizing (Container or Equipment, both expanded and collapsed modes)
+    // Handle Node Resizing (Container or Equipment, both expanded and collapsed modes, 4 sides and corners)
     if (resizingNode && (currentUser.role === 'admin' || currentUser.role === 'operator')) {
-      const dx = (e.clientX - resizingNode.initialMouseX) / viewport.zoom;
-      const dy = (e.clientY - resizingNode.initialMouseY) / viewport.zoom;
+      const bounds = computeResizedBounds(resizingNode, e.clientX, e.clientY);
 
       if (resizingNode.type === 'container') {
         if (resizingNode.isCollapsed) {
-          let newW = resizingNode.direction !== 's' 
-            ? Math.max(160, Math.round(resizingNode.initialWidth + dx)) 
-            : resizingNode.initialWidth;
-          let newH = resizingNode.direction !== 'e' 
-            ? Math.max(54, Math.round(resizingNode.initialHeight + dy)) 
-            : resizingNode.initialHeight;
-          if (gridSnap) {
-            newW = snap(newW);
-            newH = snap(newH);
-          }
           updateContainer(resizingNode.id, {
-            collapsedWidth: Math.max(160, newW),
-            collapsedHeight: Math.max(54, newH),
+            x: bounds.x,
+            y: bounds.y,
+            collapsedWidth: bounds.width,
+            collapsedHeight: bounds.height,
           }, undefined, true);
         } else {
-          let newW = resizingNode.direction !== 's' 
-            ? Math.max(220, Math.round(resizingNode.initialWidth + dx)) 
-            : resizingNode.initialWidth;
-          let newH = resizingNode.direction !== 'e' 
-            ? Math.max(120, Math.round(resizingNode.initialHeight + dy)) 
-            : resizingNode.initialHeight;
-          if (gridSnap) {
-            newW = snap(newW);
-            newH = snap(newH);
-          }
           updateContainer(resizingNode.id, {
-            width: Math.max(220, newW),
-            height: Math.max(120, newH),
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
           }, undefined, true);
         }
       } else if (resizingNode.type === 'equipment') {
         if (resizingNode.isCollapsed) {
-          let newW = resizingNode.direction !== 's' 
-            ? Math.max(160, Math.round(resizingNode.initialWidth + dx)) 
-            : resizingNode.initialWidth;
-          let newH = resizingNode.direction !== 'e' 
-            ? Math.max(48, Math.round(resizingNode.initialHeight + dy)) 
-            : resizingNode.initialHeight;
-          if (gridSnap) {
-            newW = snap(newW);
-            newH = snap(newH);
-          }
           updateEquipment(resizingNode.id, {
-            collapsedWidth: Math.max(160, newW),
-            collapsedHeight: Math.max(48, newH),
+            x: bounds.x,
+            y: bounds.y,
+            collapsedWidth: bounds.width,
+            collapsedHeight: bounds.height,
           }, undefined, true);
         } else {
-          let newW = resizingNode.direction !== 's' 
-            ? Math.max(220, Math.round(resizingNode.initialWidth + dx)) 
-            : resizingNode.initialWidth;
-          let newH = resizingNode.direction !== 'e' 
-            ? Math.max(140, Math.round(resizingNode.initialHeight + dy)) 
-            : resizingNode.initialHeight;
-          if (gridSnap) {
-            newW = snap(newW);
-            newH = snap(newH);
-          }
           updateEquipment(resizingNode.id, {
-            width: Math.max(220, newW),
-            height: Math.max(140, newH),
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
           }, undefined, true);
         }
       }
@@ -478,15 +514,76 @@ export const Canvas: React.FC = () => {
     };
   }, [handleCanvasMouseUp]);
 
-  // Unified Node Resize Start (Containers & Equipment, Expanded & Collapsed)
+  // Global touchmove and touchend listener for touch resizing (all 4 sides and corners)
+  useEffect(() => {
+    if (!resizingNode) return;
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const bounds = computeResizedBounds(resizingNode, touch.clientX, touch.clientY);
+
+      if (resizingNode.type === 'container') {
+        if (resizingNode.isCollapsed) {
+          updateContainer(resizingNode.id, {
+            x: bounds.x,
+            y: bounds.y,
+            collapsedWidth: bounds.width,
+            collapsedHeight: bounds.height,
+          }, undefined, true);
+        } else {
+          updateContainer(resizingNode.id, {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+          }, undefined, true);
+        }
+      } else if (resizingNode.type === 'equipment') {
+        if (resizingNode.isCollapsed) {
+          updateEquipment(resizingNode.id, {
+            x: bounds.x,
+            y: bounds.y,
+            collapsedWidth: bounds.width,
+            collapsedHeight: bounds.height,
+          }, undefined, true);
+        } else {
+          updateEquipment(resizingNode.id, {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+          }, undefined, true);
+        }
+      }
+    };
+
+    const handleTouchEnd = () => {
+      triggerInstantSync();
+      setResizingNode(null);
+    };
+
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchEnd);
+    return () => {
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [resizingNode, computeResizedBounds, updateContainer, updateEquipment, triggerInstantSync]);
+
+  // Unified Node Resize Start (Containers & Equipment, Expanded & Collapsed, All 4 Sides & Corners)
   const startResizeNode = (
     e: React.MouseEvent | React.TouchEvent,
     nodeId: string,
     type: 'container' | 'equipment',
     isCollapsed: boolean,
+    x: number,
+    y: number,
     width: number,
     height: number,
-    direction: 'se' | 'e' | 's' = 'se'
+    direction: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' = 'se'
   ) => {
     if (isSpacePressed || activeTool === 'pan') return;
     if (currentUser.role === 'viewer') return;
@@ -501,6 +598,8 @@ export const Canvas: React.FC = () => {
       id: nodeId,
       type,
       isCollapsed,
+      initialX: x,
+      initialY: y,
       initialWidth: width,
       initialHeight: height,
       initialMouseX: clientX,
@@ -1120,6 +1219,40 @@ export const Canvas: React.FC = () => {
     });
   };
 
+  // Fit boundaries of focused container or equipment to enclose all internal child nodes
+  const handleFitBoundaryToContents = useCallback(() => {
+    if (!focusedNode) return;
+    recordHistorySnapshot();
+    const nodeId = focusedNode.data.id;
+    let items: Array<{ x: number; y: number; width: number; height: number }> = [];
+
+    if (focusedNode.type === 'container') {
+      const childEq = state.equipment.filter(e => e.parentId === nodeId);
+      const childC = state.containers.filter(c => c.parentId === nodeId);
+      items = [
+        ...childEq.map(e => ({ x: e.x, y: e.y, width: e.isCollapsed ? (e.collapsedWidth || 180) : e.width, height: e.isCollapsed ? (e.collapsedHeight || 64) : e.height })),
+        ...childC.map(c => ({ x: c.x, y: c.y, width: c.isCollapsed ? (c.collapsedWidth || 180) : c.width, height: c.isCollapsed ? (c.collapsedHeight || 54) : c.height })),
+      ];
+    } else {
+      const childEq = state.equipment.filter(e => e.parentId === nodeId);
+      items = childEq.map(e => ({ x: e.x, y: e.y, width: e.isCollapsed ? (e.collapsedWidth || 180) : e.width, height: e.isCollapsed ? (e.collapsedHeight || 64) : e.height }));
+    }
+
+    if (items.length === 0) return;
+
+    const maxX = Math.max(...items.map(i => i.x + i.width));
+    const maxY = Math.max(...items.map(i => i.y + i.height));
+
+    const neededWidth = Math.max(280, Math.round(maxX - focusedNode.data.x + 60));
+    const neededHeight = Math.max(180, Math.round(maxY - focusedNode.data.y + 60));
+
+    if (focusedNode.type === 'container') {
+      updateContainer(nodeId, { width: neededWidth, height: neededHeight });
+    } else {
+      updateEquipment(nodeId, { width: neededWidth, height: neededHeight });
+    }
+  }, [focusedNode, state.equipment, state.containers, recordHistorySnapshot, updateContainer, updateEquipment]);
+
   // Filter visible equipment:
   // When in focus mode, the focused node fills the working window.
   // ONLY equipment belonging to this focused subtree is rendered.
@@ -1485,6 +1618,328 @@ export const Canvas: React.FC = () => {
           )}
         </svg>
 
+        {/* Focused Node Boundary Layer (Dashed outline in expanded state with live resizing) */}
+        {focusedNode && (
+          <div
+            id={`focus-expanded-boundary-${focusedNode.data.id}`}
+            style={{
+              transform: `translate(${focusedNode.data.x}px, ${focusedNode.data.y}px)`,
+              width: focusedNode.data.width,
+              height: focusedNode.data.height,
+              borderColor: focusedNode.data.color || (focusedNode.type === 'container' ? '#3b82f6' : '#0ea5e9'),
+              backgroundColor: focusedNode.type === 'container'
+                ? (focusedNode.data.color ? `${focusedNode.data.color}0a` : 'rgba(59, 130, 246, 0.04)')
+                : 'rgba(14, 165, 233, 0.04)',
+            }}
+            className="absolute rounded-2xl border-2 border-dashed shadow-[0_0_35px_rgba(59,130,246,0.15)] select-none z-0 group pointer-events-none transition-[border-color,background-color]"
+          >
+            {/* Inner Blueprint Radial Grid Accent */}
+            <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-40 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]" />
+
+            {/* Corner Precision Marks (L-shapes on all 4 corners) */}
+            <div 
+              style={{ borderColor: focusedNode.data.color || '#3b82f6' }}
+              className="absolute -top-1 -left-1 w-4 h-4 border-t-[3px] border-l-[3px] rounded-tl-sm pointer-events-none" 
+            />
+            <div 
+              style={{ borderColor: focusedNode.data.color || '#3b82f6' }}
+              className="absolute -top-1 -right-1 w-4 h-4 border-t-[3px] border-r-[3px] rounded-tr-sm pointer-events-none" 
+            />
+            <div 
+              style={{ borderColor: focusedNode.data.color || '#3b82f6' }}
+              className="absolute -bottom-1 -left-1 w-4 h-4 border-b-[3px] border-l-[3px] rounded-bl-sm pointer-events-none" 
+            />
+            <div 
+              style={{ borderColor: focusedNode.data.color || '#3b82f6' }}
+              className="absolute -bottom-1 -right-1 w-4 h-4 border-b-[3px] border-r-[3px] rounded-br-sm pointer-events-none" 
+            />
+
+            {/* Top Header Tag: Name, Tag, Expanded State Indicator & Live Dimensions */}
+            <div 
+              className="absolute -top-9.5 left-0 flex items-center gap-2 pointer-events-auto max-w-full"
+            >
+              <div 
+                onClick={(e) => { e.stopPropagation(); setSelectedId(focusedNode.data.id); }}
+                onMouseDown={(e) => startDragNode(e, focusedNode.data.id, focusedNode.type, focusedNode.data.x, focusedNode.data.y)}
+                className="flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-900/90 dark:bg-[#0F0F12]/95 backdrop-blur-md border border-white/20 shadow-xl text-white text-xs font-semibold cursor-move hover:border-blue-400 transition-colors"
+                title="Нажмите для инспектора, либо перетаскивайте для смещения всего узла"
+              >
+                <span 
+                  className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded text-white shadow-xs"
+                  style={{ backgroundColor: focusedNode.data.color || (focusedNode.type === 'container' ? '#2563eb' : '#0284c7') }}
+                >
+                  {focusedNode.data.tag}
+                </span>
+                <span className="font-bold text-xs truncate max-w-[180px] sm:max-w-[280px]">
+                  {focusedNode.data.name}
+                </span>
+                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 text-[10px] font-medium border border-blue-400/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  <span>Границы в фокусе (4 стороны)</span>
+                </span>
+                <span className="font-mono text-[11px] text-blue-200 font-bold ml-1">
+                  {Math.round(focusedNode.data.width)} × {Math.round(focusedNode.data.height)} px
+                </span>
+              </div>
+            </div>
+
+            {/* Bottom-right Quick Controls: Dimensions & Steppers for all 4 directions */}
+            {canEdit && (
+              <div className="absolute bottom-2.5 right-14 flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 dark:bg-[#0F0F12]/95 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/15 text-white text-[11px] shadow-lg select-none opacity-85 group-hover:opacity-100 transition-opacity">
+                <span className="text-slate-400 text-[10px] font-mono mr-1">Границы:</span>
+                <div className="flex items-center gap-1 font-mono font-bold text-blue-300 text-xs">
+                  <span>{Math.round(focusedNode.data.width)}</span>
+                  <span className="text-slate-500 font-normal">×</span>
+                  <span>{Math.round(focusedNode.data.height)}</span>
+                  <span className="text-slate-500 text-[10px] font-normal">px</span>
+                </div>
+
+                <div className="h-3 w-px bg-white/20 mx-1" />
+
+                {/* 4 Sides Quick Step Buttons */}
+                <div className="flex items-center gap-1 text-[10px]">
+                  {/* Left (W) */}
+                  <span className="text-slate-400 font-bold ml-0.5">←</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const cur = focusedNode.data;
+                      const newW = cur.width + 50;
+                      const newX = cur.x - 50;
+                      if (focusedNode.type === 'container') updateContainer(cur.id, { x: newX, width: newW });
+                      else updateEquipment(cur.id, { x: newX, width: newW });
+                    }}
+                    className="px-1 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title="Расширить границу влево на 50px"
+                  >
+                    +50
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const cur = focusedNode.data;
+                      if (cur.width <= 220) return;
+                      const step = Math.min(50, cur.width - 220);
+                      const newW = cur.width - step;
+                      const newX = cur.x + step;
+                      if (focusedNode.type === 'container') updateContainer(cur.id, { x: newX, width: newW });
+                      else updateEquipment(cur.id, { x: newX, width: newW });
+                    }}
+                    className="px-1 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title="Сузить границу слева на 50px"
+                  >
+                    -50
+                  </button>
+
+                  {/* Right (E) */}
+                  <span className="text-slate-400 font-bold ml-1">→</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const cur = focusedNode.data;
+                      const newW = Math.max(220, cur.width - 50);
+                      if (focusedNode.type === 'container') updateContainer(cur.id, { width: newW });
+                      else updateEquipment(cur.id, { width: newW });
+                    }}
+                    className="px-1 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title="Сузить границу справа на 50px"
+                  >
+                    -50
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const cur = focusedNode.data;
+                      const newW = cur.width + 50;
+                      if (focusedNode.type === 'container') updateContainer(cur.id, { width: newW });
+                      else updateEquipment(cur.id, { width: newW });
+                    }}
+                    className="px-1 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title="Расширить границу справа на 50px"
+                  >
+                    +50
+                  </button>
+
+                  {/* Top (N) */}
+                  <span className="text-slate-400 font-bold ml-1">↑</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const cur = focusedNode.data;
+                      const newH = cur.height + 50;
+                      const newY = cur.y - 50;
+                      if (focusedNode.type === 'container') updateContainer(cur.id, { y: newY, height: newH });
+                      else updateEquipment(cur.id, { y: newY, height: newH });
+                    }}
+                    className="px-1 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title="Расширить границу вверх на 50px"
+                  >
+                    +50
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const cur = focusedNode.data;
+                      if (cur.height <= 120) return;
+                      const step = Math.min(50, cur.height - 120);
+                      const newH = cur.height - step;
+                      const newY = cur.y + step;
+                      if (focusedNode.type === 'container') updateContainer(cur.id, { y: newY, height: newH });
+                      else updateEquipment(cur.id, { y: newY, height: newH });
+                    }}
+                    className="px-1 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title="Сузить границу сверху на 50px"
+                  >
+                    -50
+                  </button>
+
+                  {/* Bottom (S) */}
+                  <span className="text-slate-400 font-bold ml-1">↓</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const cur = focusedNode.data;
+                      const newH = Math.max(120, cur.height - 50);
+                      if (focusedNode.type === 'container') updateContainer(cur.id, { height: newH });
+                      else updateEquipment(cur.id, { height: newH });
+                    }}
+                    className="px-1 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title="Сузить границу снизу на 50px"
+                  >
+                    -50
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const cur = focusedNode.data;
+                      const newH = cur.height + 50;
+                      if (focusedNode.type === 'container') updateContainer(cur.id, { height: newH });
+                      else updateEquipment(cur.id, { height: newH });
+                    }}
+                    className="px-1 py-0.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title="Расширить границу снизу на 50px"
+                  >
+                    +50
+                  </button>
+                </div>
+
+                {/* Fit to content button if children exist */}
+                {visibleEquipment.length > 0 && (
+                  <>
+                    <div className="h-3 w-px bg-white/20 mx-1" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFitBoundaryToContents();
+                      }}
+                      className="px-2 py-0.5 rounded bg-blue-600/50 hover:bg-blue-600 text-blue-100 hover:text-white text-[10px] font-medium transition-colors cursor-pointer flex items-center gap-1"
+                      title="Подогнать размер границ под все вложенные элементы"
+                    >
+                      <Scan className="w-3 h-3" />
+                      <span>По элементам</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Resize Handles for All 4 Sides and 4 Corners */}
+            {canEdit && (
+              <>
+                {/* --- 4 CORNER HANDLES --- */}
+                {/* Southeast Corner (SE) */}
+                <div
+                  data-resize-handle="se"
+                  onMouseDown={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'se')}
+                  onTouchStart={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'se')}
+                  className="absolute -bottom-3 -right-3 w-7 h-7 flex items-center justify-center cursor-nwse-resize z-30 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-500/40 hover:scale-110 active:scale-95 transition-all group/handle pointer-events-auto border-2 border-white dark:border-[#0F0F12]"
+                  title="Изменить границы снизу и справа (SE)"
+                >
+                  <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-white rounded-br-xs group-hover/handle:scale-110 transition-transform" />
+                </div>
+
+                {/* Northwest Corner (NW) */}
+                <div
+                  data-resize-handle="nw"
+                  onMouseDown={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'nw')}
+                  onTouchStart={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'nw')}
+                  className="absolute -top-3 -left-3 w-7 h-7 flex items-center justify-center cursor-nwse-resize z-30 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-500/40 hover:scale-110 active:scale-95 transition-all group/handle pointer-events-auto border-2 border-white dark:border-[#0F0F12]"
+                  title="Изменить границы сверху и слева (NW)"
+                >
+                  <div className="w-2.5 h-2.5 border-l-2 border-t-2 border-white rounded-tl-xs group-hover/handle:scale-110 transition-transform" />
+                </div>
+
+                {/* Northeast Corner (NE) */}
+                <div
+                  data-resize-handle="ne"
+                  onMouseDown={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'ne')}
+                  onTouchStart={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'ne')}
+                  className="absolute -top-3 -right-3 w-7 h-7 flex items-center justify-center cursor-nesw-resize z-30 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-500/40 hover:scale-110 active:scale-95 transition-all group/handle pointer-events-auto border-2 border-white dark:border-[#0F0F12]"
+                  title="Изменить границы сверху и справа (NE)"
+                >
+                  <div className="w-2.5 h-2.5 border-r-2 border-t-2 border-white rounded-tr-xs group-hover/handle:scale-110 transition-transform" />
+                </div>
+
+                {/* Southwest Corner (SW) */}
+                <div
+                  data-resize-handle="sw"
+                  onMouseDown={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'sw')}
+                  onTouchStart={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'sw')}
+                  className="absolute -bottom-3 -left-3 w-7 h-7 flex items-center justify-center cursor-nesw-resize z-30 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-500/40 hover:scale-110 active:scale-95 transition-all group/handle pointer-events-auto border-2 border-white dark:border-[#0F0F12]"
+                  title="Изменить границы снизу и слева (SW)"
+                >
+                  <div className="w-2.5 h-2.5 border-l-2 border-b-2 border-white rounded-bl-xs group-hover/handle:scale-110 transition-transform" />
+                </div>
+
+                {/* --- 4 EDGE HANDLES --- */}
+                {/* Top Edge (North, N) */}
+                <div
+                  data-resize-handle="n"
+                  onMouseDown={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'n')}
+                  onTouchStart={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'n')}
+                  className="absolute -top-2 left-10 right-10 h-4 flex items-center justify-center cursor-ns-resize z-20 group/edge pointer-events-auto hover:h-6 transition-all"
+                  title="Потяните для изменения границы сверху (N)"
+                >
+                  <div className="h-1.5 w-24 rounded-full bg-blue-500/70 group-hover/edge:bg-blue-400 group-hover/edge:w-36 group-hover/edge:h-2 transition-all shadow-md" />
+                </div>
+
+                {/* Bottom Edge (South, S) */}
+                <div
+                  data-resize-handle="s"
+                  onMouseDown={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 's')}
+                  onTouchStart={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 's')}
+                  className="absolute -bottom-2 left-10 right-10 h-4 flex items-center justify-center cursor-ns-resize z-20 group/edge pointer-events-auto hover:h-6 transition-all"
+                  title="Потяните для изменения границы снизу (S)"
+                >
+                  <div className="h-1.5 w-24 rounded-full bg-blue-500/70 group-hover/edge:bg-blue-400 group-hover/edge:w-36 group-hover/edge:h-2 transition-all shadow-md" />
+                </div>
+
+                {/* Left Edge (West, W) */}
+                <div
+                  data-resize-handle="w"
+                  onMouseDown={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'w')}
+                  onTouchStart={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'w')}
+                  className="absolute -left-2 top-10 bottom-10 w-4 flex items-center justify-center cursor-ew-resize z-20 group/edge pointer-events-auto hover:w-6 transition-all"
+                  title="Потяните для изменения границы слева (W)"
+                >
+                  <div className="w-1.5 h-24 rounded-full bg-blue-500/70 group-hover/edge:bg-blue-400 group-hover/edge:h-36 group-hover/edge:w-2 transition-all shadow-md" />
+                </div>
+
+                {/* Right Edge (East, E) */}
+                <div
+                  data-resize-handle="e"
+                  onMouseDown={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'e')}
+                  onTouchStart={(e) => startResizeNode(e, focusedNode.data.id, focusedNode.type, false, focusedNode.data.x, focusedNode.data.y, focusedNode.data.width, focusedNode.data.height, 'e')}
+                  className="absolute -right-2 top-10 bottom-10 w-4 flex items-center justify-center cursor-ew-resize z-20 group/edge pointer-events-auto hover:w-6 transition-all"
+                  title="Потяните для изменения границы справа (E)"
+                >
+                  <div className="w-1.5 h-24 rounded-full bg-blue-500/70 group-hover/edge:bg-blue-400 group-hover/edge:h-36 group-hover/edge:w-2 transition-all shadow-md" />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Containers Layer (Deep nesting supported) */}
         {visibleContainers.map(container => {
           const isSelected = selectedId === container.id || selectedIds.includes(container.id);
@@ -1597,28 +2052,67 @@ export const Canvas: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Resize handles for Collapsed Container */}
+                {/* Resize handles for Collapsed Container (All 4 Sides & Corners) */}
                 {canEdit && (
                   <>
+                    {/* Corners */}
                     <div
-                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 'se')}
-                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 'se')}
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'se')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'se')}
                       className="absolute -bottom-1 -right-1 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
-                      title="Изменить размер свернутого цеха"
+                      title="Изменить размер (SE)"
                     >
                       <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs hover:border-blue-500" />
                     </div>
                     <div
-                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 'e')}
-                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 'e')}
-                      className="absolute top-1 bottom-1 -right-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
-                      title="Изменить ширину"
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'nw')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'nw')}
+                      className="absolute -top-1 -left-1 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
+                      title="Изменить размер (NW)"
+                    >
+                      <div className="w-2.5 h-2.5 border-l-2 border-t-2 border-slate-400 dark:border-white/50 rounded-tl-xs hover:border-blue-500" />
+                    </div>
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'ne')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'ne')}
+                      className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center cursor-nesw-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
+                      title="Изменить размер (NE)"
+                    >
+                      <div className="w-2.5 h-2.5 border-r-2 border-t-2 border-slate-400 dark:border-white/50 rounded-tr-xs hover:border-blue-500" />
+                    </div>
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'sw')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'sw')}
+                      className="absolute -bottom-1 -left-1 w-4 h-4 flex items-center justify-center cursor-nesw-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
+                      title="Изменить размер (SW)"
+                    >
+                      <div className="w-2.5 h-2.5 border-l-2 border-b-2 border-slate-400 dark:border-white/50 rounded-bl-xs hover:border-blue-500" />
+                    </div>
+
+                    {/* 4 Edges */}
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'e')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'e')}
+                      className="absolute top-1.5 bottom-1.5 -right-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                      title="Изменить ширину справа"
                     />
                     <div
-                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 's')}
-                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.collapsedWidth, container.collapsedHeight, 's')}
-                      className="absolute left-1 right-1 -bottom-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
-                      title="Изменить высоту"
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'w')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'w')}
+                      className="absolute top-1.5 bottom-1.5 -left-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                      title="Изменить ширину слева"
+                    />
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 's')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 's')}
+                      className="absolute left-1.5 right-1.5 -bottom-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                      title="Изменить высоту снизу"
+                    />
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'n')}
+                      onTouchStart={(e) => startResizeNode(e, container.id, 'container', true, container.x, container.y, container.collapsedWidth, container.collapsedHeight, 'n')}
+                      className="absolute left-1.5 right-1.5 -top-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                      title="Изменить высоту сверху"
                     />
                   </>
                 )}
@@ -1758,28 +2252,67 @@ export const Canvas: React.FC = () => {
                 {critCount > 0 && <span className="text-red-500 font-bold">⚠️ Аварий: {critCount}</span>}
               </div>
 
-              {/* Resize handles for Expanded Container */}
+              {/* Resize handles for Expanded Container (All 4 Sides & Corners) */}
               {canEdit && (
                 <>
+                  {/* Corners */}
                   <div
-                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 'se')}
-                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 'se')}
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'se')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'se')}
                     className="absolute -bottom-2 -right-2 w-6 h-6 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
-                    title="Изменить размер цеха"
+                    title="Изменить размер цеха (SE)"
                   >
                     <div className="w-3.5 h-3.5 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs group-hover:border-blue-500" />
                   </div>
                   <div
-                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 'e')}
-                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 'e')}
-                    className="absolute top-3 bottom-3 -right-1 w-2.5 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
-                    title="Изменить ширину цеха"
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'nw')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'nw')}
+                    className="absolute -top-2 -left-2 w-6 h-6 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
+                    title="Изменить размер цеха (NW)"
+                  >
+                    <div className="w-3.5 h-3.5 border-l-2 border-t-2 border-slate-400 dark:border-white/50 rounded-tl-xs group-hover:border-blue-500" />
+                  </div>
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'ne')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'ne')}
+                    className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center cursor-nesw-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
+                    title="Изменить размер цеха (NE)"
+                  >
+                    <div className="w-3.5 h-3.5 border-r-2 border-t-2 border-slate-400 dark:border-white/50 rounded-tr-xs group-hover:border-blue-500" />
+                  </div>
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'sw')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'sw')}
+                    className="absolute -bottom-2 -left-2 w-6 h-6 flex items-center justify-center cursor-nesw-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
+                    title="Изменить размер цеха (SW)"
+                  >
+                    <div className="w-3.5 h-3.5 border-l-2 border-b-2 border-slate-400 dark:border-white/50 rounded-bl-xs group-hover:border-blue-500" />
+                  </div>
+
+                  {/* 4 Edges */}
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'e')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'e')}
+                    className="absolute top-4 bottom-4 -right-1 w-2.5 cursor-ew-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                    title="Изменить ширину справа"
                   />
                   <div
-                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 's')}
-                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.width, container.height, 's')}
-                    className="absolute left-3 right-3 -bottom-1 h-2.5 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
-                    title="Изменить высоту цеха"
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'w')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'w')}
+                    className="absolute top-4 bottom-4 -left-1 w-2.5 cursor-ew-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                    title="Изменить ширину слева"
+                  />
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 's')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 's')}
+                    className="absolute left-4 right-4 -bottom-1 h-2.5 cursor-ns-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                    title="Изменить высоту снизу"
+                  />
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'n')}
+                    onTouchStart={(e) => startResizeNode(e, container.id, 'container', false, container.x, container.y, container.width, container.height, 'n')}
+                    className="absolute left-4 right-4 -top-1 h-2.5 cursor-ns-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                    title="Изменить высоту сверху"
                   />
                 </>
               )}
@@ -1904,28 +2437,67 @@ export const Canvas: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Resize handles for Collapsed Equipment */}
+                {/* Resize handles for Collapsed Equipment (All 4 Sides & Corners) */}
                 {canEdit && (
                   <>
+                    {/* Corners */}
                     <div
-                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 'se')}
-                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 'se')}
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'se')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'se')}
                       className="absolute -bottom-1 -right-1 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
-                      title="Изменить размер свернутого оборудования"
+                      title="Изменить размер (SE)"
                     >
                       <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs hover:border-blue-500" />
                     </div>
                     <div
-                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 'e')}
-                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 'e')}
-                      className="absolute top-1 bottom-1 -right-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
-                      title="Изменить ширину"
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'nw')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'nw')}
+                      className="absolute -top-1 -left-1 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
+                      title="Изменить размер (NW)"
+                    >
+                      <div className="w-2.5 h-2.5 border-l-2 border-t-2 border-slate-400 dark:border-white/50 rounded-tl-xs hover:border-blue-500" />
+                    </div>
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'ne')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'ne')}
+                      className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center cursor-nesw-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
+                      title="Изменить размер (NE)"
+                    >
+                      <div className="w-2.5 h-2.5 border-r-2 border-t-2 border-slate-400 dark:border-white/50 rounded-tr-xs hover:border-blue-500" />
+                    </div>
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'sw')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'sw')}
+                      className="absolute -bottom-1 -left-1 w-4 h-4 flex items-center justify-center cursor-nesw-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform"
+                      title="Изменить размер (SW)"
+                    >
+                      <div className="w-2.5 h-2.5 border-l-2 border-b-2 border-slate-400 dark:border-white/50 rounded-bl-xs hover:border-blue-500" />
+                    </div>
+
+                    {/* 4 Edges */}
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'e')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'e')}
+                      className="absolute top-1 bottom-1 -right-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                      title="Изменить ширину справа"
                     />
                     <div
-                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 's')}
-                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, collapsedW, collapsedH, 's')}
-                      className="absolute left-1 right-1 -bottom-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
-                      title="Изменить высоту"
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'w')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'w')}
+                      className="absolute top-1 bottom-1 -left-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                      title="Изменить ширину слева"
+                    />
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 's')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 's')}
+                      className="absolute left-1 right-1 -bottom-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                      title="Изменить высоту снизу"
+                    />
+                    <div
+                      onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'n')}
+                      onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', true, equipment.x, equipment.y, collapsedW, collapsedH, 'n')}
+                      className="absolute left-1 right-1 -top-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                      title="Изменить высоту сверху"
                     />
                   </>
                 )}
@@ -2124,28 +2696,67 @@ export const Canvas: React.FC = () => {
                 title="Подключить справа"
               />
 
-              {/* Resize handles for Expanded Equipment */}
+              {/* Resize handles for Expanded Equipment (All 4 Sides & Corners) */}
               {canEdit && (
                 <>
+                  {/* Corners */}
                   <div
-                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 'se')}
-                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 'se')}
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'se')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'se')}
                     className="absolute -bottom-1.5 -right-1.5 w-5 h-5 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
-                    title="Изменить размер оборудования"
+                    title="Изменить размер оборудования (SE)"
                   >
                     <div className="w-3 h-3 border-r-2 border-b-2 border-slate-400 dark:border-white/50 rounded-br-xs group-hover:border-blue-500" />
                   </div>
                   <div
-                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 'e')}
-                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 'e')}
-                    className="absolute top-2 bottom-2 -right-1 w-2 cursor-ew-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
-                    title="Изменить ширину оборудования"
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'nw')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'nw')}
+                    className="absolute -top-1.5 -left-1.5 w-5 h-5 flex items-center justify-center cursor-nwse-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
+                    title="Изменить размер оборудования (NW)"
+                  >
+                    <div className="w-3 h-3 border-l-2 border-t-2 border-slate-400 dark:border-white/50 rounded-tl-xs group-hover:border-blue-500" />
+                  </div>
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'ne')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'ne')}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center cursor-nesw-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
+                    title="Изменить размер оборудования (NE)"
+                  >
+                    <div className="w-3 h-3 border-r-2 border-t-2 border-slate-400 dark:border-white/50 rounded-tr-xs group-hover:border-blue-500" />
+                  </div>
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'sw')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'sw')}
+                    className="absolute -bottom-1.5 -left-1.5 w-5 h-5 flex items-center justify-center cursor-nesw-resize z-20 text-slate-400 hover:text-blue-500 hover:scale-125 transition-transform group"
+                    title="Изменить размер оборудования (SW)"
+                  >
+                    <div className="w-3 h-3 border-l-2 border-b-2 border-slate-400 dark:border-white/50 rounded-bl-xs group-hover:border-blue-500" />
+                  </div>
+
+                  {/* 4 Edges */}
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'e')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'e')}
+                    className="absolute top-3 bottom-3 -right-1 w-2.5 cursor-ew-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                    title="Изменить ширину справа"
                   />
                   <div
-                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 's')}
-                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.width, equipment.height, 's')}
-                    className="absolute left-2 right-2 -bottom-1 h-2 cursor-ns-resize z-10 hover:bg-blue-500/30 rounded-full transition-colors"
-                    title="Изменить высоту оборудования"
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'w')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'w')}
+                    className="absolute top-3 bottom-3 -left-1 w-2.5 cursor-ew-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                    title="Изменить ширину слева"
+                  />
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 's')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 's')}
+                    className="absolute left-3 right-3 -bottom-1 h-2.5 cursor-ns-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                    title="Изменить высоту снизу"
+                  />
+                  <div
+                    onMouseDown={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'n')}
+                    onTouchStart={(e) => startResizeNode(e, equipment.id, 'equipment', false, equipment.x, equipment.y, equipment.width, equipment.height, 'n')}
+                    className="absolute left-3 right-3 -top-1 h-2.5 cursor-ns-resize z-10 hover:bg-blue-500/40 rounded-full transition-colors"
+                    title="Изменить высоту сверху"
                   />
                 </>
               )}
@@ -2406,6 +3017,15 @@ export const Canvas: React.FC = () => {
 
           {/* Right: Quick Metrics & Action Buttons */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Real-time boundary dimensions indicator */}
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-300">
+              <span className="text-slate-400 text-[11px]">Границы:</span>
+              <span className="font-mono text-blue-300 font-bold">
+                {Math.round(focusedNode.data.width)} × {Math.round(focusedNode.data.height)}
+              </span>
+              <span className="text-slate-500 text-[10px]">px</span>
+            </div>
+
             {/* Real-time stats */}
             <div className="hidden lg:flex items-center gap-2.5 px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-300">
               <span className="flex items-center gap-1.5">

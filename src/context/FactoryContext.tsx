@@ -2068,12 +2068,44 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [state.containers, state.equipment, showToast]);
 
-  // Exit Focus Mode
+  // Exit Focus Mode: collapses containers and equipment to unexpanded state per user request
   const exitFocusMode = useCallback(() => {
     setFocusedContainerId(null);
     setIsFocusFullscreen(false);
-    showToast('Выход из фокусного режима', 'Отображается общая схема завода', 'info');
-  }, [showToast]);
+
+    setState(prev => {
+      let changed = false;
+      const nextContainers = prev.containers.map(c => {
+        if (!c.isCollapsed) {
+          changed = true;
+          return { ...c, isCollapsed: true };
+        }
+        return c;
+      });
+      const nextEquipment = prev.equipment.map(e => {
+        if (!e.isCollapsed) {
+          changed = true;
+          return { ...e, isCollapsed: true };
+        }
+        return e;
+      });
+
+      if (!changed) return prev;
+
+      pushHistory(prev);
+
+      const nextState = {
+        ...prev,
+        containers: nextContainers,
+        equipment: nextEquipment,
+      };
+
+      syncStateToServer(nextState, 'Выход из фокусного режима: сворачивание контейнеров и оборудования');
+      return nextState;
+    });
+
+    showToast('Выход из фокусного режима', 'Контейнеры и оборудование отображаются в нераскрытом виде', 'info');
+  }, [showToast, pushHistory]);
 
   // Toggle Focus Mode
   const toggleFocusMode = useCallback((nodeId?: string) => {

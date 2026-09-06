@@ -64,8 +64,9 @@ export const InspectorPanel: React.FC = () => {
   const [newPropValue, setNewPropValue] = useState('');
   const [newPropUnit, setNewPropUnit] = useState('');
 
-  const selectedEquipment = state.equipment.find(e => e.id === selectedId);
-  const selectedContainer = state.containers.find(c => c.id === selectedId);
+  const effectiveId = selectedId || (selectedIds.length === 0 ? focusedContainerId : null);
+  const selectedEquipment = state.equipment.find(e => e.id === effectiveId);
+  const selectedContainer = state.containers.find(c => c.id === effectiveId);
   const selectedLink = state.links.find(l => l.id === selectedId);
 
   const canEdit = currentUser.role === 'admin' || currentUser.role === 'operator' || currentUser.role === 'maintenance';
@@ -1091,6 +1092,49 @@ export const InspectorPanel: React.FC = () => {
               onChange={(e) => updateContainer(selectedContainer.id, { tag: e.target.value })}
               className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
             />
+          </div>
+
+          {/* Container Dimensions Controls */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                Ширина границ (px)
+              </label>
+              <input
+                type="number"
+                disabled={!canAdmin}
+                value={selectedContainer.isCollapsed ? (selectedContainer.collapsedWidth || 200) : selectedContainer.width}
+                onChange={(e) => {
+                  const val = Math.max(160, Number(e.target.value));
+                  if (selectedContainer.isCollapsed) {
+                    updateContainer(selectedContainer.id, { collapsedWidth: val });
+                  } else {
+                    updateContainer(selectedContainer.id, { width: val });
+                  }
+                }}
+                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                Высота границ (px)
+              </label>
+              <input
+                type="number"
+                disabled={!canAdmin}
+                value={selectedContainer.isCollapsed ? (selectedContainer.collapsedHeight || 64) : selectedContainer.height}
+                onChange={(e) => {
+                  const val = Math.max(selectedContainer.isCollapsed ? 48 : 100, Number(e.target.value));
+                  if (selectedContainer.isCollapsed) {
+                    updateContainer(selectedContainer.id, { collapsedHeight: val });
+                  } else {
+                    updateContainer(selectedContainer.id, { height: val });
+                  }
+                }}
+                className="w-full px-2.5 py-1.5 font-mono rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500"
+              />
+            </div>
           </div>
 
           {/* Deep nesting: Parent Container */}
