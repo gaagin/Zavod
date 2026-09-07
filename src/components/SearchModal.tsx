@@ -28,7 +28,8 @@ import {
   Calendar,
   Wrench,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  ExternalLink
 } from 'lucide-react';
 
 export interface EnrichedEquipmentTask extends EquipmentTask {
@@ -107,6 +108,7 @@ export const SearchModal: React.FC = () => {
     setIsSearchOpen,
     searchDefaultTab,
     focusNode,
+    openTaskModal,
     addEventLog,
     updateEquipment,
     showToast,
@@ -364,15 +366,10 @@ export const SearchModal: React.FC = () => {
     }
   };
 
-  // Focus and select equipment on canvas when task is clicked
+  // Open task modal when task is clicked
   const handleSelectTask = (task: EnrichedEquipmentTask) => {
-    focusNode(task.equipmentId);
     setIsSearchOpen(false);
-    showToast(
-      `Задача: ${task.title}`,
-      `Переход к оборудованию: [${task.equipmentTag}] ${task.equipmentName}`,
-      'info'
-    );
+    openTaskModal(task.equipmentId, task.id);
   };
 
   // Create Manual Log
@@ -441,10 +438,12 @@ export const SearchModal: React.FC = () => {
 
     showToast('Задача создана', `Назначена для [${eq.tag}] ${eq.name}`, 'success');
 
-    // Reset Form
+    // Reset Form and open task modal
     setNewTaskTitle('');
     setNewTaskDesc('');
     setIsAddingTask(false);
+    setIsSearchOpen(false);
+    openTaskModal(eq.id, newTask.id);
   };
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -1026,7 +1025,7 @@ export const SearchModal: React.FC = () => {
                         className={`p-2.5 rounded-xl border bg-white/5 hover:bg-white/10 cursor-pointer transition-all flex items-start gap-2.5 group ${
                           isCompleted ? 'border-white/5 opacity-75' : 'border-white/10 hover:border-blue-500/40'
                         } border-l-4 ${priorityCfg.borderClass}`}
-                        title={`Нажмите, чтобы перейти к [${task.equipmentTag}] ${task.equipmentName}`}
+                        title={`Открыть карточку задачи: "${task.title}" [${task.equipmentTag}]`}
                       >
                         {/* Task Completion Toggle Button */}
                         <button
@@ -1130,8 +1129,27 @@ export const SearchModal: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Arrow Action */}
-                        <ChevronRight className="w-4 h-4 text-slate-500 group-hover:translate-x-1 group-hover:text-blue-400 transition-all shrink-0 mt-2" />
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 shrink-0 mt-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              focusNode(task.equipmentId);
+                              setIsSearchOpen(false);
+                              showToast(
+                                `Оборудование: [${task.equipmentTag}] ${task.equipmentName}`,
+                                `Задача: ${task.title}`,
+                                'info'
+                              );
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-blue-400 transition-colors"
+                            title="Показать оборудование на схеме"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:translate-x-0.5 group-hover:text-blue-400 transition-all" title="Открыть окно задачи" />
+                        </div>
                       </div>
                     );
                   })}

@@ -9,6 +9,7 @@ import { SearchModal } from './components/SearchModal';
 import { ReportModal } from './components/ReportModal';
 import { CreateEquipmentModal } from './components/CreateEquipmentModal';
 import { ShareLinkModal } from './components/ShareLinkModal';
+import { TaskModal } from './components/TaskModal';
 import { ToastContainer } from './components/ToastContainer';
 import { FolderSyncBanner } from './components/FolderSyncBanner';
 import { exportToJSON } from './utils/exportUtils';
@@ -317,6 +318,7 @@ const AppContent: React.FC = () => {
         isOpen={Boolean(shareModalNodeId)} 
         onClose={closeShareModal} 
       />
+      <TaskModal />
 
       {/* Global Toast Notifications */}
       <ToastContainer />

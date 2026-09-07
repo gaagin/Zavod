@@ -19,7 +19,8 @@ import {
   Search,
   CheckSquare,
   Square,
-  Sparkles
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
 
 interface EquipmentTasksSectionProps {
@@ -73,7 +74,7 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
   equipment,
   canEdit,
 }) => {
-  const { updateEquipment, addEventLog, currentUser, openSearch } = useFactory();
+  const { updateEquipment, addEventLog, currentUser, openSearch, openTaskModal } = useFactory();
 
   const tasks = equipment.tasks || [];
   const [isExpanded, setIsExpanded] = useState(true);
@@ -642,10 +643,14 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
                           )}
                         </button>
 
-                        <div className="min-w-0 flex-1">
+                        <div 
+                          className="min-w-0 flex-1 cursor-pointer group/task"
+                          onClick={() => openTaskModal(equipment.id, task.id)}
+                          title="Открыть карточку задачи"
+                        >
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span
-                              className={`text-xs font-bold leading-tight ${
+                              className={`text-xs font-bold leading-tight group-hover/task:text-blue-600 dark:group-hover/task:text-blue-400 transition-colors ${
                                 isDone
                                   ? 'line-through text-slate-400 dark:text-slate-500'
                                   : 'text-slate-900 dark:text-slate-100'
@@ -665,26 +670,36 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
                       </div>
 
                       {/* Right controls */}
-                      {canEdit && (
-                        <div className="flex items-center gap-0.5 shrink-0 ml-1">
-                          <button
-                            type="button"
-                            onClick={() => handleStartEdit(task)}
-                            className="p-1 text-slate-400 hover:text-blue-500 rounded transition-colors"
-                            title="Редактировать"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTask(task.id, task.title)}
-                            className="p-1 text-slate-400 hover:text-rose-500 rounded transition-colors"
-                            title="Удалить задачу"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                        <button
+                          type="button"
+                          onClick={() => openTaskModal(equipment.id, task.id)}
+                          className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors"
+                          title="Открыть карточку задачи"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                        {canEdit && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(task)}
+                              className="p-1 text-slate-400 hover:text-blue-500 rounded transition-colors"
+                              title="Быстрое редактирование"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTask(task.id, task.title)}
+                              className="p-1 text-slate-400 hover:text-rose-500 rounded transition-colors"
+                              title="Удалить задачу"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     {/* Metadata Pill Badges */}

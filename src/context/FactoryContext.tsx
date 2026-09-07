@@ -151,6 +151,9 @@ interface FactoryContextType {
   setIsSearchOpen: (open: boolean) => void;
   searchDefaultTab: 'components' | 'tasks' | 'logs';
   openSearch: (tab?: 'components' | 'tasks' | 'logs') => void;
+  activeTaskModal: { equipmentId: string; taskId: string } | null;
+  openTaskModal: (equipmentId: string, taskId: string) => void;
+  closeTaskModal: () => void;
   isCreateEquipmentOpen: boolean;
   setIsCreateEquipmentOpen: (open: boolean) => void;
   addEmptyEquipment: (parentId?: string | null, position?: { x: number; y: number }) => string;
@@ -389,6 +392,15 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const openSearch = useCallback((tab?: 'components' | 'tasks' | 'logs') => {
     if (tab) setSearchDefaultTab(tab);
     setIsSearchOpen(true);
+  }, []);
+  const [activeTaskModal, setActiveTaskModal] = useState<{ equipmentId: string; taskId: string } | null>(null);
+
+  const openTaskModal = useCallback((equipmentId: string, taskId: string) => {
+    setActiveTaskModal({ equipmentId, taskId });
+  }, []);
+
+  const closeTaskModal = useCallback(() => {
+    setActiveTaskModal(null);
   }, []);
   const [isCreateEquipmentOpen, setIsCreateEquipmentOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -3008,6 +3020,9 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsSearchOpen,
         searchDefaultTab,
         openSearch,
+        activeTaskModal,
+        openTaskModal,
+        closeTaskModal,
         isCreateEquipmentOpen,
         setIsCreateEquipmentOpen,
         addEmptyEquipment,

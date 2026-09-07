@@ -31,6 +31,12 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 export type TaskType = 'maintenance' | 'repair' | 'inspection' | 'setup' | 'other';
 
+export interface TaskChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export interface EquipmentTask {
   id: string;
   title: string;
@@ -43,6 +49,7 @@ export interface EquipmentTask {
   createdAt: string;
   completedAt?: string;
   createdBy?: string;
+  checklist?: TaskChecklistItem[];
 }
 
 export interface EquipmentNode {

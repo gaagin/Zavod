@@ -122,6 +122,7 @@ export const Canvas: React.FC = () => {
     canUndo,
     recordHistorySnapshot,
     highlightedNodeId,
+    openTaskModal,
   } = useFactory();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -2985,12 +2986,20 @@ export const Canvas: React.FC = () => {
                     )}
                     {equipment.tasks && equipment.tasks.filter(t => t.status !== 'completed').length > 0 && (
                       <span
-                        className={`px-1 py-0.2 rounded font-mono text-[8.5px] font-bold flex items-center gap-0.5 shrink-0 ${
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedId(equipment.id);
+                          const activeTask = equipment.tasks?.find(t => t.status !== 'completed') || equipment.tasks?.[0];
+                          if (activeTask) {
+                            openTaskModal(equipment.id, activeTask.id);
+                          }
+                        }}
+                        className={`cursor-pointer hover:scale-105 active:scale-95 transition-transform px-1 py-0.2 rounded font-mono text-[8.5px] font-bold flex items-center gap-0.5 shrink-0 ${
                           equipment.tasks.some(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'completed')
                             ? 'bg-rose-500/20 text-rose-500 border border-rose-500/40'
                             : 'bg-blue-500/15 text-blue-500 border border-blue-500/30'
                         }`}
-                        title={`Активные задачи: ${equipment.tasks.filter(t => t.status !== 'completed').length}`}
+                        title={`Активные задачи: ${equipment.tasks.filter(t => t.status !== 'completed').length}. Нажмите, чтобы открыть окно задачи.`}
                       >
                         <ListTodo className="w-2 h-2" />
                         <span>{equipment.tasks.filter(t => t.status !== 'completed').length}</span>
@@ -3280,13 +3289,17 @@ export const Canvas: React.FC = () => {
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedId(equipment.id);
+                        const activeTask = equipment.tasks?.find(t => t.status !== 'completed') || equipment.tasks?.[0];
+                        if (activeTask) {
+                          openTaskModal(equipment.id, activeTask.id);
+                        }
                       }}
-                      className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded font-mono font-bold cursor-pointer transition-colors text-[8.5px] shrink-0 ${
+                      className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded font-mono font-bold cursor-pointer transition-all hover:scale-105 active:scale-95 text-[8.5px] shrink-0 ${
                         equipment.tasks.some(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'completed')
                           ? 'bg-rose-500/20 text-rose-500 border border-rose-500/40'
                           : 'bg-blue-500/15 text-blue-500 border border-blue-500/30'
                       }`}
-                      title={`Активные задачи: ${equipment.tasks.filter(t => t.status !== 'completed').length} шт.`}
+                      title={`Активные задачи: ${equipment.tasks.filter(t => t.status !== 'completed').length} шт. Нажмите, чтобы открыть окно задачи.`}
                     >
                       <ListTodo className="w-2 h-2" />
                       <span>{equipment.tasks.filter(t => t.status !== 'completed').length}</span>
