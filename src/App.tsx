@@ -131,8 +131,9 @@ const AppContent: React.FC = () => {
       const target = e.target as HTMLElement;
       const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
 
-      // Ctrl/Cmd + K: Toggle Search Dialog
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'л' || e.key === 'K')) {
+      // Ctrl/Cmd + K or Slash (/): Toggle Search Dialog
+      if (((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'л' || e.key === 'K')) ||
+          (!isInput && !e.ctrlKey && !e.metaKey && !e.altKey && e.key === '/')) {
         e.preventDefault();
         setIsSearchOpen(!isSearchOpen);
         return;

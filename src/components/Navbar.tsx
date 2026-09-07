@@ -31,7 +31,11 @@ import {
   Copy,
   ExternalLink,
   Share2,
-  Zap
+  Zap,
+  Menu,
+  X,
+  Activity,
+  Sliders
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -69,12 +73,24 @@ export const Navbar: React.FC = () => {
     redo,
     canUndo,
     canRedo,
+    isMobileSummaryOpen,
+    setIsMobileSummaryOpen,
   } = useFactory();
 
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [autosaveMenuOpen, setAutosaveMenuOpen] = useState(false);
   const [isCheckingFolder, setIsCheckingFolder] = useState(false);
+  const [isMobileNavMenuOpen, setIsMobileNavMenuOpen] = useState(false);
+  const [mobileNavSections, setMobileNavSections] = useState({
+    role: true,
+    autosave: true,
+    users: false,
+    project: true,
+  });
+
+  const toggleNavSection = (key: keyof typeof mobileNavSections) =>
+    setMobileNavSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   const roleMenuRef = useRef<HTMLDivElement>(null);
   const usersMenuRef = useRef<HTMLDivElement>(null);
@@ -143,7 +159,8 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="h-14 border-b border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F0F12] text-slate-700 dark:text-slate-300 px-4 flex items-center justify-between z-30 select-none transition-colors">
+    <>
+      <header className="h-14 border-b border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F0F12] text-slate-700 dark:text-slate-300 px-4 flex items-center justify-between z-30 select-none transition-colors">
       {/* Brand & Factory Header */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2.5 font-bold tracking-tight">
@@ -158,7 +175,7 @@ export const Navbar: React.FC = () => {
                 SCADA
               </span>
             </div>
-            <div className="text-[10px] text-slate-500 font-normal leading-tight mt-0.5">
+            <div className="text-[10px] text-slate-500 font-normal leading-tight mt-0.5 hidden sm:block">
               Диспетчеризация & Мониторинг цехов
             </div>
           </div>
@@ -173,7 +190,7 @@ export const Navbar: React.FC = () => {
             id="online-users-btn"
             type="button"
             onClick={() => setUsersMenuOpen(!usersMenuOpen)}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition-colors"
             title="Синхронизация в реальном времени"
           >
             <span className="relative flex h-2 w-2">
@@ -226,28 +243,29 @@ export const Navbar: React.FC = () => {
         </div>
       </div>
 
-      {/* Center Search Trigger */}
-      <div className="flex-1 max-w-md mx-4 hidden lg:block">
+      {/* Center Search Trigger (Visible on md+ screens) */}
+      <div className="flex-1 max-w-xs md:max-w-sm lg:max-w-md mx-2 sm:mx-4 hidden md:block">
         <button
           id="global-search-btn"
           type="button"
           onClick={() => setIsSearchOpen(true)}
-          className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-md transition-colors group"
+          className="w-full flex items-center justify-between px-3 py-1.5 text-xs bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg transition-colors group shadow-2xs"
+          title="Глобальный поиск оборудования, цехов и логов (Ctrl+K или /)"
         >
-          <div className="flex items-center gap-2">
-            <Search className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
-            <span className="text-slate-500 dark:text-slate-400">Поиск компонентов, логов, тегов...</span>
+          <div className="flex items-center gap-2 truncate">
+            <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
+            <span className="text-slate-600 dark:text-slate-300 font-medium truncate">Поиск по схеме, тегам, логам...</span>
           </div>
-          <kbd className="text-[10px] font-mono bg-slate-200/60 dark:bg-white/10 border border-slate-300/60 dark:border-white/10 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-400 shadow-2xs">
+          <kbd className="text-[10px] font-mono bg-slate-200/70 dark:bg-white/10 border border-slate-300/70 dark:border-white/15 px-1.5 py-0.5 rounded text-slate-700 dark:text-slate-300 shadow-2xs shrink-0 ml-1">
             Ctrl+K
           </kbd>
         </button>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-2 sm:gap-2.5">
-        {/* Undo & Redo History Controls */}
-        <div className="flex items-center gap-0.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg p-0.5">
+      <div className="flex items-center gap-1.5 sm:gap-2.5">
+        {/* Undo & Redo History Controls (Desktop only, mobile has it in bottom dock) */}
+        <div className="hidden sm:flex items-center gap-0.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg p-0.5">
           <button
             id="nav-undo-btn"
             type="button"
@@ -279,14 +297,16 @@ export const Navbar: React.FC = () => {
           </button>
         </div>
 
-        {/* Mobile Search button */}
+        {/* Mobile & Tablet Search Button (Visible on screens < md) */}
         <button
+          id="nav-mobile-search-btn"
           type="button"
           onClick={() => setIsSearchOpen(true)}
-          className="lg:hidden p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-md"
-          title="Поиск (Ctrl+K)"
+          className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs font-semibold shadow-2xs transition-all active:scale-95"
+          title="Поиск оборудования и логов (Ctrl+K)"
         >
-          <Search className="w-4 h-4" />
+          <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+          <span>Поиск</span>
         </button>
 
         {/* Dedicated AutoSave Status & Multi-Device Sync Widget */}
@@ -295,7 +315,7 @@ export const Navbar: React.FC = () => {
             id="nav-autosave-status-btn"
             type="button"
             onClick={() => setAutosaveMenuOpen(!autosaveMenuOpen)}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
               saveStatus === 'saving'
                 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
                 : saveStatus === 'error'
@@ -316,7 +336,7 @@ export const Navbar: React.FC = () => {
             )}
 
             <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
+              <span className="font-semibold text-slate-800 dark:text-slate-200 hidden sm:inline">
                 {saveStatus === 'saving'
                   ? 'Сохранение...'
                   : saveStatus === 'error'
@@ -642,7 +662,7 @@ export const Navbar: React.FC = () => {
           id="open-project-panel-btn"
           type="button"
           onClick={() => setIsProjectPanelOpen(!isProjectPanelOpen)}
-          className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
+          className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all shrink-0 ${
             isProjectPanelOpen
               ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/25 ring-1 ring-blue-400/40'
               : 'bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'
@@ -661,7 +681,8 @@ export const Navbar: React.FC = () => {
             />
             <Save className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           </div>
-          <span className="font-medium">Файлы и проект</span>
+          <span className="font-medium hidden sm:inline">Файлы и проект</span>
+          <span className="font-medium sm:hidden">Проект</span>
           <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isProjectPanelOpen ? 'rotate-90' : ''}`} />
         </button>
 
@@ -670,23 +691,23 @@ export const Navbar: React.FC = () => {
           id="theme-toggle-btn"
           type="button"
           onClick={toggleDarkMode}
-          className="p-1.5 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-slate-200 dark:border-white/10"
+          className="p-1.5 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-slate-200 dark:border-white/10 shrink-0"
           title={isDarkMode ? 'Включить светлую тему' : 'Включить темную тему (ночная смена)'}
         >
           {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
         </button>
 
         {/* User Role Switcher & Avatar */}
-        <div className="flex items-center gap-2 border-l border-slate-200 dark:border-white/10 pl-3">
+        <div className="flex items-center gap-1.5 sm:gap-2 border-l border-slate-200 dark:border-white/10 pl-1.5 sm:pl-3 shrink-0">
           <div className="relative" ref={roleMenuRef}>
             <button
               id="role-switcher-btn"
               type="button"
               onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-semibold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all uppercase tracking-wide"
+              className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded text-[10px] font-semibold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all uppercase tracking-wide"
               title="Уровень доступа и роль пользователя"
             >
-              <span className="truncate max-w-[100px] sm:max-w-[130px]">
+              <span className="truncate max-w-[70px] sm:max-w-[130px]">
                 {roleLabels[currentUser.role]?.label}
               </span>
               <ChevronDown className="w-3 h-3 opacity-60" />
@@ -747,9 +768,380 @@ export const Navbar: React.FC = () => {
           >
             {currentUser.name.slice(0, 2).toUpperCase()}
           </div>
+
+          {/* Mobile All-in-One Menu Toggle */}
+          <button
+            id="mobile-nav-toggle-btn"
+            type="button"
+            onClick={() => setIsMobileNavMenuOpen(!isMobileNavMenuOpen)}
+            className="lg:hidden p-1.5 rounded-lg border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition-colors shrink-0"
+            title="Все параметры системы и скрывающиеся списки"
+          >
+            {isMobileNavMenuOpen ? <X className="w-4 h-4 text-blue-500" /> : <Menu className="w-4 h-4" />}
+          </button>
         </div>
       </div>
     </header>
-  );
+
+    {/* Full Mobile System Menu with Collapsible Lists */}
+    {isMobileNavMenuOpen && (
+      <div 
+        id="mobile-nav-drawer-backdrop"
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end lg:hidden animate-in fade-in duration-200"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setIsMobileNavMenuOpen(false);
+        }}
+      >
+        <div 
+          id="mobile-nav-drawer-sheet"
+          className="w-full bg-white dark:bg-[#111116] border-t border-slate-200 dark:border-white/15 rounded-t-3xl shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-250"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md">
+                <Sliders className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Параметры и управление SCADA</h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">Все разделы системы и настройки</p>
+              </div>
+            </div>
+            <button
+              id="close-mobile-nav-drawer-btn"
+              type="button"
+              onClick={() => setIsMobileNavMenuOpen(false)}
+              className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Scrollable Content with Collapsible Sections */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* 1. Collapsible Section: User Role Switcher & Profile */}
+            <div className="border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-white/5">
+              <button
+                id="mobile-nav-sec-role-toggle"
+                type="button"
+                onClick={() => toggleNavSection('role')}
+                className="w-full flex items-center justify-between px-4 py-3 text-left font-semibold text-xs text-slate-800 dark:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-500" />
+                  <span>Уровень доступа и роль</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                    {roleLabels[currentUser.role]?.label}
+                  </span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${mobileNavSections.role ? 'rotate-180' : ''}`} />
+              </button>
+
+              {mobileNavSections.role && (
+                <div className="p-3 border-t border-slate-200 dark:border-white/10 space-y-2 bg-white dark:bg-[#0B0B0E]">
+                  {/* Name field */}
+                  <div className="mb-2">
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mb-1">
+                      Имя текущего пользователя:
+                    </label>
+                    <input
+                      type="text"
+                      value={currentUser.name}
+                      onChange={(e) => setCurrentUserName(e.target.value)}
+                      className="w-full text-xs px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {(['admin', 'operator', 'maintenance', 'viewer'] as UserRole[]).map(r => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => {
+                          setCurrentUserRole(r);
+                          addEventLog({
+                            targetId: currentUser.id,
+                            targetName: currentUser.name,
+                            targetType: 'system',
+                            eventType: 'status_change',
+                            severity: 'info',
+                            description: `Сменена роль пользователя на "${roleLabels[r].label}"`,
+                            userName: currentUser.name,
+                            userRole: r,
+                          });
+                        }}
+                        className={`w-full text-left p-2.5 rounded-xl text-xs transition-colors flex items-start justify-between border ${
+                          currentUser.role === r 
+                            ? 'bg-blue-500/10 border-blue-500/40 text-blue-700 dark:text-blue-300 font-medium' 
+                            : 'bg-slate-50/50 dark:bg-white/5 border-slate-200/60 dark:border-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                            {roleLabels[r].label}
+                            {currentUser.role === r && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500 text-white font-mono">
+                                Активно
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            {roleLabels[r].desc}
+                          </div>
+                        </div>
+                        {currentUser.role === r && (
+                          <Check className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5 ml-2" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Collapsible Section: AutoSave & Storage */}
+            <div className="border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-white/5">
+              <button
+                id="mobile-nav-sec-autosave-toggle"
+                type="button"
+                onClick={() => toggleNavSection('autosave')}
+                className="w-full flex items-center justify-between px-4 py-3 text-left font-semibold text-xs text-slate-800 dark:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <HardDrive className="w-4 h-4 text-emerald-500" />
+                  <span>Автосохранение и папка на диске</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                    autoSaveConfig.enabled 
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
+                      : 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/30'
+                  }`}>
+                    {autoSaveConfig.enabled ? `${autoSaveConfig.intervalSeconds}с` : 'Выкл'}
+                  </span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${mobileNavSections.autosave ? 'rotate-180' : ''}`} />
+              </button>
+
+              {mobileNavSections.autosave && (
+                <div className="p-3 border-t border-slate-200 dark:border-white/10 space-y-3 bg-white dark:bg-[#0B0B0E]">
+                  {/* Status row */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full ${
+                        saveStatus === 'saving'
+                          ? 'bg-amber-400 animate-pulse'
+                          : saveStatus === 'error'
+                          ? 'bg-rose-500'
+                          : 'bg-emerald-500'
+                      }`} />
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {saveStatus === 'saving'
+                          ? 'Идет запись...'
+                          : saveStatus === 'error'
+                          ? 'Ошибка записи'
+                          : 'Сохранено актуально'}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      {timeAgoText}
+                    </span>
+                  </div>
+
+                  {/* Actions buttons */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      id="mobile-nav-force-save-btn"
+                      type="button"
+                      onClick={() => forceSave()}
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Сохранить сейчас</span>
+                    </button>
+                    <button
+                      id="mobile-nav-check-folder-btn"
+                      type="button"
+                      disabled={isCheckingFolder}
+                      onClick={handleCheckFolderNow}
+                      className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs font-semibold"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isCheckingFolder ? 'animate-spin' : ''}`} />
+                      <span>Проверить папку</span>
+                    </button>
+                  </div>
+
+                  {/* Directory Access */}
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 text-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-slate-500 font-medium">Папка проекта:</span>
+                      <span className="text-[11px] font-mono text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
+                        {targetDirectory?.name || 'SCADA-Files'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={selectTargetFolder}
+                      className="w-full py-1.5 px-3 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center justify-center gap-1.5"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Выбрать локальную папку...</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 3. Collapsible Section: Multi-Device Sync & Online Users */}
+            <div className="border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-white/5">
+              <button
+                id="mobile-nav-sec-users-toggle"
+                type="button"
+                onClick={() => toggleNavSection('users')}
+                className="w-full flex items-center justify-between px-4 py-3 text-left font-semibold text-xs text-slate-800 dark:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Radio className="w-4 h-4 text-blue-500" />
+                  <span>Онлайн синхронизация и устройства</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+                    {onlineUsers.length} устр.
+                  </span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${mobileNavSections.users ? 'rotate-180' : ''}`} />
+              </button>
+
+              {mobileNavSections.users && (
+                <div className="p-3 border-t border-slate-200 dark:border-white/10 space-y-2.5 bg-white dark:bg-[#0B0B0E]">
+                  <div className="flex items-center justify-between text-xs pb-1">
+                    <span className="text-slate-500 dark:text-slate-400">Статус WebSocket:</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                      Live WS Подключено
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {onlineUsers.map(u => (
+                      <div key={u.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: u.color }} />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {u.name} {u.id === currentUser.id ? '(Вы)' : ''}
+                          </span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-white/10 text-slate-700 dark:text-slate-300 font-mono">
+                          {roleLabels[u.role]?.label || u.role}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={sendPingSync}
+                      className="py-1.5 px-3 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center justify-center gap-1.5"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Тест пинга</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyShareLink}
+                      className="py-1.5 px-3 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center justify-center gap-1.5"
+                    >
+                      <Share2 className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Ссылка для второго устр.</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 4. Collapsible Section: Panels, Views & Project */}
+            <div className="border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-white/5">
+              <button
+                id="mobile-nav-sec-project-toggle"
+                type="button"
+                onClick={() => toggleNavSection('project')}
+                className="w-full flex items-center justify-between px-4 py-3 text-left font-semibold text-xs text-slate-800 dark:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <FolderCheck className="w-4 h-4 text-purple-500" />
+                  <span>Панели и быстрые действия</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${mobileNavSections.project ? 'rotate-180' : ''}`} />
+              </button>
+
+              {mobileNavSections.project && (
+                <div className="p-3 border-t border-slate-200 dark:border-white/10 space-y-2 bg-white dark:bg-[#0B0B0E]">
+                  <button
+                    id="mobile-nav-open-files-btn"
+                    type="button"
+                    onClick={() => {
+                      setIsProjectPanelOpen(true);
+                      setIsMobileNavMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/30 text-blue-700 dark:text-blue-300 text-xs font-semibold"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Save className="w-4 h-4 text-blue-500" />
+                      <span>Панель «Файлы и проект»</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    id="mobile-nav-open-summary-btn"
+                    type="button"
+                    onClick={() => {
+                      setIsMobileSummaryOpen(true);
+                      setIsMobileNavMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-emerald-500" />
+                      <span>Сводка завода и цехи (KPIs)</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    id="mobile-nav-open-search-btn"
+                    type="button"
+                    onClick={() => {
+                      setIsSearchOpen(true);
+                      setIsMobileNavMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 text-xs font-medium"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Search className="w-4 h-4 text-slate-500" />
+                      <span>Глобальный поиск по схеме</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400">Ctrl+K</span>
+                  </button>
+
+                  <button
+                    id="mobile-nav-toggle-theme-btn"
+                    type="button"
+                    onClick={toggleDarkMode}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 text-xs font-medium"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+                      <span>{isDarkMode ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">{isDarkMode ? 'Ночная' : 'Дневная'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 
 };

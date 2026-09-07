@@ -160,6 +160,8 @@ interface FactoryContextType {
   setIsEventLogsOpen: (open: boolean) => void;
   isProjectPanelOpen: boolean;
   setIsProjectPanelOpen: (open: boolean) => void;
+  isMobileSummaryOpen: boolean;
+  setIsMobileSummaryOpen: (open: boolean) => void;
   gridSnap: boolean;
   setGridSnap: (snap: boolean) => void;
   smartGuides: boolean;
@@ -385,6 +387,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isBackupOpen, setIsBackupOpen] = useState(false);
   const [isEventLogsOpen, setIsEventLogsOpen] = useState(false);
   const [isProjectPanelOpen, setIsProjectPanelOpen] = useState(false);
+  const [isMobileSummaryOpen, setIsMobileSummaryOpen] = useState(false);
 
   // Element Deep Linking & Highlight
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null);
@@ -3006,6 +3009,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsEventLogsOpen,
         isProjectPanelOpen,
         setIsProjectPanelOpen,
+        isMobileSummaryOpen,
+        setIsMobileSummaryOpen,
         gridSnap,
         setGridSnap,
         smartGuides,

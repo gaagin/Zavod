@@ -28,6 +28,7 @@ import {
   Edit3,
   Sliders,
   ChevronRight,
+  ChevronDown,
   Maximize2,
   Minimize2,
   Focus,
@@ -69,11 +70,24 @@ export const InspectorPanel: React.FC = () => {
     pasteElements,
     duplicateSelected,
     hasClipboard,
+    isMobileSummaryOpen,
+    setIsMobileSummaryOpen,
   } = useFactory();
 
   const [newPropName, setNewPropName] = useState('');
   const [newPropValue, setNewPropValue] = useState('');
   const [newPropUnit, setNewPropUnit] = useState('');
+
+  // Collapsible sections (скрывающиеся списки для мобильных и десктопа)
+  const [eqSections, setEqSections] = useState({ basic: true, props: true, children: true, links: false, actions: true });
+  const [contSections, setContSections] = useState({ focus: true, basic: true, dimensions: true, children: true, links: false, actions: true });
+  const [overviewSections, setOverviewSections] = useState({ rate: true, kpi: true, tree: true });
+  const [multiSections, setMultiSections] = useState({ summary: true, status: true, items: true, actions: true });
+
+  const toggleEqSection = (key: keyof typeof eqSections) => setEqSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleContSection = (key: keyof typeof contSections) => setContSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleOverviewSection = (key: keyof typeof overviewSections) => setOverviewSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleMultiSection = (key: keyof typeof multiSections) => setMultiSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   const effectiveId = selectedId || (selectedIds.length === 0 ? focusedContainerId : null);
   const selectedEquipment = state.equipment.find(e => e.id === effectiveId);
@@ -101,50 +115,64 @@ export const InspectorPanel: React.FC = () => {
     };
 
     return (
-      <aside 
-        id="factory-inspector-multiselect"
-        className="w-80 border-l border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F0F12] text-slate-700 dark:text-slate-300 p-4 h-full overflow-y-auto select-none transition-colors hidden lg:flex lg:flex-col shadow-sm"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-blue-500" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
-              Групповое выделение
-            </h3>
+      <>
+        {/* Mobile backdrop overlay */}
+        <div 
+          onClick={() => {
+            setSelectedId(null);
+            setSelectedIds([]);
+          }}
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+        />
+        <aside 
+          id="factory-inspector-multiselect"
+          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:p-4 lg:pb-4 flex flex-col shadow-sm text-slate-700 dark:text-slate-300"
+        >
+          {/* Mobile Drag Indicator */}
+          <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
+            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-white/20" />
           </div>
-          <button
-            onClick={() => {
-              setSelectedId(null);
-              setSelectedIds([]);
-            }}
-            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
-            title="Снять выделение"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
-        {/* Selection Count Summary */}
-        <div className="my-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
-          <div className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 mb-1">
-            Всего выбрано: {selectedIds.length} объектов
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-blue-500" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                Групповое выделение
+              </h3>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedId(null);
+                setSelectedIds([]);
+              }}
+              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+              title="Снять выделение"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <div className="grid grid-cols-3 gap-1.5 text-center mt-2">
-            <div className="p-1.5 rounded-lg bg-white/60 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400">Оборудование</div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white">{selectedEqList.length}</div>
+
+          {/* Selection Count Summary */}
+          <div className="my-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-blue-600 dark:text-blue-400 mb-1">
+              <span>Всего выбрано: {selectedIds.length} объектов</span>
             </div>
-            <div className="p-1.5 rounded-lg bg-white/60 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400">Участки</div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white">{selectedContList.length}</div>
-            </div>
-            <div className="p-1.5 rounded-lg bg-white/60 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
-              <div className="text-[10px] text-slate-500 dark:text-slate-400">Связи</div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white">{selectedLinkList.length}</div>
+            <div className="grid grid-cols-3 gap-1.5 text-center mt-2">
+              <div className="p-1.5 rounded-lg bg-white/60 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Оборудование</div>
+                <div className="text-sm font-bold text-slate-900 dark:text-white">{selectedEqList.length}</div>
+              </div>
+              <div className="p-1.5 rounded-lg bg-white/60 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Участки</div>
+                <div className="text-sm font-bold text-slate-900 dark:text-white">{selectedContList.length}</div>
+              </div>
+              <div className="p-1.5 rounded-lg bg-white/60 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">Связи</div>
+                <div className="text-sm font-bold text-slate-900 dark:text-white">{selectedLinkList.length}</div>
+              </div>
             </div>
           </div>
-        </div>
 
         {/* Selected Equipment Metrics */}
         {selectedEqList.length > 0 && (
@@ -307,6 +335,7 @@ export const InspectorPanel: React.FC = () => {
           )}
         </div>
       </aside>
+    </>
     );
   }
 
@@ -373,98 +402,186 @@ export const InspectorPanel: React.FC = () => {
     const operationalPercent = totalEq > 0 ? Math.round((normalCount / totalEq) * 100) : 100;
 
     return (
-      <aside 
-        id="factory-inspector-overview"
-        className="w-80 border-l border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F0F12] text-slate-700 dark:text-slate-300 p-4 h-full overflow-y-auto select-none transition-colors hidden lg:block shadow-sm"
-      >
-        <div className="flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-white/10">
-          <Activity className="w-4 h-4 text-blue-500" />
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-            Сводка предприятия
-          </h3>
-        </div>
+      <>
+        {/* Mobile floating button to open overview if closed */}
+        <button
+          onClick={() => setIsMobileSummaryOpen(true)}
+          className="fixed top-14 left-3 z-30 lg:hidden flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/95 dark:bg-[#0F0F12]/95 border border-slate-200 dark:border-white/15 shadow-md text-xs font-semibold text-slate-800 dark:text-slate-200 backdrop-blur-md active:scale-95 transition-all"
+          title="Открыть сводку предприятия и структуру цехов"
+        >
+          <Activity className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          <span>Сводка: {operationalPercent}% OK</span>
+        </button>
 
-        {/* Operational Rate Meter */}
-        <div className="my-4 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-          <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="font-semibold text-slate-500 dark:text-slate-400">Коэффициент готовности:</span>
-            <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-              {operationalPercent}%
-            </span>
-          </div>
-          <div className="w-full h-2 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden flex">
-            <div style={{ width: `${(normalCount / totalEq) * 100}%` }} className="bg-emerald-500 h-full" />
-            <div style={{ width: `${(warnCount / totalEq) * 100}%` }} className="bg-amber-500 h-full" />
-            <div style={{ width: `${(critCount / totalEq) * 100}%` }} className="bg-red-500 h-full" />
-            <div style={{ width: `${(maintCount / totalEq) * 100}%` }} className="bg-indigo-500 h-full" />
-          </div>
-          <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 font-medium">
-            <span>Штатно: {normalCount}</span>
-            <span>Аварии: {critCount}</span>
-            <span>ТО: {maintCount}</span>
-          </div>
-        </div>
+        {/* Mobile backdrop overlay */}
+        {isMobileSummaryOpen && (
+          <div 
+            onClick={() => setIsMobileSummaryOpen(false)}
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+          />
+        )}
 
-        {/* Key KPIs */}
-        <div className="grid grid-cols-2 gap-2 text-xs mb-4">
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-            <div className="text-[10px] text-slate-500 dark:text-slate-400">Всего оборудования</div>
-            <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{totalEq} ед.</div>
+        <aside 
+          id="factory-inspector-overview"
+          className={`
+            ${isMobileSummaryOpen 
+              ? 'fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] max-h-[85vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none' 
+              : 'hidden'
+            }
+            lg:block lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:p-4 lg:shadow-sm
+            text-slate-700 dark:text-slate-300 transition-all
+          `}
+        >
+          {/* Mobile Drag Handle & Header */}
+          <div className="lg:hidden flex items-center justify-between pb-2.5 -mt-1 border-b border-slate-200 dark:border-white/10 mb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-blue-500" />
+              <span className="text-xs font-bold text-slate-900 dark:text-white">Сводка завода & Дерево цехов</span>
+            </div>
+            <button
+              onClick={() => setIsMobileSummaryOpen(false)}
+              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-            <div className="text-[10px] text-slate-500 dark:text-slate-400">Цехов и линий</div>
-            <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{state.containers.length} зон</div>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-            <div className="text-[10px] text-slate-500 dark:text-slate-400">Суммарная мощность</div>
-            <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{totalPower.toFixed(0)} кВт</div>
-          </div>
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10">
-            <div className="text-[10px] text-slate-500 dark:text-slate-400">Связей в схеме</div>
-            <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{state.links.length} лин.</div>
-          </div>
-        </div>
 
-        {/* Tree Navigator */}
-        <div className="pt-2 border-t border-slate-200 dark:border-white/10">
-          <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-            <span>Структура цехов</span>
-            <FolderTree className="w-3.5 h-3.5" />
+          <div className="hidden lg:flex items-center gap-2 pb-3 border-b border-slate-200 dark:border-white/10">
+            <Activity className="w-4 h-4 text-blue-500" />
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              Сводка предприятия
+            </h3>
           </div>
-          <div className="space-y-1 text-xs">
-            {state.containers.filter(c => !c.parentId).map(topCont => (
-              <div key={topCont.id} className="space-y-1">
-                <button
-                  onClick={() => focusNode(topCont.id)}
-                  className="w-full text-left p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-between group text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
-                >
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: topCont.color }} />
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white truncate">{topCont.name}</span>
-                  </div>
-                  <ChevronRight className="w-3 h-3 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300 group-hover:translate-x-0.5 transition-all" />
-                </button>
 
-                {/* Sub-containers */}
-                {state.containers.filter(c => c.parentId === topCont.id).map(subCont => (
-                  <button
-                    key={subCont.id}
-                    onClick={() => focusNode(subCont.id)}
-                    className="w-full text-left pl-5 pr-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
-                  >
-                    <span className="truncate">↳ {subCont.name}</span>
-                    <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">{subCont.tag}</span>
-                  </button>
-                ))}
+          {/* Section 1: Operational Rate Meter (Collapsible) */}
+          <div className="my-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleOverviewSection('rate')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Готовность завода
+                </span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
+                  {operationalPercent}%
+                </span>
               </div>
-            ))}
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${overviewSections.rate ? 'rotate-180' : ''}`} />
+            </button>
+            {overviewSections.rate && (
+              <div className="px-3 pb-3 pt-1 border-t border-slate-200/50 dark:border-white/5">
+                <div className="w-full h-2.5 bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden flex shadow-inner">
+                  <div style={{ width: `${(normalCount / totalEq) * 100}%` }} className="bg-emerald-500 h-full" />
+                  <div style={{ width: `${(warnCount / totalEq) * 100}%` }} className="bg-amber-500 h-full" />
+                  <div style={{ width: `${(critCount / totalEq) * 100}%` }} className="bg-red-500 h-full" />
+                  <div style={{ width: `${(maintCount / totalEq) * 100}%` }} className="bg-indigo-500 h-full" />
+                </div>
+                <div className="grid grid-cols-3 gap-1 text-[10px] text-slate-600 dark:text-slate-400 mt-2 font-medium text-center">
+                  <span className="p-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">Штатно: {normalCount}</span>
+                  <span className="p-1 rounded bg-red-500/10 text-red-700 dark:text-red-300">Аварии: {critCount}</span>
+                  <span className="p-1 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">ТО: {maintCount}</span>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
 
-        <div className="mt-6 p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
-          💡 Кликните на любой блок или контейнер на холсте для редактирования его параметров, статуса или свойств.
-        </div>
-      </aside>
+          {/* Section 2: Key KPIs (Collapsible) */}
+          <div className="my-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleOverviewSection('kpi')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+            >
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Ключевые показатели (KPI)
+              </span>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${overviewSections.kpi ? 'rotate-180' : ''}`} />
+            </button>
+            {overviewSections.kpi && (
+              <div className="p-3 pt-1 border-t border-slate-200/50 dark:border-white/5 grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded-lg bg-white/70 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Оборудование</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{totalEq} ед.</div>
+                </div>
+                <div className="p-2 rounded-lg bg-white/70 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Цехи и зоны</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{state.containers.length} зон</div>
+                </div>
+                <div className="p-2 rounded-lg bg-white/70 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Мощность</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{totalPower.toFixed(0)} кВт</div>
+                </div>
+                <div className="p-2 rounded-lg bg-white/70 dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">Связей</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{state.links.length} лин.</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 3: Tree Navigator (Collapsible) */}
+          <div className="my-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleOverviewSection('tree')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-1.5">
+                <FolderTree className="w-3.5 h-3.5 text-blue-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Дерево структуры цехов
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${overviewSections.tree ? 'rotate-180' : ''}`} />
+            </button>
+            {overviewSections.tree && (
+              <div className="p-2.5 pt-1 border-t border-slate-200/50 dark:border-white/5 space-y-1 text-xs">
+                {state.containers.length === 0 ? (
+                  <div className="text-[11px] text-slate-400 py-2 text-center">Контейнеры пока не созданы</div>
+                ) : (
+                  state.containers.filter(c => !c.parentId).map(topCont => (
+                    <div key={topCont.id} className="space-y-1">
+                      <button
+                        onClick={() => {
+                          focusNode(topCont.id);
+                          setSelectedId(topCont.id);
+                          setIsMobileSummaryOpen(false);
+                        }}
+                        className="w-full text-left p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 flex items-center justify-between group text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: topCont.color }} />
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{topCont.name}</span>
+                        </div>
+                        <ChevronRight className="w-3 h-3 text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300 group-hover:translate-x-0.5 transition-all shrink-0" />
+                      </button>
+
+                      {/* Sub-containers */}
+                      {state.containers.filter(c => c.parentId === topCont.id).map(subCont => (
+                        <button
+                          key={subCont.id}
+                          onClick={() => {
+                            focusNode(subCont.id);
+                            setSelectedId(subCont.id);
+                            setIsMobileSummaryOpen(false);
+                          }}
+                          className="w-full text-left pl-5 pr-2 py-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
+                        >
+                          <span className="truncate">↳ {subCont.name}</span>
+                          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 shrink-0">{subCont.tag}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
+            💡 Кликните на любой блок или контейнер на схеме для открытия его инспектора свойств и связей.
+          </div>
+        </aside>
+      </>
     );
   }
 

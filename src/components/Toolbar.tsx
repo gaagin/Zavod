@@ -29,7 +29,11 @@ import {
   Magnet,
   Copy,
   ClipboardPaste,
-  CopyPlus
+  CopyPlus,
+  X,
+  Activity,
+  FolderTree,
+  Search
 } from 'lucide-react';
 
 export const Toolbar: React.FC = () => {
@@ -68,12 +72,28 @@ export const Toolbar: React.FC = () => {
     duplicateSelected,
     hasClipboard,
     getVisibleCanvasCenter,
+    isMobileSummaryOpen,
+    setIsMobileSummaryOpen,
+    setIsSearchOpen,
   } = useFactory();
 
   const selectedContainer = state.containers.find(c => c.id === selectedId);
 
   const [equipmentMenuOpen, setEquipmentMenuOpen] = useState(false);
   const [linkMenuOpen, setLinkMenuOpen] = useState(false);
+  const [isMobileToolsOpen, setIsMobileToolsOpen] = useState(false);
+  const [mobileSections, setMobileSections] = useState({
+    equip: true,
+    links: true,
+    clipboard: false,
+    focus: false,
+    view: false,
+    canvas: true,
+  });
+
+  const toggleMobileSection = (key: keyof typeof mobileSections) =>
+    setMobileSections(prev => ({ ...prev, [key]: !prev[key] }));
+
   const equipmentMenuRef = useRef<HTMLDivElement>(null);
   const linkMenuRef = useRef<HTMLDivElement>(null);
 
@@ -150,8 +170,9 @@ export const Toolbar: React.FC = () => {
   };
 
   return (
-    <aside 
-      id="main-toolbar"
+    <>
+      <aside 
+        id="main-toolbar"
       style={{
         bottom: 'max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))'
       }}
@@ -424,51 +445,53 @@ export const Toolbar: React.FC = () => {
         )}
       </div>
 
-      <div className="w-[1px] h-6 bg-slate-200 dark:bg-white/10 mx-1" />
+      <div className="w-[1px] h-6 bg-slate-200 dark:bg-white/10 mx-1 hidden sm:block" />
 
-      {/* Focus Mode Button */}
-      {focusedContainerId ? (
-        <button
-          id="toolbar-exit-focus-btn"
-          type="button"
-          onClick={exitFocusMode}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-100 dark:bg-blue-600/30 hover:bg-blue-200 dark:hover:bg-blue-600/40 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/50 shadow-xs transition-all"
-          title="Выйти из фокусного режима контейнера (Esc / F)"
-        >
-          <Minimize2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-          <span className="text-xs font-semibold hidden md:inline">
-            Фокус: {state.containers.find(c => c.id === focusedContainerId)?.tag || 'Цех'}
-          </span>
-        </button>
-      ) : selectedContainer ? (
-        <button
-          id="toolbar-enter-focus-btn"
-          type="button"
-          onClick={() => toggleFocusMode(selectedContainer.id)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-600/20 hover:bg-blue-100 dark:hover:bg-blue-600/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/40 shadow-xs transition-all"
-          title="Открыть контейнер на весь экран в фокусном режиме (F)"
-        >
-          <Maximize2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-          <span className="text-xs font-semibold hidden md:inline">Фокус (F)</span>
-        </button>
-      ) : (
-        <button
-          id="toolbar-focus-hint-btn"
-          type="button"
-          onClick={() => {
-            if (state.containers.length > 0) {
-              toggleFocusMode(state.containers[0].id);
-            }
-          }}
-          className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-slate-300 transition-all"
-          title="Фокусный режим цеха (выберите контейнер или нажмите F)"
-        >
-          <Maximize2 className="w-4 h-4" />
-        </button>
-      )}
+      {/* Focus Mode Button (Desktop) */}
+      <div className="hidden sm:flex items-center">
+        {focusedContainerId ? (
+          <button
+            id="toolbar-exit-focus-btn"
+            type="button"
+            onClick={exitFocusMode}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-100 dark:bg-blue-600/30 hover:bg-blue-200 dark:hover:bg-blue-600/40 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/50 shadow-xs transition-all"
+            title="Выйти из фокусного режима контейнера (Esc / F)"
+          >
+            <Minimize2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-xs font-semibold hidden md:inline">
+              Фокус: {state.containers.find(c => c.id === focusedContainerId)?.tag || 'Цех'}
+            </span>
+          </button>
+        ) : selectedContainer ? (
+          <button
+            id="toolbar-enter-focus-btn"
+            type="button"
+            onClick={() => toggleFocusMode(selectedContainer.id)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-600/20 hover:bg-blue-100 dark:hover:bg-blue-600/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/40 shadow-xs transition-all"
+            title="Открыть контейнер на весь экран в фокусном режиме (F)"
+          >
+            <Maximize2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-xs font-semibold hidden md:inline">Фокус (F)</span>
+          </button>
+        ) : (
+          <button
+            id="toolbar-focus-hint-btn"
+            type="button"
+            onClick={() => {
+              if (state.containers.length > 0) {
+                toggleFocusMode(state.containers[0].id);
+              }
+            }}
+            className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-700 dark:text-slate-300 transition-all"
+            title="Фокусный режим цеха (выберите контейнер или нажмите F)"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
 
-      {/* Clipboard: Copy, Paste, Duplicate */}
-      <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg p-0.5 shrink-0" title="Буфер обмена элементов схемы">
+      {/* Clipboard: Copy, Paste, Duplicate (Desktop) */}
+      <div className="hidden sm:flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg p-0.5 shrink-0" title="Буфер обмена элементов схемы">
         <button
           id="toolbar-copy-btn"
           type="button"
@@ -516,8 +539,8 @@ export const Toolbar: React.FC = () => {
         </button>
       </div>
 
-      {/* Collapse All / Expand All Nodes */}
-      <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg p-0.5 shrink-0" title="Управление отображением узлов схемы">
+      {/* Collapse All / Expand All Nodes (Desktop) */}
+      <div className="hidden sm:flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg p-0.5 shrink-0" title="Управление отображением узлов схемы">
         <button
           id="toolbar-collapse-all-btn"
           type="button"
@@ -538,27 +561,27 @@ export const Toolbar: React.FC = () => {
         </button>
       </div>
 
-      {/* Smart Guides (draw.io style) Toggle */}
+      {/* Smart Guides Toggle (Desktop) */}
       <button
         id="smart-guides-snap-btn"
         type="button"
         onClick={() => setSmartGuides(!smartGuides)}
-        className={`p-2 sm:p-2 rounded-xl sm:rounded-lg shrink-0 transition-all ${
+        className={`hidden sm:flex p-2 rounded-lg shrink-0 transition-all ${
           smartGuides
             ? 'bg-sky-50 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold ring-1 ring-sky-500/20'
             : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-700 dark:text-slate-300'
         }`}
-        title={smartGuides ? 'Умные направляющие (draw.io): ВКЛ (выравнивание по краям и центрам)' : 'Умные направляющие (draw.io): ВЫКЛ'}
+        title={smartGuides ? 'Умные направляющие (draw.io): ВКЛ' : 'Умные направляющие (draw.io): ВЫКЛ'}
       >
         <Magnet className="w-4 h-4" />
       </button>
 
-      {/* Grid Snap Toggle */}
+      {/* Grid Snap Toggle (Desktop) */}
       <button
         id="grid-snap-btn"
         type="button"
         onClick={() => setGridSnap(!gridSnap)}
-        className={`p-2 sm:p-2 rounded-xl sm:rounded-lg shrink-0 transition-all ${
+        className={`hidden sm:flex p-2 rounded-lg shrink-0 transition-all ${
           gridSnap
             ? 'bg-blue-50 dark:bg-white/10 text-blue-600 dark:text-blue-400 font-bold'
             : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-700 dark:text-slate-300'
@@ -578,7 +601,6 @@ export const Toolbar: React.FC = () => {
         >
           <ZoomOut className="w-3.5 h-3.5" />
         </button>
-
         <button
           type="button"
           onClick={zoomReset}
@@ -587,7 +609,6 @@ export const Toolbar: React.FC = () => {
         >
           {Math.round(viewport.zoom * 100)}%
         </button>
-
         <button
           type="button"
           onClick={zoomIn}
@@ -606,12 +627,12 @@ export const Toolbar: React.FC = () => {
         type="button"
         disabled={!canUndo}
         onClick={undo}
-        className={`flex items-center gap-1.5 px-2.5 py-2 sm:py-1.5 rounded-xl sm:rounded-lg shrink-0 transition-all ${
+        className={`flex items-center gap-1.5 px-2 py-2 sm:px-2.5 sm:py-1.5 rounded-xl sm:rounded-lg shrink-0 transition-all ${
           canUndo
             ? 'bg-blue-50 dark:bg-blue-600/25 hover:bg-blue-100 dark:hover:bg-blue-600/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/40 shadow-2xs active:scale-95'
             : 'opacity-30 cursor-not-allowed text-slate-400 dark:text-slate-600'
         }`}
-        title={canUndo ? 'Отменить последнее действие (Ctrl+Z)' : 'Нет действий для отмены'}
+        title={canUndo ? 'Отменить (Ctrl+Z)' : 'Нет действий для отмены'}
       >
         <Undo2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
         <span className="text-xs font-semibold hidden md:inline">Отменить</span>
@@ -622,16 +643,501 @@ export const Toolbar: React.FC = () => {
         type="button"
         disabled={!canRedo}
         onClick={redo}
-        className={`p-2 sm:p-2 rounded-xl sm:rounded-lg shrink-0 transition-all ${
+        className={`p-2 rounded-xl sm:rounded-lg shrink-0 transition-all ${
           canRedo
             ? 'hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white active:scale-95'
             : 'opacity-20 cursor-not-allowed text-slate-400 dark:text-slate-600'
         }`}
-        title={canRedo ? 'Повторить отмененное действие (Ctrl+Y)' : 'Нет действий для повтора'}
+        title={canRedo ? 'Повторить (Ctrl+Y)' : 'Нет действий для повтора'}
       >
         <Redo2 className="w-4 h-4" />
       </button>
+
+      {/* Global Search Button (Desktop) */}
+      <button
+        id="toolbar-search-btn"
+        type="button"
+        onClick={() => setIsSearchOpen(true)}
+        className="hidden sm:flex items-center gap-1.5 px-2 py-2 sm:px-2.5 sm:py-1.5 rounded-xl sm:rounded-lg shrink-0 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 border border-slate-200 dark:border-white/10 hover:border-blue-300 dark:hover:border-blue-500/30 transition-all active:scale-95 shadow-2xs"
+        title="Поиск оборудования, цехов и логов (Ctrl+K или /)"
+      >
+        <Search className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+        <span className="text-xs font-semibold hidden md:inline">Поиск</span>
+      </button>
+
+      {/* Mobile Search Button in Bottom Dock */}
+      <button
+        id="toolbar-mobile-search-btn"
+        type="button"
+        onClick={() => setIsSearchOpen(true)}
+        className="sm:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 shadow-2xs active:scale-95 transition-all shrink-0 font-semibold text-[11px]"
+        title="Поиск по схеме (Ctrl+K)"
+      >
+        <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+        <span>Поиск</span>
+      </button>
+
+      {/* Mobile "Все инструменты" button */}
+      <button
+        id="toolbar-mobile-more-btn"
+        type="button"
+        onClick={() => setIsMobileToolsOpen(true)}
+        className="sm:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20 active:scale-95 transition-all shrink-0"
+        title="Все инструменты (скрывающиеся списки)"
+      >
+        <Sliders className="w-3.5 h-3.5" />
+        <span className="text-[11px] font-semibold">Все</span>
+      </button>
     </aside>
+
+    {/* Mobile Tools Bottom Sheet with Collapsible Lists */}
+    {isMobileToolsOpen && (
+      <>
+        <div 
+          onClick={() => setIsMobileToolsOpen(false)}
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs sm:hidden"
+        />
+        <div 
+          className="fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] max-h-[85vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl sm:hidden text-slate-700 dark:text-slate-300 select-none"
+        >
+          {/* Mobile Drag Handle */}
+          <div className="flex items-center justify-center pb-2 -mt-1">
+            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-white/20" />
+          </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10 mb-3">
+            <div className="flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                Все инструменты схемы
+              </h3>
+            </div>
+            <button
+              onClick={() => setIsMobileToolsOpen(false)}
+              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Quick Search Action in Mobile Bottom Sheet */}
+          <button
+            id="mobile-sheet-search-action-btn"
+            type="button"
+            onClick={() => {
+              setIsMobileToolsOpen(false);
+              setIsSearchOpen(true);
+            }}
+            className="w-full flex items-center justify-between p-2.5 mb-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 font-semibold text-xs shadow-xs active:scale-98 transition-all"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                <Search className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-slate-900 dark:text-white">Глобальный поиск по схеме</div>
+                <div className="text-[10px] text-blue-600 dark:text-blue-400 font-normal">Оборудование, параметры, логи и теги</div>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-blue-200/60 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-bold">
+              Ctrl+K
+            </span>
+          </button>
+
+          {/* 1. Скрывающийся список: Оборудование и Цехи */}
+          <div className="mb-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleMobileSection('equip')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <PlusSquare className="w-4 h-4 text-blue-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Добавление оборудования и цехов
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${mobileSections.equip ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileSections.equip && (
+              <div className="p-2.5 pt-1 border-t border-slate-200/50 dark:border-white/5 space-y-2 text-xs">
+                <button
+                  type="button"
+                  disabled={!canEdit}
+                  onClick={() => {
+                    handleQuickAddContainer();
+                    setIsMobileToolsOpen(false);
+                  }}
+                  className="w-full py-2 px-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-2 hover:bg-emerald-100"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                  <span>Создать новый цех / участок (контейнер)</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => {
+                      addEmptyEquipment();
+                      setIsMobileToolsOpen(false);
+                    }}
+                    className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-left hover:bg-slate-50 flex items-center gap-1.5 font-medium"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Пустой блок</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => {
+                      setIsCreateEquipmentOpen(true);
+                      setIsMobileToolsOpen(false);
+                    }}
+                    className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-left hover:bg-blue-500/20 flex items-center gap-1.5 font-medium"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Мастер параметров</span>
+                  </button>
+                </div>
+
+                <div className="pt-1">
+                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-1.5">Быстрые шаблоны оборудования:</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { type: 'machine' as EquipmentType, name: 'ЧПУ Станок', tag: 'CNC', power: 22, icon: Cpu },
+                      { type: 'robot' as EquipmentType, name: 'Робот KUKA', tag: 'ROB', power: 8, icon: Sparkles },
+                      { type: 'pump' as EquipmentType, name: 'Насос СОЖ', tag: 'PUMP', power: 11, icon: Droplet },
+                      { type: 'transformer' as EquipmentType, name: 'Трансформатор', tag: 'TR', power: 1000, icon: Zap },
+                      { type: 'conveyor' as EquipmentType, name: 'Конвейер', tag: 'CNV', power: 5.5, icon: Boxes },
+                      { type: 'sensor' as EquipmentType, name: 'Шкаф АСУ', tag: 'PLC', power: 1.5, icon: Wifi },
+                    ].map(tpl => {
+                      const Icon = tpl.icon;
+                      return (
+                        <button
+                          key={tpl.tag}
+                          type="button"
+                          disabled={!canEdit}
+                          onClick={() => {
+                            handleQuickAddEquipment(tpl.type, tpl.name, tpl.tag, tpl.power);
+                            setIsMobileToolsOpen(false);
+                          }}
+                          className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center gap-2 hover:bg-slate-100/70 text-left"
+                        >
+                          <Icon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <div className="truncate">
+                            <div className="font-semibold text-[11px] truncate">{tpl.name}</div>
+                            <div className="text-[10px] text-slate-400">{tpl.power} кВт</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 2. Скрывающийся список: Связи и соединения */}
+          <div className="mb-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleMobileSection('links')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-purple-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Типы связей между блоками (L)
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${mobileSections.links ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileSections.links && (
+              <div className="p-2.5 pt-1 border-t border-slate-200/50 dark:border-white/5 space-y-1 text-xs">
+                {[
+                  { type: 'power' as LinkType, label: 'Электропитание (380В/10кВ)', icon: Zap, color: 'text-amber-500' },
+                  { type: 'pipe' as LinkType, label: 'Трубопровод (СОЖ/Газ/Вода)', icon: Droplet, color: 'text-cyan-500' },
+                  { type: 'conveyor' as LinkType, label: 'Материальный поток / Детали', icon: Boxes, color: 'text-emerald-500' },
+                  { type: 'signal' as LinkType, label: 'Шина АСУ ТП / Profinet', icon: Wifi, color: 'text-purple-500' },
+                ].map(item => {
+                  const Icon = item.icon;
+                  const isActive = activeTool === 'connect' && linkDraftType === item.type;
+                  return (
+                    <button
+                      key={item.type}
+                      type="button"
+                      disabled={!canEdit}
+                      onClick={() => {
+                        setLinkDraftType(item.type);
+                        setActiveTool('connect');
+                        setIsMobileToolsOpen(false);
+                      }}
+                      className={`w-full p-2 rounded-lg flex items-center justify-between transition-colors ${
+                        isActive
+                          ? 'bg-blue-50 dark:bg-white/15 text-blue-700 dark:text-white font-semibold'
+                          : 'hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className={`w-4 h-4 ${item.color}`} />
+                        <span>{item.label}</span>
+                      </div>
+                      {isActive && <span className="text-[10px] text-blue-600 font-bold uppercase">Активен</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Скрывающийся список: Буфер обмена */}
+          <div className="mb-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleMobileSection('clipboard')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Copy className="w-4 h-4 text-emerald-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Буфер обмена (Копирование / Вставка)
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${mobileSections.clipboard ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileSections.clipboard && (
+              <div className="p-2.5 pt-1 border-t border-slate-200/50 dark:border-white/5 grid grid-cols-3 gap-1.5 text-xs">
+                <button
+                  type="button"
+                  disabled={!canEdit || (!selectedId && selectedIds.length === 0)}
+                  onClick={() => {
+                    copySelected();
+                    setIsMobileToolsOpen(false);
+                  }}
+                  className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex flex-col items-center justify-center gap-1 disabled:opacity-40"
+                >
+                  <Copy className="w-4 h-4 text-blue-500" />
+                  <span className="text-[11px] font-semibold">Копировать</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!canEdit || !hasClipboard}
+                  onClick={() => {
+                    pasteElements();
+                    setIsMobileToolsOpen(false);
+                  }}
+                  className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex flex-col items-center justify-center gap-1 disabled:opacity-40"
+                >
+                  <ClipboardPaste className="w-4 h-4 text-emerald-500" />
+                  <span className="text-[11px] font-semibold">Вставить</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!canEdit || (!selectedId && selectedIds.length === 0)}
+                  onClick={() => {
+                    duplicateSelected();
+                    setIsMobileToolsOpen(false);
+                  }}
+                  className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex flex-col items-center justify-center gap-1 disabled:opacity-40"
+                >
+                  <CopyPlus className="w-4 h-4 text-amber-500" />
+                  <span className="text-[11px] font-semibold">Дублировать</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 4. Скрывающийся список: Сетка, направляющие и зум */}
+          <div className="mb-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleMobileSection('canvas')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Grid className="w-4 h-4 text-sky-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Сетка, направляющие и масштаб
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${mobileSections.canvas ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileSections.canvas && (
+              <div className="p-2.5 pt-1 border-t border-slate-200/50 dark:border-white/5 space-y-2 text-xs">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSmartGuides(!smartGuides)}
+                    className={`p-2 rounded-lg border flex items-center justify-between transition-colors ${
+                      smartGuides
+                        ? 'bg-sky-50 dark:bg-sky-500/20 border-sky-300 dark:border-sky-500/40 text-sky-700 dark:text-sky-300 font-bold'
+                        : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Magnet className="w-4 h-4 text-sky-500" />
+                      <span>Направляющие</span>
+                    </div>
+                    <span className="text-[10px]">{smartGuides ? 'ВКЛ' : 'ВЫКЛ'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setGridSnap(!gridSnap)}
+                    className={`p-2 rounded-lg border flex items-center justify-between transition-colors ${
+                      gridSnap
+                        ? 'bg-blue-50 dark:bg-blue-500/20 border-blue-300 dark:border-blue-500/40 text-blue-700 dark:text-blue-300 font-bold'
+                        : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Grid className="w-4 h-4 text-blue-500" />
+                      <span>Сетка (20px)</span>
+                    </div>
+                    <span className="text-[10px]">{gridSnap ? 'ВКЛ' : 'ВЫКЛ'}</span>
+                  </button>
+                </div>
+
+                {/* Zoom control row */}
+                <div className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10">
+                  <span className="font-semibold text-slate-600 dark:text-slate-400">Масштаб холста:</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={zoomOut}
+                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-white/10 hover:bg-slate-200"
+                    >
+                      <ZoomOut className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={zoomReset}
+                      className="px-2 py-1 font-mono font-bold text-xs bg-slate-100 dark:bg-white/10 rounded-lg"
+                    >
+                      {Math.round(viewport.zoom * 100)}%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={zoomIn}
+                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-white/10 hover:bg-slate-200"
+                    >
+                      <ZoomIn className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 5. Скрывающийся список: Фокусный режим цеха */}
+          <div className="mb-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleMobileSection('focus')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Maximize2 className="w-4 h-4 text-indigo-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Фокусный режим цеха (Focus Mode)
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${mobileSections.focus ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileSections.focus && (
+              <div className="p-2.5 pt-1 border-t border-slate-200/50 dark:border-white/5 space-y-2 text-xs">
+                {focusedContainerId ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exitFocusMode();
+                      setIsMobileToolsOpen(false);
+                    }}
+                    className="w-full py-2 px-3 rounded-lg bg-blue-100 dark:bg-blue-600/30 text-blue-800 dark:text-blue-200 font-semibold flex items-center justify-center gap-2"
+                  >
+                    <Minimize2 className="w-4 h-4" />
+                    <span>Выйти из фокусного режима ({state.containers.find(c => c.id === focusedContainerId)?.name || 'Цех'})</span>
+                  </button>
+                ) : state.containers.length > 0 ? (
+                  <div className="space-y-1">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mb-1">Выберите цех для фокусировки:</div>
+                    {state.containers.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          toggleFocusMode(c.id);
+                          setIsMobileToolsOpen(false);
+                        }}
+                        className="w-full p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-between text-left hover:bg-slate-100"
+                      >
+                        <span className="font-semibold">{c.name}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{c.tag}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-slate-400 text-center py-1">На схеме пока нет цехов</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 6. Скрывающийся список: Отображение узлов */}
+          <div className="mb-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleMobileSection('view')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <ChevronsUpDown className="w-4 h-4 text-amber-500" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Отображение и компактность узлов
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${mobileSections.view ? 'rotate-180' : ''}`} />
+            </button>
+            {mobileSections.view && (
+              <div className="p-2.5 pt-1 border-t border-slate-200/50 dark:border-white/5 grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    collapseAllNodes();
+                    setIsMobileToolsOpen(false);
+                  }}
+                  className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center gap-1.5"
+                >
+                  <ChevronsDownUp className="w-4 h-4 text-slate-500" />
+                  <span>Свернуть все</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    expandAllNodes();
+                    setIsMobileToolsOpen(false);
+                  }}
+                  className="p-2 rounded-lg bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center gap-1.5"
+                >
+                  <ChevronsUpDown className="w-4 h-4 text-slate-500" />
+                  <span>Развернуть все</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 7. Кнопка открытия Сводки предприятия */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileToolsOpen(false);
+              setIsMobileSummaryOpen(true);
+            }}
+            className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-white/10 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center justify-center gap-2 hover:bg-slate-200"
+          >
+            <Activity className="w-4 h-4 text-blue-500" />
+            <span>Открыть сводку завода и структуру цехов</span>
+          </button>
+        </div>
+      </>
+    )}
+  </>
   );
 };
 

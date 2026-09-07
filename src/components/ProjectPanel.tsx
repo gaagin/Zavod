@@ -316,7 +316,7 @@ export const ProjectPanel: React.FC = () => {
       {/* Sliding LEFT Collapsible Panel */}
       <aside
         id="left-project-management-panel"
-        className={`fixed top-0 left-0 h-full w-84 sm:w-96 bg-white dark:bg-[#0E1015] border-r border-slate-200 dark:border-white/10 z-50 shadow-2xl flex flex-col transition-transform duration-300 ease-out select-none ${
+        className={`fixed top-0 left-0 h-full w-[88vw] max-w-sm sm:w-96 bg-white dark:bg-[#0E1015] border-r border-slate-200 dark:border-white/10 z-50 shadow-2xl flex flex-col transition-transform duration-300 ease-out select-none ${
           isProjectPanelOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
