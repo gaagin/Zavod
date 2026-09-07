@@ -126,6 +126,33 @@ export const initialFactoryState: FactoryState = {
         { id: 'p2', name: 'Температура шпинделя', value: 38.4, type: 'number', unit: '°C' },
         { id: 'p3', name: 'Вибрация X/Y', value: 0.8, type: 'number', unit: 'мм/с' },
         { id: 'p4', name: 'Давление смазки', value: 4.2, type: 'number', unit: 'бар' }
+      ],
+      tasks: [
+        {
+          id: 'task-cnc-1',
+          title: 'Плановая замена масла гидростанции шпинделя',
+          description: 'Использовать Mobil DTE 24, проверить давление после запуска (норма 4.2 бар)',
+          status: 'pending',
+          priority: 'medium',
+          type: 'maintenance',
+          assignedTo: 'Иванов А.В., механик',
+          dueDate: '2026-09-18',
+          createdAt: '2026-09-01T08:00:00Z',
+          createdBy: 'Система ТОиР'
+        },
+        {
+          id: 'task-cnc-2',
+          title: 'Калибровка датчика касания Renishaw',
+          description: 'Проверка юстировки щупа по эталонной калибровочной сфере',
+          status: 'completed',
+          priority: 'high',
+          type: 'setup',
+          assignedTo: 'Петров С.Н., наладчик',
+          dueDate: '2026-09-05',
+          createdAt: '2026-09-02T09:30:00Z',
+          completedAt: '2026-09-05T14:20:00Z',
+          createdBy: 'Система ТОиР'
+        }
       ]
     },
     {
@@ -158,6 +185,20 @@ export const initialFactoryState: FactoryState = {
         { id: 'p5', name: 'Полезная нагрузка', value: 16, type: 'number', unit: 'кг' },
         { id: 'p6', name: 'Время цикла подачи', value: 14.2, type: 'number', unit: 'сек' },
         { id: 'p7', name: 'Температура серводвигателей', value: 44.1, type: 'number', unit: '°C' }
+      ],
+      tasks: [
+        {
+          id: 'task-rob-1',
+          title: 'Протяжка болтовых соединений фланца манипулятора',
+          description: 'Динамометрический контроль затяжки крепления рабочего органа',
+          status: 'pending',
+          priority: 'low',
+          type: 'inspection',
+          assignedTo: 'Смирнов Д.К., сервисный инженер',
+          dueDate: '2026-09-25',
+          createdAt: '2026-09-03T11:00:00Z',
+          createdBy: 'Система ТОиР'
+        }
       ]
     },
     {
@@ -248,6 +289,20 @@ export const initialFactoryState: FactoryState = {
         { id: 'p13', name: 'Давление на выходе', value: 3.8, type: 'number', unit: 'бар' },
         { id: 'p14', name: 'Расход эмульсии', value: 120, type: 'number', unit: 'л/мин' },
         { id: 'p15', name: 'Загрязненность фильтра', value: 78, type: 'number', unit: '%' }
+      ],
+      tasks: [
+        {
+          id: 'task-pump-1',
+          title: 'Устранение повышенной вибрации и промывка фильтра СОЖ',
+          description: 'Зафиксирован перепад давления 1.4 бар. Требуется промывка/замена фильтрующего картриджа и осмотр подшипников',
+          status: 'in_progress',
+          priority: 'urgent',
+          type: 'repair',
+          assignedTo: 'Бригада РМЦ (Ковалев Н.И.)',
+          dueDate: '2026-09-10',
+          createdAt: '2026-09-06T08:30:00Z',
+          createdBy: 'Диспетчер АСУ'
+        }
       ]
     },
     {

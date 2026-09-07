@@ -79,6 +79,7 @@ export function exportToCSV(factory: FactoryState, targetContainerId?: string): 
     'Дата ввода',
     'Посл. ТО',
     'След. ТО',
+    'Активные задачи',
     'Дополнительные параметры',
     'Примечания'
   ];
@@ -129,6 +130,10 @@ export function exportToCSV(factory: FactoryState, targetContainerId?: string): 
       .map(p => `${p.name}: ${p.value}${p.unit ? ' ' + p.unit : ''}`)
       .join('; ');
 
+    const tasksStr = (eq.tasks || [])
+      .map(t => `[${t.status === 'completed' ? '✓' : '•'}] ${t.title}${t.dueDate ? ' (до ' + t.dueDate + ')' : ''}`)
+      .join('; ');
+
     const fields = [
       eq.id,
       eq.tag,
@@ -146,6 +151,7 @@ export function exportToCSV(factory: FactoryState, targetContainerId?: string): 
       eq.commissionDate || '',
       eq.lastMaintenanceDate || '',
       eq.nextMaintenanceDate || '',
+      tasksStr,
       customPropsStr,
       eq.notes || ''
     ];

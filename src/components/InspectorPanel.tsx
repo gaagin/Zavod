@@ -40,6 +40,8 @@ import {
   ClipboardPaste
 } from 'lucide-react';
 import { ElementLinksSection } from './ElementLinksSection';
+import { EquipmentTasksSection } from './EquipmentTasksSection';
+import { ListTodo } from 'lucide-react';
 
 export const InspectorPanel: React.FC = () => {
   const {
@@ -81,7 +83,7 @@ export const InspectorPanel: React.FC = () => {
   // Collapsible sections (скрывающиеся списки для мобильных и десктопа)
   const [eqSections, setEqSections] = useState({ basic: true, props: true, children: true, links: false, actions: true });
   const [contSections, setContSections] = useState({ focus: true, basic: true, dimensions: true, children: true, links: false, actions: true });
-  const [overviewSections, setOverviewSections] = useState({ rate: true, kpi: true, tree: true });
+  const [overviewSections, setOverviewSections] = useState({ rate: true, kpi: true, tasks: true, tree: true });
   const [multiSections, setMultiSections] = useState({ summary: true, status: true, items: true, actions: true });
 
   const toggleEqSection = (key: keyof typeof eqSections) => setEqSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -401,6 +403,12 @@ export const InspectorPanel: React.FC = () => {
     const totalPower = state.equipment.reduce((sum, e) => sum + (e.powerKw || 0), 0);
     const operationalPercent = totalEq > 0 ? Math.round((normalCount / totalEq) * 100) : 100;
 
+    const allEqTasks = state.equipment.flatMap(e => 
+      (e.tasks || []).map(t => ({ ...t, eqTag: e.tag, eqName: e.name, eqId: e.id }))
+    );
+    const activeEqTasks = allEqTasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
+    const urgentEqTasks = allEqTasks.filter(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'completed');
+
     return (
       <>
         {/* Mobile floating button to open overview if closed */}
@@ -515,6 +523,93 @@ export const InspectorPanel: React.FC = () => {
                   <div className="text-[10px] text-slate-500 dark:text-slate-400">Связей</div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{state.links.length} лин.</div>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section: Plant Equipment Tasks (Collapsible) */}
+          <div className="my-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden">
+            <button
+              onClick={() => toggleOverviewSection('tasks')}
+              className="w-full px-3 py-2.5 flex items-center justify-between text-left hover:bg-slate-100/60 dark:hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <ListTodo className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 truncate">
+                  Задачи оборудования
+                </span>
+                <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] font-bold bg-blue-500/15 text-blue-600 dark:text-blue-400 shrink-0">
+                  {activeEqTasks.length} акт.
+                </span>
+                {urgentEqTasks.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
+                    {urgentEqTasks.length} срочн.
+                  </span>
+                )}
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${overviewSections.tasks ? 'rotate-180' : ''}`} />
+            </button>
+            {overviewSections.tasks && (
+              <div className="p-2.5 pt-1 border-t border-slate-200/50 dark:border-white/5 space-y-1.5 text-xs">
+                {allEqTasks.length === 0 ? (
+                  <div className="text-[11px] text-slate-400 py-2.5 text-center">
+                    Нет созданных задач. Выберите оборудование на схеме, чтобы назначить задачу.
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-3 gap-1 text-[10px] text-center font-medium mb-1.5">
+                      <div className="p-1 rounded bg-white dark:bg-white/5 border border-slate-200/60 dark:border-white/5">
+                        <span className="text-slate-400 block text-[9px]">Всего</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{allEqTasks.length}</span>
+                      </div>
+                      <div className="p-1 rounded bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400">
+                        <span className="block text-[9px]">В работе</span>
+                        <span className="font-bold">{activeEqTasks.length}</span>
+                      </div>
+                      <div className="p-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                        <span className="block text-[9px]">Готово</span>
+                        <span className="font-bold">{allEqTasks.filter(t => t.status === 'completed').length}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 max-h-48 overflow-y-auto pr-0.5">
+                      {activeEqTasks.length > 0 ? (
+                        activeEqTasks.slice(0, 8).map(task => (
+                          <div
+                            key={task.id}
+                            onClick={() => focusNode(task.eqId)}
+                            className="p-1.5 rounded-lg bg-white dark:bg-white/5 border border-slate-200/80 dark:border-white/5 hover:border-blue-400 dark:hover:border-blue-500/50 cursor-pointer transition-all flex items-start gap-1.5 group"
+                            title={`Нажмите, чтобы перейти к [${task.eqTag}] ${task.eqName}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
+                              task.priority === 'urgent' ? 'bg-rose-500 animate-ping' :
+                              task.priority === 'high' ? 'bg-amber-500' : 'bg-blue-500'
+                            }`} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-mono text-[9px] font-bold text-blue-600 dark:text-blue-400">
+                                  [{task.eqTag}]
+                                </span>
+                                {task.dueDate && (
+                                  <span className="text-[9px] text-slate-400 font-mono">
+                                    до {task.dueDate.slice(5)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                {task.title}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-[11px] text-emerald-600 dark:text-emerald-400 p-2 text-center font-medium bg-emerald-500/10 rounded-lg">
+                          Все задачи выполнены!
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1141,6 +1236,9 @@ export const InspectorPanel: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Equipment Tasks Section */}
+        <EquipmentTasksSection equipment={selectedEquipment} canEdit={canEdit} />
 
         {/* Element Links & Navigation */}
         <ElementLinksSection node={selectedEquipment} canEdit={canEdit} />

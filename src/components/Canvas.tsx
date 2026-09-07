@@ -69,7 +69,8 @@ import {
   Hand,
   MousePointer,
   Undo2,
-  Link2
+  Link2,
+  ListTodo
 } from 'lucide-react';
 
 export const Canvas: React.FC = () => {
@@ -2982,6 +2983,19 @@ export const Canvas: React.FC = () => {
                         <span>{equipment.elementLinks.length}</span>
                       </span>
                     )}
+                    {equipment.tasks && equipment.tasks.filter(t => t.status !== 'completed').length > 0 && (
+                      <span
+                        className={`px-1 py-0.2 rounded font-mono text-[8.5px] font-bold flex items-center gap-0.5 shrink-0 ${
+                          equipment.tasks.some(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'completed')
+                            ? 'bg-rose-500/20 text-rose-500 border border-rose-500/40'
+                            : 'bg-blue-500/15 text-blue-500 border border-blue-500/30'
+                        }`}
+                        title={`Активные задачи: ${equipment.tasks.filter(t => t.status !== 'completed').length}`}
+                      >
+                        <ListTodo className="w-2 h-2" />
+                        <span>{equipment.tasks.filter(t => t.status !== 'completed').length}</span>
+                      </span>
+                    )}
                     {equipment.powerKw !== undefined && (
                       <span className="font-mono text-[9px] text-slate-400 dark:text-slate-500">
                         {equipment.powerKw} кВт
@@ -3259,6 +3273,23 @@ export const Canvas: React.FC = () => {
                     >
                       <Link2 className="w-2 h-2" />
                       <span>{equipment.elementLinks.length}</span>
+                    </span>
+                  )}
+                  {equipment.tasks && equipment.tasks.filter(t => t.status !== 'completed').length > 0 && (
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedId(equipment.id);
+                      }}
+                      className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded font-mono font-bold cursor-pointer transition-colors text-[8.5px] shrink-0 ${
+                        equipment.tasks.some(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'completed')
+                          ? 'bg-rose-500/20 text-rose-500 border border-rose-500/40'
+                          : 'bg-blue-500/15 text-blue-500 border border-blue-500/30'
+                      }`}
+                      title={`Активные задачи: ${equipment.tasks.filter(t => t.status !== 'completed').length} шт.`}
+                    >
+                      <ListTodo className="w-2 h-2" />
+                      <span>{equipment.tasks.filter(t => t.status !== 'completed').length}</span>
                     </span>
                   )}
                 </div>

@@ -27,6 +27,24 @@ export interface CustomProperty {
   unit?: string;
 }
 
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+export type TaskType = 'maintenance' | 'repair' | 'inspection' | 'setup' | 'other';
+
+export interface EquipmentTask {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  type?: TaskType;
+  assignedTo?: string;
+  dueDate?: string;
+  createdAt: string;
+  completedAt?: string;
+  createdBy?: string;
+}
+
 export interface EquipmentNode {
   id: string;
   type: 'equipment';
@@ -58,6 +76,7 @@ export interface EquipmentNode {
   notes?: string;
   color?: string;
   elementLinks?: ElementReference[];
+  tasks?: EquipmentTask[];
 }
 
 export interface ElementReference {
