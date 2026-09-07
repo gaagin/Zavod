@@ -2923,22 +2923,22 @@ export const Canvas: React.FC = () => {
                 )}
 
                 <div className="flex items-center justify-between gap-1.5 overflow-hidden">
-                  <div className="flex items-center gap-1.5 overflow-hidden">
+                  <div className="flex items-center gap-1.5 overflow-hidden flex-1 min-w-0">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleEquipmentCollapse(equipment.id);
                       }}
-                      className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-blue-500 transition-colors"
+                      className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/5 text-slate-500 dark:text-slate-400 hover:text-blue-500 transition-colors shrink-0"
                       title="Развернуть оборудование"
                     >
                       <ChevronRight className="w-3.5 h-3.5 text-blue-500" />
                     </button>
-                    <div className="p-1 rounded bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300 shrink-0">
-                      {getEquipmentIcon(equipment.equipmentType)}
-                    </div>
-                    <span className="font-mono text-[10px] font-bold text-slate-900 dark:text-white truncate">
-                      {equipment.tag}
+                    <span 
+                      className="font-bold text-xs text-slate-900 dark:text-white truncate"
+                      title={`[${equipment.tag}] ${equipment.name}`}
+                    >
+                      {equipment.name}
                     </span>
                   </div>
 
@@ -2953,19 +2953,24 @@ export const Canvas: React.FC = () => {
                     >
                       <Maximize2 className="w-3 h-3" />
                     </button>
-
-                    <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${statusStyle.badgeBg}`}>
-                      <StatusIcon className="w-2.5 h-2.5 shrink-0" />
-                      <span className="truncate">{statusStyle.label}</span>
-                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-white/10">
-                  <span className="truncate max-w-[110px] font-semibold text-slate-800 dark:text-slate-200">
-                    {equipment.name}
-                  </span>
-                  <div className="flex items-center gap-1">
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-white/10 gap-1.5">
+                  <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
+                    {/* Status Pill moved to bottom */}
+                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${statusStyle.badgeBg}`}>
+                      <StatusIcon className="w-2.5 h-2.5 shrink-0" />
+                      <span className="truncate">{statusStyle.label}</span>
+                    </div>
+
+                    {equipment.model && (
+                      <span className="truncate text-slate-600 dark:text-slate-400" title={equipment.model}>
+                        {equipment.model}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
                     {childEquipment.length > 0 && (
                       <span className="px-1 py-0.2 rounded bg-blue-500/15 text-blue-400 font-mono text-[9px] font-bold">
                         {childEquipment.length} влож.
@@ -2978,7 +2983,7 @@ export const Canvas: React.FC = () => {
                       </span>
                     )}
                     {equipment.powerKw !== undefined && (
-                      <span className="font-mono text-slate-700 dark:text-slate-300 font-medium text-[9px]">
+                      <span className="font-mono text-[9px] text-slate-400 dark:text-slate-500">
                         {equipment.powerKw} кВт
                       </span>
                     )}
@@ -3120,7 +3125,7 @@ export const Canvas: React.FC = () => {
                 </div>
               )}
 
-              {/* Card Header: Collapse button, Tag, Icon, Focus button, Status */}
+              {/* Card Header: Collapse button, Name, Focus button */}
               <div>
                 <div className="flex items-center justify-between gap-1.5 mb-1.5">
                   <div className="flex items-center gap-1.5 overflow-hidden">
@@ -3134,13 +3139,6 @@ export const Canvas: React.FC = () => {
                     >
                       <ChevronDown className="w-3.5 h-3.5 text-blue-500" />
                     </button>
-
-                    <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-700 dark:text-slate-300">
-                      {getEquipmentIcon(equipment.equipmentType)}
-                    </div>
-                    <span className="font-mono text-[11px] font-bold text-slate-900 dark:text-white tracking-tight">
-                      {equipment.tag}
-                    </span>
 
                     {childEquipment.length > 0 && (
                       <span className="px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-mono text-[9px] font-bold">
@@ -3164,17 +3162,14 @@ export const Canvas: React.FC = () => {
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
                     </button>
-
-                    {/* Status Pill */}
-                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusStyle.badgeBg}`}>
-                      <StatusIcon className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{statusStyle.label}</span>
-                    </div>
                   </div>
                 </div>
 
                 {/* Name */}
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug">
+                <h4 
+                  className="text-xs font-bold text-slate-900 dark:text-white leading-snug line-clamp-2"
+                  title={`[${equipment.tag}] ${equipment.name}`}
+                >
                   {equipment.name}
                 </h4>
 
@@ -3239,12 +3234,20 @@ export const Canvas: React.FC = () => {
                 )}
               </div>
 
-              {/* Card Footer: Connector Anchor Target button on hover */}
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-white/10 text-[9px] text-slate-500 dark:text-slate-400">
-                <div className="flex items-center gap-1.5 overflow-hidden">
-                  <span className="truncate">
-                    {equipment.lastMaintenanceDate ? `ТО: ${equipment.lastMaintenanceDate.slice(5)}` : 'Штатно'}
-                  </span>
+              {/* Card Footer: Status Pill moved down, Connector Anchor Target button on hover */}
+              <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 dark:border-white/10 text-[9px] text-slate-500 dark:text-slate-400 gap-1.5">
+                <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
+                  {/* Status Pill moved down */}
+                  <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${statusStyle.badgeBg}`}>
+                    <StatusIcon className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate">{statusStyle.label}</span>
+                  </div>
+
+                  {equipment.lastMaintenanceDate && (
+                    <span className="truncate">
+                      ТО: {equipment.lastMaintenanceDate.slice(5)}
+                    </span>
+                  )}
                   {equipment.elementLinks && equipment.elementLinks.length > 0 && (
                     <span 
                       onClick={(e) => {
@@ -3265,7 +3268,7 @@ export const Canvas: React.FC = () => {
                     e.stopPropagation();
                     handleNodeConnectClick(equipment.id);
                   }}
-                  className="p-1 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-blue-600 hover:text-white text-slate-500 dark:text-slate-400 transition-colors"
+                  className="p-1 rounded-lg bg-slate-100 dark:bg-white/5 hover:bg-blue-600 hover:text-white text-slate-500 dark:text-slate-400 transition-colors shrink-0"
                   title="Создать связь от этого блока"
                 >
                   <Share2 className="w-3 h-3" />
