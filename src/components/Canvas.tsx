@@ -2124,9 +2124,6 @@ export const Canvas: React.FC = () => {
             }}
             className="absolute rounded-2xl border-2 border-dashed shadow-[0_0_35px_rgba(59,130,246,0.15)] select-none z-0 group pointer-events-none transition-[border-color,background-color]"
           >
-            {/* Inner Blueprint Radial Grid Accent */}
-            <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-40 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]" />
-
             {/* Corner Precision Marks (L-shapes on all 4 corners) */}
             <div 
               style={{ borderColor: focusedNode.data.color || '#3b82f6' }}
