@@ -177,30 +177,34 @@ export const Canvas: React.FC = () => {
   const [cursorPosOnCanvas, setCursorPosOnCanvas] = useState<{ x: number; y: number } | null>(null);
   const [connectingMousePos, setConnectingMousePos] = useState<{ x: number; y: number } | null>(null);
 
-  // Spacebar panning support
+  // Spacebar panning & Shift parenting modifier support
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isShiftDown, setIsShiftDown] = useState(false);
+  const shiftKeyRef = useRef(false);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !isSpacePressed) {
-        const target = e.target as HTMLElement;
-        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-        setIsSpacePressed(true);
-      }
+  // Candidate drop target when dragging over a container/equipment with Shift held
+  const [activeDropTarget, setActiveDropTarget] = useState<{
+    id: string;
+    type: 'container' | 'equipment';
+    name: string;
+    tag?: string;
+  } | null>(null);
+
+  // Cache for real-time Shift modifier re-evaluation during static mouse hover
+  const lastDragRef = useRef<{
+    id: string;
+    type: 'equipment' | 'container';
+    newX: number;
+    newY: number;
+    nodeWidth: number;
+    nodeHeight: number;
+    cachedDescendants?: {
+      initialX: number;
+      initialY: number;
+      containers: Array<{ id: string; initialX: number; initialY: number }>;
+      equipment: Array<{ id: string; initialX: number; initialY: number }>;
     };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        setIsSpacePressed(false);
-        setIsPanning(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [isSpacePressed]);
+  } | null>(null);
 
   // Screen to Canvas Coordinates helper
   const screenToCanvas = useCallback((screenX: number, screenY: number) => {
@@ -641,19 +645,47 @@ export const Canvas: React.FC = () => {
         if (activeGuides.length > 0) setActiveGuides([]);
       }
 
+      const isShiftPressed = e.shiftKey || shiftKeyRef.current;
+
+      const cachedDescendants = draggedNode.initialDescendantEquipment && draggedNode.initialDescendantEquipment.length > 0
+        ? {
+            initialX: draggedNode.initialX,
+            initialY: draggedNode.initialY,
+            containers: draggedNode.initialDescendantContainers || [],
+            equipment: draggedNode.initialDescendantEquipment,
+          }
+        : undefined;
+
+      lastDragRef.current = {
+        id: draggedNode.id,
+        type: draggedNode.type,
+        newX,
+        newY,
+        nodeWidth,
+        nodeHeight,
+        cachedDescendants,
+      };
+
+      const target = computeDropTarget(
+        draggedNode.id,
+        draggedNode.type,
+        newX,
+        newY,
+        nodeWidth,
+        nodeHeight,
+        isShiftPressed,
+        draggedNode.initialDescendantEquipment ? new Set(draggedNode.initialDescendantEquipment.map(eq => eq.id)) : undefined,
+        draggedNode.initialDescendantContainers ? new Set(draggedNode.initialDescendantContainers.map(c => c.id)) : undefined
+      );
+      setActiveDropTarget(target);
+
       applyNodePositionChange(
         draggedNode.id,
         draggedNode.type,
         newX,
         newY,
-        draggedNode.initialDescendantEquipment && draggedNode.initialDescendantEquipment.length > 0
-          ? {
-              initialX: draggedNode.initialX,
-              initialY: draggedNode.initialY,
-              containers: draggedNode.initialDescendantContainers || [],
-              equipment: draggedNode.initialDescendantEquipment,
-            }
-          : undefined
+        cachedDescendants,
+        isShiftPressed
       );
     }
   };
@@ -661,6 +693,8 @@ export const Canvas: React.FC = () => {
   const handleCanvasMouseUp = useCallback(() => {
     setIsPanning(false);
     setActiveGuides([]);
+    setActiveDropTarget(null);
+    lastDragRef.current = null;
     if (draggedGroup || draggedNode || resizingNode) {
       triggerInstantSync();
     }
@@ -798,11 +832,17 @@ export const Canvas: React.FC = () => {
     didDragRef.current = false;
     justShiftAddedRef.current = null;
 
-    const isMultiKey = e.shiftKey || e.ctrlKey || e.metaKey;
+    // Track Shift modifier state for parenting mode
+    if (e.shiftKey) {
+      shiftKeyRef.current = true;
+      setIsShiftDown(true);
+    }
+
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey;
 
     let targetSelection = selectedIds;
 
-    if (isMultiKey) {
+    if (isCtrlOrMeta) {
       // If node is not selected yet, add it immediately to selection
       if (!selectedIds.includes(id)) {
         targetSelection = [...selectedIds, id];
@@ -810,8 +850,8 @@ export const Canvas: React.FC = () => {
         justShiftAddedRef.current = id;
       }
     } else {
-      // If clicked node is not in current selection, select only this node
-      if (!selectedIds.includes(id)) {
+      // Normal drag or Shift-drag for parenting: select only this node unless moving an already selected multi-selection group
+      if (!selectedIds.includes(id) || selectedIds.length <= 1) {
         setSelectedId(id);
         targetSelection = [id];
       }
@@ -896,7 +936,81 @@ export const Canvas: React.FC = () => {
     }
   };
 
+  // Drop target hit-testing helper: requires Shift key and FULL containment
+  const computeDropTarget = useCallback((
+    draggedId: string,
+    draggedType: 'equipment' | 'container',
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    isShift: boolean,
+    descendantEqIds?: Set<string>,
+    descendantContIds?: Set<string>
+  ): { id: string; type: 'container' | 'equipment'; name: string; tag?: string } | null => {
+    if (!isShift) return null;
+
+    if (draggedType === 'equipment') {
+      const forbiddenIds = new Set<string>(descendantEqIds || []);
+      forbiddenIds.add(draggedId);
+
+      // Check candidate equipment (must be fully inside, not collapsed, not descendant)
+      const matchingEquipment = state.equipment.filter(e => {
+        if (forbiddenIds.has(e.id) || e.isCollapsed) return false;
+        const eW = e.isCollapsed ? (e.collapsedWidth || 200) : e.width;
+        const eH = e.isCollapsed ? (e.collapsedHeight || 64) : e.height;
+        return x >= e.x && x + w <= e.x + eW && y >= e.y && y + h <= e.y + eH;
+      });
+
+      if (matchingEquipment.length > 0) {
+        matchingEquipment.sort((a, b) => (a.width * a.height) - (b.width * b.height));
+        return { id: matchingEquipment[0].id, type: 'equipment', name: matchingEquipment[0].name, tag: matchingEquipment[0].tag };
+      }
+
+      // Check candidate containers (must be fully inside, not collapsed)
+      const matchingContainers = state.containers.filter(c => {
+        if (c.isCollapsed) return false;
+        const cW = c.isCollapsed ? (c.collapsedWidth || 280) : c.width;
+        const cH = c.isCollapsed ? (c.collapsedHeight || 90) : c.height;
+        return x >= c.x && x + w <= c.x + cW && y >= c.y && y + h <= c.y + cH;
+      });
+
+      if (matchingContainers.length > 0) {
+        matchingContainers.sort((a, b) => {
+          const depthA = getContainerDepth(a.id, state.containers);
+          const depthB = getContainerDepth(b.id, state.containers);
+          if (depthB !== depthA) return depthB - depthA;
+          return (a.width * a.height) - (b.width * b.height);
+        });
+        return { id: matchingContainers[0].id, type: 'container', name: matchingContainers[0].name, tag: matchingContainers[0].tag };
+      }
+    } else if (draggedType === 'container') {
+      const forbiddenIds = new Set<string>(descendantContIds || []);
+      forbiddenIds.add(draggedId);
+
+      const matchingContainers = state.containers.filter(c => {
+        if (forbiddenIds.has(c.id) || c.isCollapsed) return false;
+        const cW = c.isCollapsed ? (c.collapsedWidth || 280) : c.width;
+        const cH = c.isCollapsed ? (c.collapsedHeight || 90) : c.height;
+        return x >= c.x && x + w <= c.x + cW && y >= c.y && y + h <= c.y + cH;
+      });
+
+      if (matchingContainers.length > 0) {
+        matchingContainers.sort((a, b) => {
+          const depthA = getContainerDepth(a.id, state.containers);
+          const depthB = getContainerDepth(b.id, state.containers);
+          if (depthB !== depthA) return depthB - depthA;
+          return (a.width * a.height) - (b.width * b.height);
+        });
+        return { id: matchingContainers[0].id, type: 'container', name: matchingContainers[0].name, tag: matchingContainers[0].tag };
+      }
+    }
+
+    return null;
+  }, [state.equipment, state.containers]);
+
   // Unified node position update helper (used by both mouse and touch handlers)
+  // Enforces: elements NEVER enter a container or equipment unless Shift is pressed and fully contained
   const applyNodePositionChange = useCallback((
     id: string,
     type: 'equipment' | 'container',
@@ -907,7 +1021,8 @@ export const Canvas: React.FC = () => {
       initialY: number;
       containers: Array<{ id: string; initialX: number; initialY: number }>;
       equipment: Array<{ id: string; initialX: number; initialY: number }>;
-    }
+    },
+    isShiftPressed: boolean = false
   ) => {
     if (type === 'equipment') {
       const eq = state.equipment.find(item => item.id === id);
@@ -920,35 +1035,67 @@ export const Canvas: React.FC = () => {
         const forbiddenIds = new Set(descEq.map(e => e.id));
         forbiddenIds.add(id);
 
-        // Check if dragging into another equipment (that is not collapsed)
-        const matchingEquipment = state.equipment.filter(e =>
-          !forbiddenIds.has(e.id) &&
-          !e.isCollapsed &&
-          newX >= e.x && newX + curW <= e.x + e.width &&
-          newY >= e.y && newY + curH <= e.y + e.height
-        );
-
-        // Check if dragging into a container (supports deep nesting: finds innermost container)
-        const matchingContainers = state.containers.filter(c => 
-          !c.isCollapsed &&
-          newX >= c.x && newX + curW <= c.x + c.width &&
-          newY >= c.y && newY + curH <= c.y + c.height
-        );
-
         let newParentId: string | null = null;
-        if (matchingEquipment.length > 0) {
-          // Innermost / smallest equipment wins
-          matchingEquipment.sort((a, b) => (a.width * a.height) - (b.width * b.height));
-          newParentId = matchingEquipment[0].id;
-        } else if (matchingContainers.length > 0) {
-          // Sort by nesting depth descending (innermost child first), then by smallest area
-          matchingContainers.sort((a, b) => {
-            const depthA = getContainerDepth(a.id, state.containers);
-            const depthB = getContainerDepth(b.id, state.containers);
-            if (depthB !== depthA) return depthB - depthA;
-            return (a.width * a.height) - (b.width * b.height);
+
+        if (isShiftPressed) {
+          // Check if dragging into another equipment (requires full containment and non-collapsed)
+          const matchingEquipment = state.equipment.filter(e => {
+            if (forbiddenIds.has(e.id) || e.isCollapsed) return false;
+            const eW = e.isCollapsed ? (e.collapsedWidth || 200) : e.width;
+            const eH = e.isCollapsed ? (e.collapsedHeight || 64) : e.height;
+            return newX >= e.x && newX + curW <= e.x + eW && newY >= e.y && newY + curH <= e.y + eH;
           });
-          newParentId = matchingContainers[0].id;
+
+          // Check if dragging into a container (requires full containment and non-collapsed)
+          const matchingContainers = state.containers.filter(c => {
+            if (c.isCollapsed) return false;
+            const cW = c.isCollapsed ? (c.collapsedWidth || 280) : c.width;
+            const cH = c.isCollapsed ? (c.collapsedHeight || 90) : c.height;
+            return newX >= c.x && newX + curW <= c.x + cW && newY >= c.y && newY + curH <= c.y + cH;
+          });
+
+          if (matchingEquipment.length > 0) {
+            matchingEquipment.sort((a, b) => (a.width * a.height) - (b.width * b.height));
+            newParentId = matchingEquipment[0].id;
+          } else if (matchingContainers.length > 0) {
+            matchingContainers.sort((a, b) => {
+              const depthA = getContainerDepth(a.id, state.containers);
+              const depthB = getContainerDepth(b.id, state.containers);
+              if (depthB !== depthA) return depthB - depthA;
+              return (a.width * a.height) - (b.width * b.height);
+            });
+            newParentId = matchingContainers[0].id;
+          }
+        } else {
+          // Without Shift: element CANNOT enter any new container or equipment!
+          if (eq.parentId) {
+            // If already parented, keep existing parent only if still within its bounds; else unparent
+            const currentParentCont = state.containers.find(c => c.id === eq.parentId);
+            const currentParentEq = state.equipment.find(e => e.id === eq.parentId);
+            if (currentParentCont && !currentParentCont.isCollapsed) {
+              const pW = currentParentCont.isCollapsed ? (currentParentCont.collapsedWidth || 280) : currentParentCont.width;
+              const pH = currentParentCont.isCollapsed ? (currentParentCont.collapsedHeight || 90) : currentParentCont.height;
+              if (newX >= currentParentCont.x && newX + curW <= currentParentCont.x + pW &&
+                  newY >= currentParentCont.y && newY + curH <= currentParentCont.y + pH) {
+                newParentId = eq.parentId;
+              } else {
+                newParentId = null;
+              }
+            } else if (currentParentEq && !currentParentEq.isCollapsed) {
+              const pW = currentParentEq.isCollapsed ? (currentParentEq.collapsedWidth || 200) : currentParentEq.width;
+              const pH = currentParentEq.isCollapsed ? (currentParentEq.collapsedHeight || 64) : currentParentEq.height;
+              if (newX >= currentParentEq.x && newX + curW <= currentParentEq.x + pW &&
+                  newY >= currentParentEq.y && newY + curH <= currentParentEq.y + pH) {
+                newParentId = eq.parentId;
+              } else {
+                newParentId = null;
+              }
+            } else {
+              newParentId = null;
+            }
+          } else {
+            newParentId = null;
+          }
         }
 
         // If this equipment has nested child equipment, move them along!
@@ -984,30 +1131,52 @@ export const Canvas: React.FC = () => {
     } else if (type === 'container') {
       const cont = state.containers.find(c => c.id === id);
       if (cont && (cont.x !== newX || cont.y !== newY)) {
-        // Find all descendants (via parentId AND geometric bounds)
+        // Find all descendants (strictly via explicit parentId hierarchy)
         const allDescendants = findAllDescendantsOfContainer(id, state.containers, state.equipment);
         const descendantIds = new Set(allDescendants.containers.map(c => c.id));
         descendantIds.add(id);
 
-        // Check if moving this container into another parent container
-        const curW = cont.isCollapsed ? cont.collapsedWidth : cont.width;
-        const curH = cont.isCollapsed ? cont.collapsedHeight : cont.height;
-        const matchingParents = state.containers.filter(c =>
-          !descendantIds.has(c.id) &&
-          !c.isCollapsed &&
-          newX >= c.x && newX + curW <= c.x + c.width &&
-          newY >= c.y && newY + curH <= c.y + c.height
-        );
+        const curW = cont.isCollapsed ? (cont.collapsedWidth || 280) : cont.width;
+        const curH = cont.isCollapsed ? (cont.collapsedHeight || 90) : cont.height;
 
         let newParentId: string | null = null;
-        if (matchingParents.length > 0) {
-          matchingParents.sort((a, b) => {
-            const depthA = getContainerDepth(a.id, state.containers);
-            const depthB = getContainerDepth(b.id, state.containers);
-            if (depthB !== depthA) return depthB - depthA;
-            return (a.width * a.height) - (b.width * b.height);
+
+        if (isShiftPressed) {
+          const matchingParents = state.containers.filter(c => {
+            if (descendantIds.has(c.id) || c.isCollapsed) return false;
+            const cW = c.isCollapsed ? (c.collapsedWidth || 280) : c.width;
+            const cH = c.isCollapsed ? (c.collapsedHeight || 90) : c.height;
+            return newX >= c.x && newX + curW <= c.x + cW && newY >= c.y && newY + curH <= c.y + cH;
           });
-          newParentId = matchingParents[0].id;
+
+          if (matchingParents.length > 0) {
+            matchingParents.sort((a, b) => {
+              const depthA = getContainerDepth(a.id, state.containers);
+              const depthB = getContainerDepth(b.id, state.containers);
+              if (depthB !== depthA) return depthB - depthA;
+              return (a.width * a.height) - (b.width * b.height);
+            });
+            newParentId = matchingParents[0].id;
+          }
+        } else {
+          // Without Shift: cannot enter any new container!
+          if (cont.parentId) {
+            const currentParentCont = state.containers.find(c => c.id === cont.parentId);
+            if (currentParentCont && !currentParentCont.isCollapsed) {
+              const pW = currentParentCont.isCollapsed ? (currentParentCont.collapsedWidth || 280) : currentParentCont.width;
+              const pH = currentParentCont.isCollapsed ? (currentParentCont.collapsedHeight || 90) : currentParentCont.height;
+              if (newX >= currentParentCont.x && newX + curW <= currentParentCont.x + pW &&
+                  newY >= currentParentCont.y && newY + curH <= currentParentCont.y + pH) {
+                newParentId = cont.parentId;
+              } else {
+                newParentId = null;
+              }
+            } else {
+              newParentId = null;
+            }
+          } else {
+            newParentId = null;
+          }
         }
 
         if (cachedDescendants) {
@@ -1054,6 +1223,50 @@ export const Canvas: React.FC = () => {
       }
     }
   }, [state.equipment, state.containers, updateEquipment, batchUpdatePositions]);
+
+  // Global Keyboard listener for Space (pan) and Shift (parenting mode toggle)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        shiftKeyRef.current = true;
+        setIsShiftDown(true);
+        if (lastDragRef.current) {
+          const { id, type, newX, newY, nodeWidth, nodeHeight, cachedDescendants } = lastDragRef.current;
+          applyNodePositionChange(id, type, newX, newY, cachedDescendants, true);
+          const target = computeDropTarget(id, type, newX, newY, nodeWidth, nodeHeight, true);
+          setActiveDropTarget(target);
+        }
+      }
+      if (e.code === 'Space' && !isSpacePressed) {
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+        setIsSpacePressed(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        shiftKeyRef.current = false;
+        setIsShiftDown(false);
+        setActiveDropTarget(null);
+        if (lastDragRef.current) {
+          const { id, type, newX, newY, cachedDescendants } = lastDragRef.current;
+          applyNodePositionChange(id, type, newX, newY, cachedDescendants, false);
+        }
+      }
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+        setIsPanning(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isSpacePressed, applyNodePositionChange, computeDropTarget]);
 
   // Touch & Mobile Interaction Engine
   const touchStateRef = useRef({
@@ -2259,7 +2472,9 @@ export const Canvas: React.FC = () => {
                 }}
                 onMouseDown={(e) => startDragNode(e, container.id, 'container', container.x, container.y)}
                 className={`absolute rounded-2xl border-2 bg-white dark:bg-[#0F0F12]/95 backdrop-blur-md shadow-lg p-3 transition-all touch-none select-none ${
-                  touchDraggingNodeId === container.id ? 'ring-4 ring-blue-400 scale-[1.02] shadow-2xl z-30' : ''
+                  activeDropTarget?.id === container.id
+                    ? 'ring-4 ring-blue-500 border-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.6)] z-40 scale-[1.02]'
+                    : touchDraggingNodeId === container.id ? 'ring-4 ring-blue-400 scale-[1.02] shadow-2xl z-30' : ''
                 } ${
                   highlightedNodeId === container.id
                     ? 'ring-4 ring-amber-400 dark:ring-amber-400 shadow-[0_0_60px_rgba(251,191,36,0.7)] scale-[1.03] z-50 animate-pulse'
@@ -2268,6 +2483,12 @@ export const Canvas: React.FC = () => {
                     : isSelected ? 'ring-2 ring-blue-500 shadow-xl' : 'hover:border-slate-400 dark:hover:border-white/40'
                 }`}
               >
+                {/* Active Drop Target Badge */}
+                {activeDropTarget?.id === container.id && (
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-extrabold shadow-xl flex items-center gap-1 z-50 whitespace-nowrap animate-bounce pointer-events-none ring-2 ring-white dark:ring-[#09090B]">
+                    <span>↵ Вложить в цех (Shift)</span>
+                  </div>
+                )}
                 {/* Multi-Selection Checkmark Badge */}
                 {isSelected && selectedIds.length > 1 && (
                   <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
@@ -2434,7 +2655,9 @@ export const Canvas: React.FC = () => {
                 toggleFocusMode(container.id);
               }}
               className={`absolute rounded-2xl border-2 transition-all bg-white/90 dark:bg-[#0F0F12]/30 backdrop-blur-xs shadow-md ${
-                highlightedNodeId === container.id
+                activeDropTarget?.id === container.id
+                  ? 'ring-4 ring-blue-500 border-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.6)] z-40'
+                  : highlightedNodeId === container.id
                   ? 'ring-4 ring-amber-400 dark:ring-amber-400 shadow-[0_0_60px_rgba(251,191,36,0.7)] z-50 animate-pulse'
                   : isThisFocused
                   ? 'ring-4 ring-blue-500/80 border-blue-400 shadow-[0_0_60px_rgba(59,130,246,0.35)] z-20'
@@ -2443,6 +2666,12 @@ export const Canvas: React.FC = () => {
                   : 'border-slate-300 dark:border-white/10 hover:border-slate-400 dark:hover:border-white/20'
               }`}
             >
+              {/* Active Drop Target Badge */}
+              {activeDropTarget?.id === container.id && (
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-extrabold shadow-xl flex items-center gap-1 z-50 whitespace-nowrap animate-bounce pointer-events-none ring-2 ring-white dark:ring-[#09090B]">
+                  <span>↵ Вложить в контейнер (Shift)</span>
+                </div>
+              )}
               {/* Multi-Selection Checkmark Badge */}
               {isSelected && selectedIds.length > 1 && (
                 <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
@@ -2662,7 +2891,9 @@ export const Canvas: React.FC = () => {
                 className={`absolute rounded-xl border p-2 bg-white dark:bg-[#0F0F12]/95 backdrop-blur-md shadow-md dark:shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-700 dark:text-slate-300 touch-none ${
                   statusStyle.border
                 } ${
-                  touchDraggingNodeId === equipment.id ? 'ring-4 ring-blue-400 scale-[1.03] shadow-2xl z-30' : ''
+                  activeDropTarget?.id === equipment.id
+                    ? 'ring-4 ring-indigo-500 border-indigo-500 shadow-[0_0_35px_rgba(99,102,241,0.6)] z-40 scale-[1.02]'
+                    : touchDraggingNodeId === equipment.id ? 'ring-4 ring-blue-400 scale-[1.03] shadow-2xl z-30' : ''
                 } ${
                   highlightedNodeId === equipment.id
                     ? 'ring-4 ring-amber-400 dark:ring-amber-400 shadow-[0_0_50px_rgba(251,191,36,0.7)] scale-[1.03] z-50 animate-pulse'
@@ -2673,6 +2904,12 @@ export const Canvas: React.FC = () => {
                   connectingSourceId === equipment.id ? 'ring-2 ring-blue-400 animate-pulse' : ''
                 }`}
               >
+                {/* Active Drop Target Badge */}
+                {activeDropTarget?.id === equipment.id && (
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-extrabold shadow-xl flex items-center gap-1 z-50 whitespace-nowrap animate-bounce pointer-events-none ring-2 ring-white dark:ring-[#09090B]">
+                    <span>↵ Вложить в оборудование (Shift)</span>
+                  </div>
+                )}
                 {/* Multi-Selection Checkmark Badge */}
                 {isSelected && selectedIds.length > 1 && (
                   <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
@@ -2852,7 +3089,9 @@ export const Canvas: React.FC = () => {
               className={`absolute rounded-xl border p-3 bg-white dark:bg-[#0F0F12] shadow-md dark:shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-700 dark:text-slate-300 touch-none ${
                 statusStyle.border
               } ${
-                touchDraggingNodeId === equipment.id ? 'ring-4 ring-blue-400 scale-[1.03] shadow-2xl z-30' : ''
+                activeDropTarget?.id === equipment.id
+                  ? 'ring-4 ring-indigo-500 border-indigo-500 shadow-[0_0_35px_rgba(99,102,241,0.6)] z-40 scale-[1.02]'
+                  : touchDraggingNodeId === equipment.id ? 'ring-4 ring-blue-400 scale-[1.03] shadow-2xl z-30' : ''
               } ${
                 highlightedNodeId === equipment.id
                   ? 'ring-4 ring-amber-400 dark:ring-amber-400 shadow-[0_0_50px_rgba(251,191,36,0.7)] scale-[1.02] z-50 animate-pulse'
@@ -2863,6 +3102,12 @@ export const Canvas: React.FC = () => {
                 connectingSourceId === equipment.id ? 'ring-2 ring-blue-400 animate-pulse' : ''
               }`}
             >
+              {/* Active Drop Target Badge */}
+              {activeDropTarget?.id === equipment.id && (
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-extrabold shadow-xl flex items-center gap-1 z-50 whitespace-nowrap animate-bounce pointer-events-none ring-2 ring-white dark:ring-[#09090B]">
+                  <span>↵ Вложить в оборудование (Shift)</span>
+                </div>
+              )}
               {/* Multi-Selection Checkmark Badge */}
               {isSelected && selectedIds.length > 1 && (
                 <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shadow-md ring-2 ring-white dark:ring-[#09090B] z-30 pointer-events-none">
@@ -3540,6 +3785,28 @@ export const Canvas: React.FC = () => {
           ) : null}
         </div>
       </div>
+
+      {/* Floating Parenting & Shift Guide during drag */}
+      {draggedNode && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none select-none">
+          {isShiftDown ? (
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/95 text-white text-xs font-semibold shadow-2xl border border-blue-400/40 backdrop-blur-md">
+              <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+              <span>
+                Режим вложения активен (Shift)
+                {activeDropTarget ? ` → ${activeDropTarget.name}` : ' — поместите элемент внутрь цели'}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 dark:bg-[#18181B]/95 text-slate-200 text-xs font-medium shadow-2xl border border-white/15 backdrop-blur-md">
+              <span>Для вложения внутрь удерживайте</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-white/20 text-white font-mono text-[10px] font-bold border border-white/25">
+                Shift
+              </kbd>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

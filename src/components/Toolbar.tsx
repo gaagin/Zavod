@@ -88,18 +88,8 @@ export const Toolbar: React.FC = () => {
     const centerCanvasX = Math.round((-viewport.panX + window.innerWidth / 2) / viewport.zoom);
     const centerCanvasY = Math.round((-viewport.panY + window.innerHeight / 2) / viewport.zoom);
 
-    // Auto-detect containing container if not already focused
-    let targetParentId = focusedContainerId || null;
-    if (!targetParentId) {
-      const hitContainer = state.containers.find(c => 
-        !c.isCollapsed &&
-        centerCanvasX >= c.x && centerCanvasX <= c.x + c.width &&
-        centerCanvasY >= c.y && centerCanvasY <= c.y + c.height
-      );
-      if (hitContainer) {
-        targetParentId = hitContainer.id;
-      }
-    }
+    // Only set parentId if explicitly working within a focused container
+    const targetParentId = focusedContainerId || null;
 
     addEquipment({
       id: 'eq_' + Date.now(),

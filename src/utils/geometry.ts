@@ -156,9 +156,9 @@ export function getAllDescendantContainerIds(
 }
 
 /**
- * Finds all descendant containers and equipment (both by explicit parentId hierarchy
- * AND by geometric containment within the container's bounds).
- * This ensures that nested items ALWAYS move together with their parent container!
+ * Finds all descendant containers and equipment by explicit parentId hierarchy.
+ * Note: Merely overlapping an element geometrically does NOT make it enter
+ * the container; nesting is strictly managed via parentId hierarchy (with Shift key on drop).
  */
 export function findAllDescendantsOfContainer(
   containerId: string,
@@ -175,56 +175,9 @@ export function findAllDescendantsOfContainer(
   const descendantContainerIds = getAllDescendantContainerIds(containerId, containers);
   descendantContainerIds.delete(containerId); // exclude self
 
-  // Helper: check if candidateId is an ancestor of targetId
-  const isAncestor = (candidateId: string, targetId: string): boolean => {
-    let curr: string | null | undefined = targetId;
-    const visited = new Set<string>();
-    while (curr && !visited.has(curr)) {
-      visited.add(curr);
-      if (curr === candidateId) return true;
-      const c = containers.find(item => item.id === curr);
-      curr = c?.parentId;
-    }
-    return false;
-  };
-
-  const contBounds = {
-    x: container.x,
-    y: container.y,
-    w: container.isCollapsed ? container.collapsedWidth : container.width,
-    h: container.isCollapsed ? container.collapsedHeight : container.height,
-  };
-
-  // 2. Also collect any container geometrically located within this container's bounds
-  for (const c of containers) {
-    if (c.id === containerId) continue;
-    if (descendantContainerIds.has(c.id)) continue;
-    if (isAncestor(c.id, containerId)) continue; // prevent circular reference
-
-    const cW = c.isCollapsed ? c.collapsedWidth : c.width;
-    const cH = c.isCollapsed ? c.collapsedHeight : c.height;
-    const cCenterX = c.x + cW / 2;
-    const cCenterY = c.y + cH / 2;
-
-    if (
-      cCenterX >= contBounds.x &&
-      cCenterX <= contBounds.x + contBounds.w &&
-      cCenterY >= contBounds.y &&
-      cCenterY <= contBounds.y + contBounds.h
-    ) {
-      descendantContainerIds.add(c.id);
-      const subTreeIds = getAllDescendantContainerIds(c.id, containers);
-      for (const subId of subTreeIds) {
-        if (subId !== containerId) {
-          descendantContainerIds.add(subId);
-        }
-      }
-    }
-  }
-
   const allDescendantContainers = containers.filter(c => descendantContainerIds.has(c.id));
 
-  // 3. Collect equipment (by parentId OR geometric bounds)
+  // 2. Collect equipment by explicit parentId hierarchy (inside this container or any descendant container)
   const allContIds = new Set<string>([containerId, ...descendantContainerIds]);
   const descendantEquipment: EquipmentNode[] = [];
   const seenEq = new Set<string>();
@@ -234,42 +187,6 @@ export function findAllDescendantsOfContainer(
       if (!seenEq.has(eq.id)) {
         seenEq.add(eq.id);
         descendantEquipment.push(eq);
-      }
-      continue;
-    }
-
-    const eqCenterX = eq.x + eq.width / 2;
-    const eqCenterY = eq.y + eq.height / 2;
-
-    // Check if geometrically inside target container
-    if (
-      eqCenterX >= contBounds.x &&
-      eqCenterX <= contBounds.x + contBounds.w &&
-      eqCenterY >= contBounds.y &&
-      eqCenterY <= contBounds.y + contBounds.h
-    ) {
-      if (!seenEq.has(eq.id)) {
-        seenEq.add(eq.id);
-        descendantEquipment.push(eq);
-      }
-      continue;
-    }
-
-    // Check if inside any descendant container
-    for (const dCont of allDescendantContainers) {
-      const dW = dCont.isCollapsed ? dCont.collapsedWidth : dCont.width;
-      const dH = dCont.isCollapsed ? dCont.collapsedHeight : dCont.height;
-      if (
-        eqCenterX >= dCont.x &&
-        eqCenterX <= dCont.x + dW &&
-        eqCenterY >= dCont.y &&
-        eqCenterY <= dCont.y + dH
-      ) {
-        if (!seenEq.has(eq.id)) {
-          seenEq.add(eq.id);
-          descendantEquipment.push(eq);
-        }
-        break;
       }
     }
   }
@@ -308,8 +225,9 @@ export function getAllDescendantEquipmentOfEquipment(
 }
 
 /**
- * Finds all descendants of an equipment (by explicit parentId AND geometric bounds)
- * So moving parent equipment moves all child equipment inside it!
+ * Finds all descendants of an equipment by explicit parentId hierarchy.
+ * Note: Overlapping elements do NOT enter inside the equipment; nesting
+ * into an equipment requires holding the Shift key on drop.
  */
 export function findAllDescendantsOfEquipment(
   equipmentId: string,
@@ -320,36 +238,9 @@ export function findAllDescendantsOfEquipment(
   const parentEq = equipment.find(e => e.id === equipmentId);
   if (!parentEq) return { equipment: [] };
 
-  const descendantIds = new Set<string>();
   const explicit = getAllDescendantEquipmentOfEquipment(equipmentId, equipment);
-  for (const item of explicit) {
-    descendantIds.add(item.id);
-  }
-
-  const pW = parentEq.isCollapsed ? (parentEq.collapsedWidth || 180) : parentEq.width;
-  const pH = parentEq.isCollapsed ? (parentEq.collapsedHeight || 64) : parentEq.height;
-
-  // Geometric check for any unparented or inside equipment
-  for (const eq of equipment) {
-    if (eq.id === equipmentId || descendantIds.has(eq.id)) continue;
-    const centerX = eq.x + eq.width / 2;
-    const centerY = eq.y + eq.height / 2;
-    if (
-      centerX >= parentEq.x &&
-      centerX <= parentEq.x + pW &&
-      centerY >= parentEq.y &&
-      centerY <= parentEq.y + pH
-    ) {
-      descendantIds.add(eq.id);
-      const sub = getAllDescendantEquipmentOfEquipment(eq.id, equipment);
-      for (const s of sub) {
-        descendantIds.add(s.id);
-      }
-    }
-  }
-
   return {
-    equipment: equipment.filter(e => descendantIds.has(e.id)),
+    equipment: explicit,
   };
 }
 
