@@ -88,6 +88,13 @@ export interface ContainerNode {
 
 export type CanvasNode = EquipmentNode | ContainerNode;
 
+export interface ElementClipboardData {
+  equipment: EquipmentNode[];
+  containers: ContainerNode[];
+  links: ConnectionLink[];
+  copiedAt?: number;
+}
+
 export type LinkType = 'power' | 'pipe' | 'conveyor' | 'signal';
 export type LinkStyle = 'orthogonal' | 'curved' | 'straight';
 export type LinkDirection = 'forward' | 'bidirectional' | 'none';

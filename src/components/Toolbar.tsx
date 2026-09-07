@@ -26,13 +26,17 @@ import {
   Sliders,
   Sparkles,
   Plus,
-  Magnet
+  Magnet,
+  Copy,
+  ClipboardPaste,
+  CopyPlus
 } from 'lucide-react';
 
 export const Toolbar: React.FC = () => {
   const {
     state,
     selectedId,
+    selectedIds,
     activeTool,
     setActiveTool,
     linkDraftType,
@@ -59,6 +63,11 @@ export const Toolbar: React.FC = () => {
     exitFocusMode,
     collapseAllNodes,
     expandAllNodes,
+    copySelected,
+    pasteElements,
+    duplicateSelected,
+    hasClipboard,
+    getVisibleCanvasCenter,
   } = useFactory();
 
   const selectedContainer = state.containers.find(c => c.id === selectedId);
@@ -85,8 +94,7 @@ export const Toolbar: React.FC = () => {
 
   const handleQuickAddEquipment = (eqType: EquipmentType, name: string, tag: string, power: number) => {
     if (!canEdit) return;
-    const centerCanvasX = Math.round((-viewport.panX + window.innerWidth / 2) / viewport.zoom);
-    const centerCanvasY = Math.round((-viewport.panY + window.innerHeight / 2) / viewport.zoom);
+    const center = getVisibleCanvasCenter();
 
     // Only set parentId if explicitly working within a focused container
     const targetParentId = focusedContainerId || null;
@@ -99,8 +107,8 @@ export const Toolbar: React.FC = () => {
       equipmentType: eqType,
       status: 'normal',
       parentId: targetParentId,
-      x: centerCanvasX - 85,
-      y: centerCanvasY - 85,
+      x: center.x - 85,
+      y: center.y - 85,
       width: 170,
       height: 170,
       powerKw: power,
@@ -118,8 +126,7 @@ export const Toolbar: React.FC = () => {
 
   const handleQuickAddContainer = () => {
     if (!canEdit) return;
-    const centerCanvasX = Math.round((-viewport.panX + window.innerWidth / 2) / viewport.zoom);
-    const centerCanvasY = Math.round((-viewport.panY + window.innerHeight / 2) / viewport.zoom);
+    const center = getVisibleCanvasCenter();
 
     const colors = ['#0284c7', '#0d9488', '#ea580c', '#16a34a', '#4f46e5', '#9333ea'];
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
@@ -130,8 +137,8 @@ export const Toolbar: React.FC = () => {
       name: focusedContainerId ? 'Новая технологическая линия' : 'Новый производственный участок',
       tag: (focusedContainerId ? 'LINE-' : 'SEC-') + Math.floor(10 + Math.random() * 90),
       parentId: focusedContainerId || null,
-      x: centerCanvasX - 250,
-      y: centerCanvasY - 180,
+      x: center.x - 140,
+      y: center.y - 45,
       width: 500,
       height: 360,
       isCollapsed: true,
@@ -459,6 +466,55 @@ export const Toolbar: React.FC = () => {
           <Maximize2 className="w-4 h-4" />
         </button>
       )}
+
+      {/* Clipboard: Copy, Paste, Duplicate */}
+      <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg p-0.5 shrink-0" title="Буфер обмена элементов схемы">
+        <button
+          id="toolbar-copy-btn"
+          type="button"
+          disabled={!canEdit || (!selectedId && selectedIds.length === 0)}
+          onClick={copySelected}
+          className={`p-1.5 rounded transition-colors ${
+            canEdit && (selectedId || selectedIds.length > 0)
+              ? 'hover:bg-white dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400'
+              : 'opacity-30 cursor-not-allowed text-slate-400'
+          }`}
+          title="Копировать выделенное (Ctrl+C)"
+        >
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+        <button
+          id="toolbar-paste-btn"
+          type="button"
+          disabled={!canEdit || !hasClipboard}
+          onClick={pasteElements}
+          className={`p-1.5 rounded transition-colors relative ${
+            canEdit && hasClipboard
+              ? 'hover:bg-white dark:hover:bg-white/10 text-blue-600 dark:text-blue-400 hover:text-blue-700 font-semibold'
+              : 'opacity-30 cursor-not-allowed text-slate-400'
+          }`}
+          title={hasClipboard ? 'Вставить по центру экрана (Ctrl+V)' : 'Буфер обмена пуст (Ctrl+V)'}
+        >
+          <ClipboardPaste className="w-3.5 h-3.5" />
+          {hasClipboard && (
+            <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+          )}
+        </button>
+        <button
+          id="toolbar-duplicate-btn"
+          type="button"
+          disabled={!canEdit || (!selectedId && selectedIds.length === 0)}
+          onClick={duplicateSelected}
+          className={`p-1.5 rounded transition-colors ${
+            canEdit && (selectedId || selectedIds.length > 0)
+              ? 'hover:bg-white dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400'
+              : 'opacity-30 cursor-not-allowed text-slate-400'
+          }`}
+          title="Дублировать по центру экрана (Ctrl+D)"
+        >
+          <CopyPlus className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
       {/* Collapse All / Expand All Nodes */}
       <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg p-0.5 shrink-0" title="Управление отображением узлов схемы">

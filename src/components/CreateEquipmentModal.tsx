@@ -38,6 +38,7 @@ export const CreateEquipmentModal: React.FC = () => {
     focusedContainerId,
     viewport,
     showToast,
+    getVisibleCanvasCenter,
   } = useFactory();
 
   const [name, setName] = useState('Новое оборудование');
@@ -121,8 +122,7 @@ export const CreateEquipmentModal: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const centerCanvasX = Math.round((-viewport.panX + window.innerWidth / 2) / viewport.zoom);
-    const centerCanvasY = Math.round((-viewport.panY + window.innerHeight / 2) / viewport.zoom);
+    const center = getVisibleCanvasCenter();
     const finalId = 'eq_' + Date.now();
     const finalTag = tag.trim() || ('EQ-' + Math.floor(100 + Math.random() * 900));
 
@@ -160,8 +160,8 @@ export const CreateEquipmentModal: React.FC = () => {
       equipmentType,
       status,
       parentId: parentId || null,
-      x: centerCanvasX - 85,
-      y: centerCanvasY - 85,
+      x: center.x - 85,
+      y: center.y - 85,
       width: 170,
       height: 170,
       powerKw: powerKw ? Number(powerKw) : undefined,

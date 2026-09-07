@@ -33,7 +33,10 @@ import {
   Focus,
   Scan,
   Barcode,
-  Tag
+  Tag,
+  Copy,
+  CopyPlus,
+  ClipboardPaste
 } from 'lucide-react';
 import { ElementLinksSection } from './ElementLinksSection';
 
@@ -62,6 +65,10 @@ export const InspectorPanel: React.FC = () => {
     toggleFocusMode,
     fitContainerToScreen,
     openShareModal,
+    copySelected,
+    pasteElements,
+    duplicateSelected,
+    hasClipboard,
   } = useFactory();
 
   const [newPropName, setNewPropName] = useState('');
@@ -264,9 +271,32 @@ export const InspectorPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Bulk Delete Action */}
-        {canAdmin && (
-          <div className="pt-3 border-t border-slate-200 dark:border-white/10 mt-auto">
+        {/* Bulk Clipboard & Delete Actions */}
+        <div className="pt-3 border-t border-slate-200 dark:border-white/10 mt-auto space-y-2">
+          {canEdit && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={copySelected}
+                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                title="Копировать в буфер (Ctrl+C)"
+              >
+                <Copy className="w-3.5 h-3.5 text-blue-500" />
+                <span>Копировать</span>
+              </button>
+              <button
+                type="button"
+                onClick={duplicateSelected}
+                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                title="Дублировать по центру экрана (Ctrl+D)"
+              >
+                <CopyPlus className="w-3.5 h-3.5 text-blue-500" />
+                <span>Дублировать</span>
+              </button>
+            </div>
+          )}
+
+          {canAdmin && (
             <button
               onClick={() => batchDelete(selectedIds)}
               className="w-full py-2 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-500/20 transition-all cursor-pointer"
@@ -274,8 +304,8 @@ export const InspectorPanel: React.FC = () => {
               <Trash2 className="w-4 h-4" />
               <span>Удалить выбранные ({selectedIds.length})</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </aside>
     );
   }
@@ -998,9 +1028,32 @@ export const InspectorPanel: React.FC = () => {
         {/* Element Links & Navigation */}
         <ElementLinksSection node={selectedEquipment} canEdit={canEdit} />
 
-        {/* Delete action */}
-        {canAdmin && (
-          <div className="pt-3 border-t border-slate-200 dark:border-white/10">
+        {/* Clipboard and Delete actions */}
+        <div className="pt-3 border-t border-slate-200 dark:border-white/10 space-y-2">
+          {canEdit && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={copySelected}
+                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                title="Копировать в буфер (Ctrl+C)"
+              >
+                <Copy className="w-3.5 h-3.5 text-blue-500" />
+                <span>Копировать</span>
+              </button>
+              <button
+                type="button"
+                onClick={duplicateSelected}
+                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                title="Дублировать по центру экрана (Ctrl+D)"
+              >
+                <CopyPlus className="w-3.5 h-3.5 text-blue-500" />
+                <span>Дублировать</span>
+              </button>
+            </div>
+          )}
+
+          {canAdmin && (
             <button
               onClick={() => {
                 deleteEquipment(selectedEquipment.id);
@@ -1011,8 +1064,8 @@ export const InspectorPanel: React.FC = () => {
               <Trash2 className="w-3.5 h-3.5" />
               <span>Удалить оборудование</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </aside>
     </>
   );
@@ -1316,8 +1369,32 @@ export const InspectorPanel: React.FC = () => {
         {/* Element Links & Navigation */}
         <ElementLinksSection node={selectedContainer} canEdit={canAdmin} />
 
-        {canAdmin && (
-          <div className="pt-3 border-t border-slate-200 dark:border-white/10">
+        {/* Clipboard and Delete actions */}
+        <div className="pt-3 border-t border-slate-200 dark:border-white/10 space-y-2">
+          {canEdit && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={copySelected}
+                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                title="Копировать контейнер со всем содержимым (Ctrl+C)"
+              >
+                <Copy className="w-3.5 h-3.5 text-blue-500" />
+                <span>Копировать</span>
+              </button>
+              <button
+                type="button"
+                onClick={duplicateSelected}
+                className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                title="Дублировать контейнер по центру экрана (Ctrl+D)"
+              >
+                <CopyPlus className="w-3.5 h-3.5 text-blue-500" />
+                <span>Дублировать</span>
+              </button>
+            </div>
+          )}
+
+          {canAdmin && (
             <button
               onClick={() => {
                 deleteContainer(selectedContainer.id);
@@ -1328,8 +1405,8 @@ export const InspectorPanel: React.FC = () => {
               <Trash2 className="w-3.5 h-3.5" />
               <span>Удалить контейнер цеха</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </aside>
     </>
   );

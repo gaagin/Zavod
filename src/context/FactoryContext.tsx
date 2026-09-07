@@ -13,7 +13,8 @@ import {
   LinkStyle,
   AutoSaveConfig,
   FolderFileChangeNotice,
-  ElementReference
+  ElementReference,
+  ElementClipboardData
 } from '../types';
 import { initialFactoryState } from '../data/initialFactory';
 import { 
@@ -198,6 +199,14 @@ interface FactoryContextType {
   addElementLink: (sourceId: string, targetId: string, relationship?: string) => void;
   removeElementLink: (sourceId: string, linkId: string) => void;
   copyElementLink: (nodeId: string, paramType?: LinkParamType) => Promise<boolean>;
+
+  // Clipboard & Duplication
+  clipboard: ElementClipboardData | null;
+  hasClipboard: boolean;
+  copySelected: () => boolean;
+  pasteElements: () => boolean;
+  duplicateSelected: () => boolean;
+  getVisibleCanvasCenter: () => { x: number; y: number };
 }
 
 export function dedupeById<T extends { id: string }>(items?: T[]): T[] {
@@ -389,6 +398,18 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const closeShareModal = useCallback(() => {
     setShareModalNodeId(null);
   }, []);
+
+  // Clipboard State (Node copy/paste)
+  const [clipboard, setClipboard] = useState<ElementClipboardData | null>(() => {
+    try {
+      const saved = localStorage.getItem('promschema_clipboard_v1');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {}
+    return null;
+  });
+  const pasteSequenceRef = useRef<number>(0);
 
   // In-app Toasts
   const [toasts, setToasts] = useState<AppToast[]>([]);
@@ -1404,6 +1425,30 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [state, pushHistory, currentUser]);
 
+  const getVisibleCanvasCenter = useCallback((): { x: number; y: number } => {
+    let viewW = 1200;
+    let viewH = 800;
+
+    if (typeof document !== 'undefined') {
+      const container = document.getElementById('factory-canvas-container');
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        if (rect.width > 50 && rect.height > 50) {
+          viewW = rect.width;
+          viewH = rect.height;
+        }
+      } else if (typeof window !== 'undefined') {
+        viewW = window.innerWidth;
+        viewH = window.innerHeight;
+      }
+    }
+
+    const worldCenterX = Math.round((viewW / 2 - viewport.panX) / viewport.zoom);
+    const worldCenterY = Math.round((viewH / 2 - viewport.panY) / viewport.zoom);
+
+    return { x: worldCenterX, y: worldCenterY };
+  }, [viewport.panX, viewport.panY, viewport.zoom]);
+
   const addEmptyEquipment = useCallback((parentId?: string | null, position?: { x: number; y: number }) => {
     const targetParentId = parentId !== undefined ? parentId : (focusedContainerId || null);
     
@@ -1413,18 +1458,11 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (position) {
       posX = position.x;
       posY = position.y;
-    } else if (targetParentId) {
-      const parentContainer = state.containers.find(c => c.id === targetParentId);
-      if (parentContainer) {
-        posX = parentContainer.x + 30;
-        posY = parentContainer.y + 60;
-      } else {
-        posX = Math.round((-viewport.panX + window.innerWidth / 2) / viewport.zoom) - 85;
-        posY = Math.round((-viewport.panY + window.innerHeight / 2) / viewport.zoom) - 85;
-      }
     } else {
-      posX = Math.round((-viewport.panX + window.innerWidth / 2) / viewport.zoom) - 85;
-      posY = Math.round((-viewport.panY + window.innerHeight / 2) / viewport.zoom) - 85;
+      // Появляется ровно посередине видимого экрана
+      const center = getVisibleCanvasCenter();
+      posX = center.x - 85;
+      posY = center.y - 85;
     }
 
     const newId = 'eq_' + Date.now();
@@ -1457,12 +1495,309 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     showToast(
       `Создано пустое оборудование [${newTag}]`,
-      'Заполните название, параметры и свойства в панели инспектора справа.',
+      'Размещено по центру экрана. Заполните свойства в панели справа.',
       'info'
     );
 
     return newId;
-  }, [focusedContainerId, state.containers, viewport, addEquipment, setSelectedId, setActiveTool, showToast]);
+  }, [focusedContainerId, getVisibleCanvasCenter, addEquipment, setSelectedId, setActiveTool, showToast]);
+
+  const copySelected = useCallback((): boolean => {
+    const targetIds = selectedIds.length > 0 
+      ? selectedIds 
+      : (selectedId ? [selectedId] : []);
+
+    if (targetIds.length === 0) {
+      showToast('Ничего не выбрано', 'Выберите оборудование или контейнер для копирования', 'warning');
+      return false;
+    }
+
+    const copiedContainers: ContainerNode[] = [];
+    const copiedEquipment: EquipmentNode[] = [];
+    const allCopiedIds = new Set<string>();
+
+    // Collect all containers in targetIds and their descendants
+    for (const id of targetIds) {
+      const container = state.containers.find(c => c.id === id);
+      if (container && !allCopiedIds.has(container.id)) {
+        copiedContainers.push(container);
+        allCopiedIds.add(container.id);
+        const { containers: descConts, equipment: descEq } = findAllDescendantsOfContainer(container.id, state.containers, state.equipment);
+        for (const dc of descConts) {
+          if (!allCopiedIds.has(dc.id)) {
+            copiedContainers.push(dc);
+            allCopiedIds.add(dc.id);
+          }
+        }
+        for (const de of descEq) {
+          if (!allCopiedIds.has(de.id)) {
+            copiedEquipment.push(de);
+            allCopiedIds.add(de.id);
+          }
+        }
+      }
+    }
+
+    // Collect all equipment in targetIds and their descendants
+    for (const id of targetIds) {
+      const eq = state.equipment.find(e => e.id === id);
+      if (eq && !allCopiedIds.has(eq.id)) {
+        copiedEquipment.push(eq);
+        allCopiedIds.add(eq.id);
+        const { equipment: descEq } = findAllDescendantsOfEquipment(eq.id, state.equipment);
+        for (const de of descEq) {
+          if (!allCopiedIds.has(de.id)) {
+            copiedEquipment.push(de);
+            allCopiedIds.add(de.id);
+          }
+        }
+      }
+    }
+
+    if (copiedContainers.length === 0 && copiedEquipment.length === 0) {
+      showToast('Ничего не выбрано', 'Выберите оборудование или контейнер для копирования', 'warning');
+      return false;
+    }
+
+    // Also copy any links connecting elements within the copied set
+    const copiedLinks = state.links.filter(l => allCopiedIds.has(l.fromId) && allCopiedIds.has(l.toId));
+
+    const clipData: ElementClipboardData = {
+      equipment: copiedEquipment,
+      containers: copiedContainers,
+      links: copiedLinks,
+      copiedAt: Date.now(),
+    };
+
+    setClipboard(clipData);
+    pasteSequenceRef.current = 0;
+
+    try {
+      localStorage.setItem('promschema_clipboard_v1', JSON.stringify(clipData));
+    } catch {}
+
+    const count = copiedEquipment.length + copiedContainers.length;
+    showToast(
+      'Скопировано в буфер',
+      count === 1
+        ? `Элемент «${copiedEquipment[0]?.name || copiedContainers[0]?.name}» скопирован. Вставьте его (Ctrl+V).`
+        : `Скопировано объектов: ${count} и ${copiedLinks.length} связей. Вставьте их (Ctrl+V).`,
+      'info'
+    );
+
+    return true;
+  }, [selectedId, selectedIds, state.containers, state.equipment, state.links, showToast]);
+
+  const pasteElements = useCallback((): boolean => {
+    let data = clipboard;
+    if (!data) {
+      try {
+        const saved = localStorage.getItem('promschema_clipboard_v1');
+        if (saved) {
+          data = JSON.parse(saved);
+        }
+      } catch {}
+    }
+
+    if (!data || (data.equipment.length === 0 && data.containers.length === 0)) {
+      showToast('Буфер обмена пуст', 'Сначала скопируйте элемент (Ctrl+C или кнопка «Копировать»)', 'warning');
+      return false;
+    }
+
+    // Calculate bounding box of copied elements
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const eq of data.equipment) {
+      const w = eq.isCollapsed ? (eq.collapsedWidth || 170) : eq.width;
+      const h = eq.isCollapsed ? (eq.collapsedHeight || 70) : eq.height;
+      if (eq.x < minX) minX = eq.x;
+      if (eq.y < minY) minY = eq.y;
+      if (eq.x + w > maxX) maxX = eq.x + w;
+      if (eq.y + h > maxY) maxY = eq.y + h;
+    }
+
+    for (const c of data.containers) {
+      const w = c.isCollapsed ? c.collapsedWidth : c.width;
+      const h = c.isCollapsed ? c.collapsedHeight : c.height;
+      if (c.x < minX) minX = c.x;
+      if (c.y < minY) minY = c.y;
+      if (c.x + w > maxX) maxX = c.x + w;
+      if (c.y + h > maxY) maxY = c.y + h;
+    }
+
+    if (!isFinite(minX) || !isFinite(minY)) {
+      return false;
+    }
+
+    const bboxCenterX = (minX + maxX) / 2;
+    const bboxCenterY = (minY + maxY) / 2;
+
+    const center = getVisibleCanvasCenter();
+
+    // On consecutive paste without view change, add a small offset so items don't overlap completely
+    const seq = pasteSequenceRef.current;
+    const offset = seq > 0 ? (seq % 10) * 20 : 0;
+    pasteSequenceRef.current += 1;
+
+    const deltaX = Math.round(center.x - bboxCenterX) + offset;
+    const deltaY = Math.round(center.y - bboxCenterY) + offset;
+
+    const idMap = new Map<string, string>();
+    const timestamp = Date.now();
+
+    // Generate new IDs for containers
+    data.containers.forEach((c, i) => {
+      idMap.set(c.id, `cont_${timestamp}_${i}_${Math.random().toString(36).substring(2, 6)}`);
+    });
+
+    // Generate new IDs for equipment
+    data.equipment.forEach((e, i) => {
+      idMap.set(e.id, `eq_${timestamp}_${i}_${Math.random().toString(36).substring(2, 6)}`);
+    });
+
+    // Remap containers
+    const newContainers: ContainerNode[] = data.containers.map(c => {
+      const newId = idMap.get(c.id)!;
+      const isTopLevelInSelection = !c.parentId || !idMap.has(c.parentId);
+      const newParentId = isTopLevelInSelection 
+        ? (focusedContainerId || null)
+        : idMap.get(c.parentId!)!;
+
+      const randomNum = Math.floor(10 + Math.random() * 90);
+      const tagPrefix = c.tag.includes('-') ? c.tag.split('-')[0] : c.tag;
+      const newTag = `${tagPrefix}-${randomNum}`;
+
+      return {
+        ...c,
+        id: newId,
+        name: `${c.name} (копия)`,
+        tag: newTag,
+        parentId: newParentId,
+        x: Math.round(c.x + deltaX),
+        y: Math.round(c.y + deltaY),
+        elementLinks: (c.elementLinks || []).map(link => ({
+          ...link,
+          id: `ref_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          targetId: idMap.get(link.targetId) || link.targetId,
+        })),
+      };
+    });
+
+    // Remap equipment
+    const newEquipment: EquipmentNode[] = data.equipment.map(e => {
+      const newId = idMap.get(e.id)!;
+      const isTopLevelInSelection = !e.parentId || !idMap.has(e.parentId);
+      const newParentId = isTopLevelInSelection 
+        ? (focusedContainerId || null)
+        : idMap.get(e.parentId!)!;
+
+      const randomNum = Math.floor(100 + Math.random() * 900);
+      const tagPrefix = e.tag.includes('-') ? e.tag.split('-')[0] : e.tag;
+      const newTag = `${tagPrefix}-${randomNum}`;
+
+      return {
+        ...e,
+        id: newId,
+        name: `${e.name} (копия)`,
+        tag: newTag,
+        parentId: newParentId,
+        x: Math.round(e.x + deltaX),
+        y: Math.round(e.y + deltaY),
+        properties: (e.properties || []).map(p => ({
+          ...p,
+          id: `p_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        })),
+        elementLinks: (e.elementLinks || []).map(link => ({
+          ...link,
+          id: `ref_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          targetId: idMap.get(link.targetId) || link.targetId,
+        })),
+      };
+    });
+
+    // Remap links
+    const newLinks: ConnectionLink[] = [];
+    for (const l of data.links) {
+      if (idMap.has(l.fromId) && idMap.has(l.toId)) {
+        newLinks.push({
+          ...l,
+          id: `link_${timestamp}_${Math.random().toString(36).substring(2, 7)}`,
+          fromId: idMap.get(l.fromId)!,
+          toId: idMap.get(l.toId)!,
+        });
+      }
+    }
+
+    pushHistory(state);
+
+    setState(prev => {
+      const nextEq = [...prev.equipment, ...newEquipment];
+      const nextCont = [...prev.containers, ...newContainers];
+      const nextLinks = [...prev.links, ...newLinks];
+
+      const count = newEquipment.length + newContainers.length;
+      const primaryName = newEquipment[0]?.name || newContainers[0]?.name || 'элементы';
+      const logDesc = count === 1 
+        ? `Вставлен элемент «${primaryName}» по центру экрана`
+        : `Вставлено ${count} объектов по центру экрана`;
+
+      const newLog = createEventLog({
+        targetId: newEquipment[0]?.id || newContainers[0]?.id || 'paste',
+        targetName: primaryName,
+        targetType: newEquipment.length > 0 ? 'equipment' : 'container',
+        eventType: 'created',
+        severity: 'success',
+        description: logDesc,
+        userName: currentUser.name,
+        userRole: currentUser.role
+      });
+
+      const nextLogs = [newLog, ...prev.eventLogs.filter(l => l.id !== newLog.id)].slice(0, 200);
+      const nextState = {
+        ...prev,
+        equipment: nextEq,
+        containers: nextCont,
+        links: nextLinks,
+        eventLogs: nextLogs
+      };
+
+      syncStateToServer(nextState, logDesc);
+      return nextState;
+    });
+
+    // Set selection to newly pasted items
+    const allNewIds = [...newContainers.map(c => c.id), ...newEquipment.map(e => e.id)];
+    if (allNewIds.length === 1) {
+      setSelectedId(allNewIds[0]);
+      setSelectedIds([allNewIds[0]]);
+    } else if (allNewIds.length > 1) {
+      setSelectedId(allNewIds[0]);
+      setSelectedIds(allNewIds);
+    }
+    setActiveTool('select');
+
+    const totalCount = newEquipment.length + newContainers.length;
+    showToast(
+      'Вставлено по центру экрана',
+      totalCount === 1 
+        ? `Элемент размещен ровно посередине видимого экрана.`
+        : `Размещено объектов: ${totalCount} ровно посередине видимого экрана.`,
+      'success'
+    );
+
+    return true;
+  }, [clipboard, getVisibleCanvasCenter, focusedContainerId, pushHistory, state, currentUser, setSelectedId, setSelectedIds, setActiveTool, showToast, syncStateToServer]);
+
+  const duplicateSelected = useCallback((): boolean => {
+    const copied = copySelected();
+    if (copied) {
+      return pasteElements();
+    }
+    return false;
+  }, [copySelected, pasteElements]);
 
   const deleteEquipment = useCallback((id: string, reason?: string) => {
     pushHistory(state);
@@ -2706,6 +3041,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         addElementLink,
         removeElementLink,
         copyElementLink,
+        clipboard,
+        hasClipboard: Boolean(clipboard && (clipboard.equipment.length > 0 || clipboard.containers.length > 0)),
+        copySelected,
+        pasteElements,
+        duplicateSelected,
+        getVisibleCanvasCenter,
       }}
     >
       {children}

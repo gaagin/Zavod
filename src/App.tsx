@@ -45,6 +45,9 @@ const AppContent: React.FC = () => {
     setIsCreateEquipmentOpen,
     shareModalNodeId,
     closeShareModal,
+    copySelected,
+    pasteElements,
+    duplicateSelected,
   } = useFactory();
 
   const [isWindowDragOver, setIsWindowDragOver] = useState(false);
@@ -159,6 +162,31 @@ const AppContent: React.FC = () => {
         return;
       }
 
+      // Copy: Ctrl/Cmd + C (English 'c' / 'C' or Russian 'с' / 'С')
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С')) {
+        if (selectedId || selectedIds.length > 0) {
+          e.preventDefault();
+          copySelected();
+          return;
+        }
+      }
+
+      // Paste: Ctrl/Cmd + V (English 'v' / 'V' or Russian 'м' / 'М')
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V' || e.key === 'м' || e.key === 'М')) {
+        e.preventDefault();
+        pasteElements();
+        return;
+      }
+
+      // Duplicate: Ctrl/Cmd + D (English 'd' / 'D' or Russian 'в' / 'В')
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D' || e.key === 'в' || e.key === 'В')) {
+        if (selectedId || selectedIds.length > 0) {
+          e.preventDefault();
+          duplicateSelected();
+          return;
+        }
+      }
+
       // Escape: Close search, exit focus mode, or deselect
       if (e.key === 'Escape') {
         if (isSearchOpen) {
@@ -209,20 +237,22 @@ const AppContent: React.FC = () => {
       }
 
       // Quick Tools shortcuts
-      if (e.key === 'v' || e.key === 'V') {
-        setActiveTool('select');
-      } else if (e.key === 'h' || e.key === 'H') {
-        setActiveTool('pan');
-      } else if (e.key === 'l' || e.key === 'L') {
-        setActiveTool('connect');
-      } else if (e.key === '=' || e.key === '+') {
-        zoomIn();
-      } else if (e.key === '-' || e.key === '_') {
-        zoomOut();
-      } else if (e.key === '0') {
-        zoomReset();
-      } else if ((e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        addEmptyEquipment(focusedContainerId || null);
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === 'v' || e.key === 'V') {
+          setActiveTool('select');
+        } else if (e.key === 'h' || e.key === 'H' || e.key === 'р' || e.key === 'Р') {
+          setActiveTool('pan');
+        } else if (e.key === 'l' || e.key === 'L' || e.key === 'д' || e.key === 'Д') {
+          setActiveTool('connect');
+        } else if (e.key === '=' || e.key === '+') {
+          zoomIn();
+        } else if (e.key === '-' || e.key === '_') {
+          zoomOut();
+        } else if (e.key === '0') {
+          zoomReset();
+        } else if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
+          addEmptyEquipment(focusedContainerId || null);
+        }
       }
     };
 
@@ -233,9 +263,14 @@ const AppContent: React.FC = () => {
     redo, 
     selectedId, 
     setSelectedId, 
+    selectedIds,
+    batchDelete,
     deleteEquipment, 
     deleteContainer, 
     deleteLink, 
+    copySelected,
+    pasteElements,
+    duplicateSelected,
     state, 
     currentUser, 
     isSearchOpen, 
@@ -248,7 +283,8 @@ const AppContent: React.FC = () => {
     enterFocusMode,
     exitFocusMode,
     addEmptyEquipment,
-    setIsCreateEquipmentOpen
+    setIsCreateEquipmentOpen,
+    forceSave
   ]);
 
   return (
