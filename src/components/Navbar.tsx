@@ -160,18 +160,18 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      <header className="h-14 border-b border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F0F12] text-slate-700 dark:text-slate-300 px-4 flex items-center justify-between z-30 select-none transition-colors">
+      <header className="h-14 border-b border-slate-200 dark:border-white/10 bg-white dark:bg-[#0F0F12] text-slate-700 dark:text-slate-300 px-2 sm:px-4 flex items-center justify-between z-30 select-none transition-colors">
       {/* Brand & Factory Header */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2.5 font-bold tracking-tight">
-          <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0">
-            <Factory className="w-4 h-4" />
+      <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 font-bold tracking-tight">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-md flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0">
+            <Factory className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           <div>
-            <div className="text-sm font-bold text-slate-900 dark:text-white leading-none flex items-center gap-1.5">
+            <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-none flex items-center gap-1">
               <span>ПромСхема</span>
-              <span className="text-blue-500 font-mono text-xs">.IO</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold tracking-widest uppercase border border-blue-500/20">
+              <span className="text-blue-500 font-mono text-[10px] sm:text-xs hidden xs:inline">.IO</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold tracking-widest uppercase border border-blue-500/20 hidden sm:inline">
                 SCADA
               </span>
             </div>
@@ -182,7 +182,7 @@ export const Navbar: React.FC = () => {
         </div>
 
         {/* Vertical divider */}
-        <div className="h-6 w-px bg-slate-200 dark:bg-white/10 mx-1 hidden sm:block" />
+        <div className="h-5 w-px bg-slate-200 dark:bg-white/10 mx-0.5 hidden sm:block" />
 
         {/* Live sync & Online users badge */}
         <div className="relative" ref={usersMenuRef}>
@@ -190,10 +190,10 @@ export const Navbar: React.FC = () => {
             id="online-users-btn"
             type="button"
             onClick={() => setUsersMenuOpen(!usersMenuOpen)}
-            className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-medium border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition-colors"
+            className="flex items-center gap-1 sm:gap-2 px-1.5 sm:px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition-colors shrink-0"
             title="Синхронизация в реальном времени"
           >
-            <span className="relative flex h-2 w-2">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
                 connectionStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'
               }`} />
@@ -204,41 +204,47 @@ export const Navbar: React.FC = () => {
             <span className="hidden md:inline text-[11px]">
               {connectionStatus === 'connected' ? 'Sync Active' : 'Connecting...'}
             </span>
-            <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-white/10 pl-1.5 ml-0.5">
-              <Users className="w-3 h-3 text-slate-400" />
+            <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 sm:border-l sm:border-slate-200 dark:sm:border-white/10 sm:pl-1.5 sm:ml-0.5">
+              <Users className="w-3 h-3 text-slate-400 shrink-0" />
               <span>{onlineUsers.length}</span>
             </span>
           </button>
 
           {/* Active online users popover */}
           {usersMenuOpen && (
-            <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-[#0F0F12] border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl p-3 z-50 text-slate-700 dark:text-slate-300 animate-in fade-in zoom-in-95 duration-100">
-              <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center justify-between">
-                <span>Пользователи онлайн</span>
-                <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-mono">Live WS</span>
-              </div>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {onlineUsers.map(u => (
-                  <div key={u.id} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-2.5 h-2.5 rounded-full" 
-                        style={{ backgroundColor: u.color }} 
-                      />
-                      <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[120px]">
-                        {u.name} {u.id === currentUser.id ? '(Вы)' : ''}
+            <>
+              <div 
+                className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:hidden"
+                onClick={() => setUsersMenuOpen(false)}
+              />
+              <div className="fixed inset-x-3 top-16 z-50 sm:absolute sm:top-full sm:left-0 sm:inset-x-auto sm:w-64 max-w-xs bg-white dark:bg-[#0F0F12] border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl p-3 text-slate-700 dark:text-slate-300 animate-in fade-in zoom-in-95 duration-100">
+                <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center justify-between">
+                  <span>Пользователи онлайн</span>
+                  <span className="text-[10px] text-emerald-500 dark:text-emerald-400 font-mono">Live WS</span>
+                </div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {onlineUsers.map(u => (
+                    <div key={u.id} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full shrink-0" 
+                          style={{ backgroundColor: u.color }} 
+                        />
+                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[120px]">
+                          {u.name} {u.id === currentUser.id ? '(Вы)' : ''}
+                        </span>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-white/10 text-slate-700 dark:text-slate-300 shrink-0">
+                        {roleLabels[u.role]?.label || u.role}
                       </span>
                     </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-white/10 text-slate-700 dark:text-slate-300">
-                      {roleLabels[u.role]?.label || u.role}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/10 text-[10px] text-slate-400 dark:text-slate-500">
+                  Движения курсоров и изменения блоков обновляются мгновенно.
+                </div>
               </div>
-              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-white/10 text-[10px] text-slate-400 dark:text-slate-500">
-                Движения курсоров и изменения блоков обновляются мгновенно.
-              </div>
-            </div>
+            </>
           )}
         </div>
       </div>
@@ -302,11 +308,11 @@ export const Navbar: React.FC = () => {
           id="nav-mobile-search-btn"
           type="button"
           onClick={() => setIsSearchOpen(true)}
-          className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs font-semibold shadow-2xs transition-all active:scale-95"
+          className="md:hidden p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs font-semibold shadow-2xs transition-all active:scale-95 shrink-0 flex items-center gap-1.5"
           title="Поиск оборудования и логов (Ctrl+K)"
         >
           <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-          <span>Поиск</span>
+          <span className="hidden sm:inline">Поиск</span>
         </button>
 
         {/* Dedicated AutoSave Status & Multi-Device Sync Widget */}
@@ -315,7 +321,7 @@ export const Navbar: React.FC = () => {
             id="nav-autosave-status-btn"
             type="button"
             onClick={() => setAutosaveMenuOpen(!autosaveMenuOpen)}
-            className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+            className={`flex items-center gap-1 sm:gap-2 p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg border text-xs font-medium transition-all shrink-0 ${
               saveStatus === 'saving'
                 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
                 : saveStatus === 'error'
@@ -372,12 +378,17 @@ export const Navbar: React.FC = () => {
               </span>
             ) : null}
 
-            <ChevronDown className={`w-3 h-3 opacity-60 transition-transform duration-200 ${autosaveMenuOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 opacity-60 transition-transform duration-200 hidden xs:inline ${autosaveMenuOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {/* Detailed Autosave & Multi-Device Popover */}
           {autosaveMenuOpen && (
-            <div className="absolute top-full right-0 mt-2 w-80 sm:w-[420px] bg-white dark:bg-[#0F0F12] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-4 z-50 text-slate-700 dark:text-slate-300 animate-in fade-in zoom-in-95 duration-100">
+            <>
+              <div 
+                className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:hidden"
+                onClick={() => setAutosaveMenuOpen(false)}
+              />
+              <div className="fixed inset-x-2 top-16 z-50 sm:absolute sm:top-full sm:right-0 sm:inset-x-auto sm:w-[420px] max-w-[calc(100vw-1rem)] max-h-[85vh] overflow-y-auto bg-white dark:bg-[#0F0F12] border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl p-4 text-slate-700 dark:text-slate-300 animate-in fade-in zoom-in-95 duration-100">
               {/* Header */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/10">
                 <div className="flex items-center gap-2">
@@ -611,6 +622,7 @@ export const Navbar: React.FC = () => {
                 </button>
               </div>
             </div>
+            </>
           )}
         </div>
 
@@ -662,16 +674,16 @@ export const Navbar: React.FC = () => {
           id="open-project-panel-btn"
           type="button"
           onClick={() => setIsProjectPanelOpen(!isProjectPanelOpen)}
-          className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all shrink-0 ${
+          className={`flex items-center gap-1 sm:gap-2 p-1.5 sm:px-3 sm:py-1.5 text-xs font-semibold rounded-lg border transition-all shrink-0 ${
             isProjectPanelOpen
               ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/25 ring-1 ring-blue-400/40'
               : 'bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20'
           }`}
           title="Открыть панель: сохранение, открытие файлов, экспорт и бэкапы"
         >
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span
-              className={`w-2 h-2 rounded-full ${
+              className={`w-2 h-2 rounded-full shrink-0 ${
                 saveStatus === 'saving'
                   ? 'bg-amber-400 animate-pulse'
                   : autoSaveConfig.enabled
@@ -679,11 +691,10 @@ export const Navbar: React.FC = () => {
                   : 'bg-slate-400 dark:bg-slate-500'
               }`}
             />
-            <Save className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <Save className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
           </div>
           <span className="font-medium hidden sm:inline">Файлы и проект</span>
-          <span className="font-medium sm:hidden">Проект</span>
-          <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isProjectPanelOpen ? 'rotate-90' : ''}`} />
+          <ChevronRight className={`w-3.5 h-3.5 hidden sm:inline transition-transform duration-200 ${isProjectPanelOpen ? 'rotate-90' : ''}`} />
         </button>
 
         {/* Theme Toggle */}
@@ -691,20 +702,21 @@ export const Navbar: React.FC = () => {
           id="theme-toggle-btn"
           type="button"
           onClick={toggleDarkMode}
-          className="p-1.5 rounded-md text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-slate-200 dark:border-white/10 shrink-0"
+          className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-slate-200 dark:border-white/10 shrink-0"
           title={isDarkMode ? 'Включить светлую тему' : 'Включить темную тему (ночная смена)'}
         >
           {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
         </button>
 
         {/* User Role Switcher & Avatar */}
-        <div className="flex items-center gap-1.5 sm:gap-2 border-l border-slate-200 dark:border-white/10 pl-1.5 sm:pl-3 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 border-l border-slate-200 dark:border-white/10 pl-1 sm:pl-2.5 shrink-0">
           <div className="relative" ref={roleMenuRef}>
+            {/* Desktop Role Button */}
             <button
               id="role-switcher-btn"
               type="button"
               onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-              className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded text-[10px] font-semibold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all uppercase tracking-wide"
+              className="hidden sm:flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded text-[10px] font-semibold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all uppercase tracking-wide shrink-0"
               title="Уровень доступа и роль пользователя"
             >
               <span className="truncate max-w-[70px] sm:max-w-[130px]">
@@ -713,57 +725,74 @@ export const Navbar: React.FC = () => {
               <ChevronDown className="w-3 h-3 opacity-60" />
             </button>
 
+            {/* Mobile Avatar Button (Tapping directly opens role switcher) */}
+            <button
+              id="mobile-user-avatar-role-btn"
+              type="button"
+              onClick={() => setRoleMenuOpen(!roleMenuOpen)}
+              className="sm:hidden w-7 h-7 rounded-full bg-slate-200 text-slate-700 dark:bg-gradient-to-tr dark:from-slate-700 dark:to-slate-500 dark:text-white border border-slate-300 dark:border-white/20 flex items-center justify-center text-[10px] font-bold shadow-2xs shrink-0 active:scale-95 transition-transform"
+              title={`Роль: ${roleLabels[currentUser.role]?.label}. Нажмите для смены.`}
+            >
+              {currentUser.name.slice(0, 2).toUpperCase()}
+            </button>
+
             {roleMenuOpen && (
-              <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#0F0F12] border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl p-2 z-50 text-slate-800 dark:text-slate-300 animate-in fade-in zoom-in-95 duration-100">
-                <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                  Переключение роли доступа
-                </div>
-                <div className="space-y-1">
-                  {(['admin', 'operator', 'maintenance', 'viewer'] as UserRole[]).map(r => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => {
-                        setCurrentUserRole(r);
-                        setRoleMenuOpen(false);
-                        addEventLog({
-                          targetId: currentUser.id,
-                          targetName: currentUser.name,
-                          targetType: 'system',
-                          eventType: 'status_change',
-                          severity: 'info',
-                          description: `Сменена роль пользователя на "${roleLabels[r].label}"`,
-                          userName: currentUser.name,
-                          userRole: r,
-                        });
-                      }}
-                      className={`w-full text-left p-2 rounded-lg text-xs transition-colors flex items-start justify-between ${
-                        currentUser.role === r 
-                          ? 'bg-blue-50 dark:bg-white/10 text-blue-700 dark:text-white font-semibold' 
-                          : 'hover:bg-slate-100 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      <div>
-                        <div className="text-slate-900 dark:text-slate-200 font-medium">
-                          {roleLabels[r].label}
+              <>
+                <div 
+                  className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs sm:hidden"
+                  onClick={() => setRoleMenuOpen(false)}
+                />
+                <div className="fixed inset-x-3 top-16 z-50 sm:absolute sm:right-0 sm:inset-x-auto sm:w-72 max-w-xs mx-auto bg-white dark:bg-[#0F0F12] border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl p-2 text-slate-800 dark:text-slate-300 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                    Переключение роли доступа
+                  </div>
+                  <div className="space-y-1">
+                    {(['admin', 'operator', 'maintenance', 'viewer'] as UserRole[]).map(r => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => {
+                          setCurrentUserRole(r);
+                          setRoleMenuOpen(false);
+                          addEventLog({
+                            targetId: currentUser.id,
+                            targetName: currentUser.name,
+                            targetType: 'system',
+                            eventType: 'status_change',
+                            severity: 'info',
+                            description: `Сменена роль пользователя на "${roleLabels[r].label}"`,
+                            userName: currentUser.name,
+                            userRole: r,
+                          });
+                        }}
+                        className={`w-full text-left p-2 rounded-lg text-xs transition-colors flex items-start justify-between ${
+                          currentUser.role === r 
+                            ? 'bg-blue-50 dark:bg-white/10 text-blue-700 dark:text-white font-semibold' 
+                            : 'hover:bg-slate-100 dark:hover:bg-white/5 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        <div>
+                          <div className="text-slate-900 dark:text-slate-200 font-medium">
+                            {roleLabels[r].label}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                            {roleLabels[r].desc}
+                          </div>
                         </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                          {roleLabels[r].desc}
-                        </div>
-                      </div>
-                      {currentUser.role === r && (
-                        <Check className="w-4 h-4 text-blue-600 dark:text-blue-500 shrink-0 ml-2" />
-                      )}
-                    </button>
-                  ))}
+                        {currentUser.role === r && (
+                          <Check className="w-4 h-4 text-blue-600 dark:text-blue-500 shrink-0 ml-2" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
 
-          {/* User initials badge */}
+          {/* Desktop User initials badge */}
           <div 
-            className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 dark:bg-gradient-to-tr dark:from-slate-700 dark:to-slate-500 dark:text-white border border-slate-300 dark:border-white/20 flex items-center justify-center text-[10px] font-bold shadow-2xs shrink-0"
+            className="hidden sm:flex w-7 h-7 rounded-full bg-slate-200 text-slate-700 dark:bg-gradient-to-tr dark:from-slate-700 dark:to-slate-500 dark:text-white border border-slate-300 dark:border-white/20 items-center justify-center text-[10px] font-bold shadow-2xs shrink-0"
             title={currentUser.name}
           >
             {currentUser.name.slice(0, 2).toUpperCase()}
