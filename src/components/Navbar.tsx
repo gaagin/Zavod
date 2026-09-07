@@ -256,11 +256,11 @@ export const Navbar: React.FC = () => {
           type="button"
           onClick={() => setIsSearchOpen(true)}
           className="w-full flex items-center justify-between px-3 py-1.5 text-xs bg-slate-50 dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 border border-slate-200 dark:border-white/10 rounded-lg transition-colors group shadow-2xs"
-          title="Глобальный поиск оборудования, цехов и логов (Ctrl+K или /)"
+          title="Глобальный поиск оборудования, цехов, задач ТО и логов (Ctrl+K или /)"
         >
           <div className="flex items-center gap-2 truncate">
             <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform shrink-0" />
-            <span className="text-slate-600 dark:text-slate-300 font-medium truncate">Поиск по схеме, тегам, логам...</span>
+            <span className="text-slate-600 dark:text-slate-300 font-medium truncate">Поиск по схеме, задачам ТО, логам...</span>
           </div>
           <kbd className="text-[10px] font-mono bg-slate-200/70 dark:bg-white/10 border border-slate-300/70 dark:border-white/15 px-1.5 py-0.5 rounded text-slate-700 dark:text-slate-300 shadow-2xs shrink-0 ml-1">
             Ctrl+K

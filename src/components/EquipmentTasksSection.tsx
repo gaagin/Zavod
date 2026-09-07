@@ -73,12 +73,13 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
   equipment,
   canEdit,
 }) => {
-  const { updateEquipment, addEventLog, currentUser } = useFactory();
+  const { updateEquipment, addEventLog, currentUser, openSearch } = useFactory();
 
   const tasks = equipment.tasks || [];
   const [isExpanded, setIsExpanded] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'completed'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   // Form State
@@ -94,8 +95,23 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
   const urgentCount = tasks.filter(t => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'completed').length;
 
   const filteredTasks = tasks.filter(task => {
-    if (filterStatus === 'active') return task.status === 'pending' || task.status === 'in_progress';
-    if (filterStatus === 'completed') return task.status === 'completed';
+    if (filterStatus === 'active') {
+      if (task.status === 'completed' || task.status === 'cancelled') return false;
+    } else if (filterStatus === 'completed') {
+      if (task.status !== 'completed') return false;
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        task.title.toLowerCase().includes(q) ||
+        (task.description && task.description.toLowerCase().includes(q)) ||
+        (task.assignedTo && task.assignedTo.toLowerCase().includes(q)) ||
+        (TYPE_LABELS[task.type] && TYPE_LABELS[task.type].toLowerCase().includes(q)) ||
+        (PRIORITY_CONFIG[task.priority]?.label && PRIORITY_CONFIG[task.priority].label.toLowerCase().includes(q))
+      );
+    }
+
     return true;
   });
 
@@ -490,42 +506,77 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
 
           {/* Filter Bar (when tasks exist) */}
           {tasks.length > 0 && (
-            <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-100 dark:border-white/5">
-              <div className="flex items-center gap-1">
+            <div className="space-y-1.5 pb-1 border-b border-slate-100 dark:border-white/5">
+              <div className="flex items-center justify-between text-[11px] gap-1 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('all')}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
+                      filterStatus === 'all'
+                        ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 font-bold'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Все ({tasks.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('active')}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
+                      filterStatus === 'active'
+                        ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 font-bold'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    В работе ({activeTasks.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('completed')}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
+                      filterStatus === 'completed'
+                        ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 font-bold'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Выполнено ({completedCount})
+                  </button>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => setFilterStatus('all')}
-                  className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
-                    filterStatus === 'all'
-                      ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 font-bold'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
+                  onClick={() => openSearch('tasks')}
+                  className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                  title="Открыть глобальный поиск по всем задачам завода"
                 >
-                  Все ({tasks.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('active')}
-                  className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
-                    filterStatus === 'active'
-                      ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 font-bold'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  В работе ({activeTasks.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('completed')}
-                  className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
-                    filterStatus === 'completed'
-                      ? 'bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 font-bold'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  Выполнено ({completedCount})
+                  <Search className="w-2.5 h-2.5" />
+                  <span>Поиск по всем</span>
                 </button>
               </div>
+
+              {/* Quick search input within this equipment */}
+              {tasks.length > 2 && (
+                <div className="relative">
+                  <Search className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Поиск по задачам этого станка..."
+                    className="w-full pl-6 pr-6 py-1 text-[11px] rounded-md bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-blue-400"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

@@ -37,7 +37,8 @@ import {
   Tag,
   Copy,
   CopyPlus,
-  ClipboardPaste
+  ClipboardPaste,
+  Search
 } from 'lucide-react';
 import { ElementLinksSection } from './ElementLinksSection';
 import { EquipmentTasksSection } from './EquipmentTasksSection';
@@ -74,6 +75,7 @@ export const InspectorPanel: React.FC = () => {
     hasClipboard,
     isMobileSummaryOpen,
     setIsMobileSummaryOpen,
+    openSearch,
   } = useFactory();
 
   const [newPropName, setNewPropName] = useState('');
@@ -608,6 +610,16 @@ export const InspectorPanel: React.FC = () => {
                         </div>
                       )}
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openSearch('tasks')}
+                      className="w-full mt-2 py-1.5 px-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800/40 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      title="Открыть окно глобального поиска по всем задачам ТО"
+                    >
+                      <Search className="w-3 h-3" />
+                      <span>Поиск по всем задачам ({allEqTasks.length})</span>
+                    </button>
                   </>
                 )}
               </div>

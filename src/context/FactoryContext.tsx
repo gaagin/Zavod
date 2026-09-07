@@ -149,6 +149,8 @@ interface FactoryContextType {
   toggleDarkMode: () => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
+  searchDefaultTab: 'components' | 'tasks' | 'logs';
+  openSearch: (tab?: 'components' | 'tasks' | 'logs') => void;
   isCreateEquipmentOpen: boolean;
   setIsCreateEquipmentOpen: (open: boolean) => void;
   addEmptyEquipment: (parentId?: string | null, position?: { x: number; y: number }) => string;
@@ -382,6 +384,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Modals & Panels
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchDefaultTab, setSearchDefaultTab] = useState<'components' | 'tasks' | 'logs'>('components');
+
+  const openSearch = useCallback((tab?: 'components' | 'tasks' | 'logs') => {
+    if (tab) setSearchDefaultTab(tab);
+    setIsSearchOpen(true);
+  }, []);
   const [isCreateEquipmentOpen, setIsCreateEquipmentOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isBackupOpen, setIsBackupOpen] = useState(false);
@@ -2998,6 +3006,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toggleDarkMode,
         isSearchOpen,
         setIsSearchOpen,
+        searchDefaultTab,
+        openSearch,
         isCreateEquipmentOpen,
         setIsCreateEquipmentOpen,
         addEmptyEquipment,

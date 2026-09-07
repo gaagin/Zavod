@@ -659,7 +659,7 @@ export const Toolbar: React.FC = () => {
         type="button"
         onClick={() => setIsSearchOpen(true)}
         className="hidden sm:flex items-center gap-1.5 px-2 py-2 sm:px-2.5 sm:py-1.5 rounded-xl sm:rounded-lg shrink-0 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 border border-slate-200 dark:border-white/10 hover:border-blue-300 dark:hover:border-blue-500/30 transition-all active:scale-95 shadow-2xs"
-        title="Поиск оборудования, цехов и логов (Ctrl+K или /)"
+        title="Поиск оборудования, цехов, задач ТО и логов (Ctrl+K или /)"
       >
         <Search className="w-4 h-4 text-blue-600 dark:text-blue-400" />
         <span className="text-xs font-semibold hidden md:inline">Поиск</span>
@@ -671,7 +671,7 @@ export const Toolbar: React.FC = () => {
         type="button"
         onClick={() => setIsSearchOpen(true)}
         className="sm:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 shadow-2xs active:scale-95 transition-all shrink-0 font-semibold text-[11px]"
-        title="Поиск по схеме (Ctrl+K)"
+        title="Поиск по схеме и задачам (Ctrl+K)"
       >
         <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
         <span>Поиск</span>
