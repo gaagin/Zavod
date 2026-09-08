@@ -1200,10 +1200,13 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
                       mergeEquipmentPreservingTasks(prev.equipment, initialFactoryState.equipment)
                     )
                   : prev.equipment,
-                containers: (msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers).map((c: ContainerNode) => ({
-                  ...c,
-                  isCollapsed: true, // Все контейнеры всегда по умолчанию в свернутом виде
-                })),
+                containers: (msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers).map((c: ContainerNode) => {
+                  const prevCont = prev.containers.find(pc => pc.id === c.id);
+                  return {
+                    ...c,
+                    isCollapsed: prevCont ? prevCont.isCollapsed : (c.isCollapsed !== undefined ? c.isCollapsed : true),
+                  };
+                }),
                 links: msg.state.links !== undefined ? dedupeById(msg.state.links) : prev.links,
                 eventLogs: msg.state.eventLogs !== undefined ? dedupeById(msg.state.eventLogs) : prev.eventLogs,
               }));
@@ -1381,10 +1384,13 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               collapsedWidth: e.collapsedWidth || 180,
               collapsedHeight: e.collapsedHeight || 64,
             })),
-            containers: dedupeById(serverState.containers).map((c: any) => ({
-              ...c,
-              isCollapsed: true, // Все контейнеры всегда по умолчанию в свернутом виде
-            })),
+            containers: dedupeById(serverState.containers).map((c: any) => {
+              const prevCont = prev.containers.find(pc => pc.id === c.id);
+              return {
+                ...c,
+                isCollapsed: prevCont ? prevCont.isCollapsed : (c.isCollapsed !== undefined ? c.isCollapsed : true),
+              };
+            }),
             links: dedupeById(serverState.links),
             eventLogs: dedupeById(serverState.eventLogs),
           }));

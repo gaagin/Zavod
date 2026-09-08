@@ -86,7 +86,7 @@ function loadPersistedState(): FactoryState {
           })),
           containers: dedupeById(parsed.containers || initialFactoryState.containers).map((c: any) => ({
             ...c,
-            isCollapsed: true, // Контейнеры всегда в свернутом виде
+            isCollapsed: c.isCollapsed !== undefined ? c.isCollapsed : true,
           })),
           links: dedupeById(parsed.links || initialFactoryState.links),
           eventLogs: dedupeById(parsed.eventLogs || initialFactoryState.eventLogs),

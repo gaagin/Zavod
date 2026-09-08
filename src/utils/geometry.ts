@@ -57,13 +57,53 @@ export function isNodeHiddenByCollapsedAncestor(
   const containerMap = new Map(containers.map(c => [c.id, c]));
   const eqMap = equipment ? new Map(equipment.map(e => [e.id, e])) : null;
 
+  // If stopAtAncestorId is provided (e.g. Focus Mode), we ONLY care if an ancestor
+  // strictly between the node and stopAtAncestorId is collapsed.
+  // Ancestors at or above stopAtAncestorId belong to the outer factory floor and
+  // must NEVER hide nodes rendered inside the focused element's view.
+  if (stopAtAncestorId) {
+    let checkId: string | null | undefined = parentId;
+    const path: string[] = [];
+    let reachesStop = false;
+    const visitedCheck = new Set<string>();
+
+    while (checkId && !visitedCheck.has(checkId)) {
+      if (checkId === stopAtAncestorId) {
+        reachesStop = true;
+        break;
+      }
+      visitedCheck.add(checkId);
+      path.push(checkId);
+
+      const pc = containerMap.get(checkId);
+      if (pc) {
+        checkId = pc.parentId;
+        continue;
+      }
+      const pe = eqMap ? eqMap.get(checkId) : null;
+      if (pe) {
+        checkId = pe.parentId;
+        continue;
+      }
+      break;
+    }
+
+    if (reachesStop) {
+      for (const ancestorId of path) {
+        const pc = containerMap.get(ancestorId);
+        if (pc && pc.isCollapsed) return true;
+        const pe = eqMap ? eqMap.get(ancestorId) : null;
+        if (pe && pe.isCollapsed) return true;
+      }
+    }
+
+    return false;
+  }
+
   let currentId: string | null | undefined = parentId;
   const visited = new Set<string>();
 
   while (currentId && !visited.has(currentId)) {
-    if (stopAtAncestorId && currentId === stopAtAncestorId) {
-      break;
-    }
     visited.add(currentId);
 
     // Check if parent is a container

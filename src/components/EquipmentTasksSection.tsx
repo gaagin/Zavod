@@ -163,6 +163,7 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
 
   const handleSaveTask = (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!taskTitle.trim() || !canEdit) return;
 
     if (editingTaskId) {
@@ -374,7 +375,18 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
 
           {/* Add / Edit Task Form */}
           {(isCreating || editingTaskId) && canEdit && (
-            <form onSubmit={handleSaveTask} className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-blue-500/30 dark:border-blue-500/40 shadow-sm space-y-2.5 text-xs">
+            <form 
+              onSubmit={handleSaveTask} 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if ((e.target as HTMLElement).tagName === 'TEXTAREA' && !e.ctrlKey && !e.metaKey) {
+                    return;
+                  }
+                  e.stopPropagation();
+                }
+              }}
+              className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-blue-500/30 dark:border-blue-500/40 shadow-sm space-y-2.5 text-xs"
+            >
               <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-white/10">
                 <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                   <ListTodo className="w-3.5 h-3.5 text-blue-500" />
@@ -400,6 +412,11 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
                   placeholder="напр. Ревизия подшипникового узла"
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.stopPropagation();
+                    }
+                  }}
                   className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#17171C] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 text-xs focus:outline-hidden focus:border-blue-500"
                 />
               </div>
@@ -452,6 +469,11 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
                     placeholder="ФИО / Бригада"
                     value={taskAssignee}
                     onChange={(e) => setTaskAssignee(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.stopPropagation();
+                      }
+                    }}
                     className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-[#17171C] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 text-xs focus:outline-hidden focus:border-blue-500"
                   />
                 </div>
@@ -465,6 +487,11 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
                     type="date"
                     value={taskDueDate}
                     onChange={(e) => setTaskDueDate(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.stopPropagation();
+                      }
+                    }}
                     className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-[#17171C] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 text-xs focus:outline-hidden focus:border-blue-500"
                   />
                 </div>
@@ -564,6 +591,11 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.stopPropagation();
+                      }
+                    }}
                     placeholder="Поиск по задачам этого станка..."
                     className="w-full pl-6 pr-6 py-1 text-[11px] rounded-md bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-hidden focus:border-blue-400"
                   />
