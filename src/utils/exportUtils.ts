@@ -977,6 +977,25 @@ export function parseAndValidateProject(rawText: string): {
         properties: Array.isArray(item.properties) ? item.properties : [],
         notes: item.notes ? String(item.notes) : undefined,
         color: item.color ? String(item.color) : undefined,
+        tasks: Array.isArray(item.tasks) ? item.tasks.map((t: any, tIdx: number) => ({
+          id: String(t.id || `task_${Date.now()}_${tIdx}`),
+          title: String(t.title || 'Задача'),
+          description: t.description ? String(t.description) : undefined,
+          status: (['pending', 'in_progress', 'completed', 'cancelled'].includes(t.status) ? t.status : 'pending'),
+          priority: (['low', 'medium', 'high', 'urgent'].includes(t.priority) ? t.priority : 'medium'),
+          type: (['maintenance', 'repair', 'inspection', 'setup', 'other'].includes(t.type) ? t.type : 'maintenance'),
+          assignedTo: t.assignedTo ? String(t.assignedTo) : undefined,
+          dueDate: t.dueDate ? String(t.dueDate) : undefined,
+          createdAt: t.createdAt ? String(t.createdAt) : new Date().toISOString(),
+          createdBy: t.createdBy ? String(t.createdBy) : undefined,
+          completedAt: t.completedAt ? String(t.completedAt) : undefined,
+          checklist: Array.isArray(t.checklist) ? t.checklist.map((c: any, cIdx: number) => ({
+            id: String(c.id || `chk_${tIdx}_${cIdx}`),
+            text: String(c.text || ''),
+            done: Boolean(c.done),
+          })) : undefined,
+        })) : undefined,
+        elementLinks: Array.isArray(item.elementLinks) ? item.elementLinks : undefined,
       });
     });
 

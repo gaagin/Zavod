@@ -1,6 +1,6 @@
 {
-  "version": 167,
-  "lastUpdated": "2026-09-06T11:31:22.822Z",
+  "version": 172,
+  "lastUpdated": "2026-09-08T19:53:27.974Z",
   "containers": [
     {
       "id": "cont-workshop-1",
@@ -101,15 +101,32 @@
       "y": 200,
       "width": 170,
       "height": 180,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "DMU 50 3rd Gen",
       "serialNumber": "DM-2023-8841",
       "manufacturer": "DMG MORI AG",
+      "barcode": "8690123450011",
+      "stockCode": "STK-CNC-501",
       "powerKw": 22.5,
       "voltageV": 380,
       "commissionDate": "2023-04-15",
       "lastMaintenanceDate": "2026-08-10",
       "nextMaintenanceDate": "2026-11-10",
       "notes": "Шпиндель работает штатно, биение 0.002 мм",
+      "elementLinks": [
+        {
+          "id": "el-1",
+          "targetId": "eq-rob-101",
+          "relationship": "Подача заготовок на манипулятор KUKA"
+        },
+        {
+          "id": "el-2",
+          "targetId": "eq-plc-01",
+          "relationship": "Управление от ПЛК Siemens"
+        }
+      ],
       "properties": [
         {
           "id": "p1",
@@ -140,9 +157,41 @@
           "unit": "бар"
         }
       ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      "tasks": [
+        {
+          "id": "task-cnc-1",
+          "title": "Плановая замена масла гидростанции шпинделя",
+          "description": "Использовать Mobil DTE 24, проверить давление после запуска (норма 4.2 бар)",
+          "status": "pending",
+          "priority": "medium",
+          "type": "maintenance",
+          "assignedTo": "Иванов А.В., механик",
+          "dueDate": "2026-09-18",
+          "createdAt": "2026-09-01T08:00:00Z",
+          "createdBy": "Система ТОиР"
+        },
+        {
+          "id": "task-cnc-2",
+          "title": "Калибровка датчика касания Renishaw",
+          "description": "Проверка юстировки щупа по эталонной калибровочной сфере",
+          "status": "completed",
+          "priority": "high",
+          "type": "setup",
+          "assignedTo": "Петров С.Н., наладчик",
+          "dueDate": "2026-09-05",
+          "createdAt": "2026-09-02T09:30:00Z",
+          "completedAt": "2026-09-05T14:20:00Z",
+          "createdBy": "Система ТОиР"
+        },
+        {
+          "id": "test-task-1788897207957",
+          "title": "Тестовая проверка сохранения задачи",
+          "status": "pending",
+          "priority": "high",
+          "type": "maintenance",
+          "createdAt": "2026-09-08T19:53:27.957Z"
+        }
+      ]
     },
     {
       "id": "eq-rob-101",
@@ -156,9 +205,14 @@
       "y": 220,
       "width": 170,
       "height": 180,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "KR 16 R2010",
       "serialNumber": "KU-99214-X",
       "manufacturer": "KUKA Roboter GmbH",
+      "barcode": "8690123450028",
+      "stockCode": "STK-ROB-101",
       "powerKw": 7.2,
       "voltageV": 380,
       "commissionDate": "2023-06-01",
@@ -188,9 +242,20 @@
           "unit": "°C"
         }
       ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      "tasks": [
+        {
+          "id": "task-rob-1",
+          "title": "Протяжка болтовых соединений фланца манипулятора",
+          "description": "Динамометрический контроль затяжки крепления рабочего органа",
+          "status": "pending",
+          "priority": "low",
+          "type": "inspection",
+          "assignedTo": "Смирнов Д.К., сервисный инженер",
+          "dueDate": "2026-09-25",
+          "createdAt": "2026-09-03T11:00:00Z",
+          "createdBy": "Система ТОиР"
+        }
+      ]
     },
     {
       "id": "eq-plc-01",
@@ -204,9 +269,14 @@
       "y": 510,
       "width": 150,
       "height": 110,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "CPU 1516F-3 PN/DP",
       "serialNumber": "6ES7516-3FN02-0AB0",
       "manufacturer": "Siemens AG",
+      "barcode": "8690123450035",
+      "stockCode": "STK-PLC-015",
       "powerKw": 0.8,
       "voltageV": 24,
       "commissionDate": "2022-11-10",
@@ -234,10 +304,7 @@
           "type": "number",
           "unit": "МБ"
         }
-      ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      ]
     },
     {
       "id": "eq-vfd-01",
@@ -251,6 +318,9 @@
       "y": 510,
       "width": 150,
       "height": 110,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "AutomationDrive FC 302",
       "serialNumber": "DF-302-998",
       "manufacturer": "Danfoss Drives",
@@ -274,10 +344,7 @@
           "type": "number",
           "unit": "А"
         }
-      ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      ]
     },
     {
       "id": "eq-pump-101",
@@ -291,6 +358,9 @@
       "y": 220,
       "width": 170,
       "height": 170,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "Grundfos CR 15-4",
       "serialNumber": "GF-CR-55421",
       "manufacturer": "Grundfos",
@@ -323,9 +393,20 @@
           "unit": "%"
         }
       ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      "tasks": [
+        {
+          "id": "task-pump-1",
+          "title": "Устранение повышенной вибрации и промывка фильтра СОЖ",
+          "description": "Зафиксирован перепад давления 1.4 бар. Требуется промывка/замена фильтрующего картриджа и осмотр подшипников",
+          "status": "in_progress",
+          "priority": "urgent",
+          "type": "repair",
+          "assignedTo": "Бригада РМЦ (Ковалев Н.И.)",
+          "dueDate": "2026-09-10",
+          "createdAt": "2026-09-06T08:30:00Z",
+          "createdBy": "Диспетчер АСУ"
+        }
+      ]
     },
     {
       "id": "eq-furn-201",
@@ -339,6 +420,9 @@
       "y": 180,
       "width": 190,
       "height": 190,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "ИСТ-0.5/0.4-И1",
       "serialNumber": "RU-FURN-2020-04",
       "manufacturer": "РЭЛТЕК",
@@ -370,10 +454,7 @@
           "type": "number",
           "unit": "кВт"
         }
-      ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      ]
     },
     {
       "id": "eq-pump-201",
@@ -387,6 +468,9 @@
       "y": 180,
       "width": 160,
       "height": 180,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "Wilo-CronoLine IL 80",
       "serialNumber": "WL-88123",
       "manufacturer": "Wilo SE",
@@ -411,10 +495,7 @@
           "type": "number",
           "unit": "мм/с"
         }
-      ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      ]
     },
     {
       "id": "eq-fan-201",
@@ -428,6 +509,9 @@
       "y": 180,
       "width": 160,
       "height": 180,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "ВДН-15-1500",
       "serialNumber": "VDN-15-091",
       "manufacturer": "Вентпром",
@@ -451,10 +535,7 @@
           "type": "number",
           "unit": "Па"
         }
-      ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      ]
     },
     {
       "id": "eq-cnv-301",
@@ -468,6 +549,9 @@
       "y": 860,
       "width": 220,
       "height": 170,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "КЛС-800-45",
       "serialNumber": "KLS-800-2022",
       "manufacturer": "Трансмаш",
@@ -491,10 +575,7 @@
           "type": "number",
           "unit": "кН"
         }
-      ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      ]
     },
     {
       "id": "eq-rob-301",
@@ -508,6 +589,9 @@
       "y": 860,
       "width": 180,
       "height": 170,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "M-410iC/185",
       "serialNumber": "F-881273-J",
       "manufacturer": "FANUC Corporation",
@@ -531,10 +615,7 @@
           "value": 148200,
           "type": "number"
         }
-      ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      ]
     },
     {
       "id": "eq-cmp-301",
@@ -548,6 +629,9 @@
       "y": 860,
       "width": 180,
       "height": 170,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "GA 75 VSD+",
       "serialNumber": "AC-GA75-7762",
       "manufacturer": "Atlas Copco",
@@ -572,10 +656,7 @@
           "type": "number",
           "unit": "°C"
         }
-      ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      ]
     },
     {
       "id": "eq-tr-01",
@@ -589,6 +670,9 @@
       "y": -240,
       "width": 220,
       "height": 190,
+      "isCollapsed": true,
+      "collapsedWidth": 180,
+      "collapsedHeight": 64,
       "model": "ТДТН-40000/110-У1",
       "serialNumber": "TR-110-001",
       "manufacturer": "Тольяттинский Трансформатор",
@@ -620,10 +704,7 @@
           "type": "number",
           "unit": "ppm"
         }
-      ],
-      "isCollapsed": true,
-      "collapsedWidth": 180,
-      "collapsedHeight": 64
+      ]
     },
     {
       "id": "eq_1788644607345",
@@ -634,7 +715,7 @@
       "status": "normal",
       "parentId": null,
       "x": 280,
-      "y": 50,
+      "y": 48,
       "width": 170,
       "height": 170,
       "properties": [],
@@ -739,6 +820,18 @@
     }
   ],
   "eventLogs": [
+    {
+      "targetId": "eq_1788644607345",
+      "targetName": "Новое оборудование",
+      "targetType": "equipment",
+      "eventType": "property_edit",
+      "severity": "info",
+      "description": "Обновлены параметры EQ-888",
+      "userName": "Главный инженер (Вы)",
+      "userRole": "admin",
+      "id": "log_1788846479257_h2vug6t8",
+      "timestamp": "2026-09-08T05:47:59.257Z"
+    },
     {
       "targetId": "eq_1788644607345",
       "targetName": "Новое оборудование",

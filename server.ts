@@ -26,6 +26,44 @@ function dedupeById<T extends { id: string }>(items?: T[]): T[] {
   return result;
 }
 
+function mergeEquipmentPreservingTasks(
+  incomingEquipment: any[] = [],
+  fallbackEquipment: any[] = []
+): any[] {
+  if (!Array.isArray(incomingEquipment)) return fallbackEquipment || [];
+  if (!Array.isArray(fallbackEquipment) || fallbackEquipment.length === 0) return incomingEquipment;
+
+  const fallbackMap = new Map<string, any>();
+  for (const item of fallbackEquipment) {
+    if (item && item.id) {
+      fallbackMap.set(item.id, item);
+    }
+  }
+
+  return incomingEquipment.map(incoming => {
+    if (!incoming || !incoming.id) return incoming;
+    const fallback = fallbackMap.get(incoming.id);
+    if (!fallback) return incoming;
+
+    let tasks = incoming.tasks;
+    if (tasks === undefined && fallback.tasks && fallback.tasks.length > 0) {
+      tasks = fallback.tasks;
+    }
+
+    let elementLinks = incoming.elementLinks;
+    if (elementLinks === undefined && fallback.elementLinks && fallback.elementLinks.length > 0) {
+      elementLinks = fallback.elementLinks;
+    }
+
+    return {
+      ...fallback,
+      ...incoming,
+      tasks,
+      elementLinks,
+    };
+  });
+}
+
 // Load persisted state from disk or fallback to initial
 function loadPersistedState(): FactoryState {
   try {
@@ -37,7 +75,10 @@ function loadPersistedState(): FactoryState {
         return {
           ...initialFactoryState,
           ...parsed,
-          equipment: dedupeById(parsed.equipment || initialFactoryState.equipment).map((e: any) => ({
+          equipment: mergeEquipmentPreservingTasks(
+            dedupeById(parsed.equipment || initialFactoryState.equipment),
+            initialFactoryState.equipment
+          ).map((e: any) => ({
             ...e,
             isCollapsed: e.isCollapsed !== undefined ? e.isCollapsed : true,
             collapsedWidth: e.collapsedWidth || 180,
@@ -130,7 +171,10 @@ function startDiskStateWatcher() {
           currentState = {
             ...currentState,
             ...parsed,
-            equipment: dedupeById(parsed.equipment || currentState.equipment),
+            equipment: mergeEquipmentPreservingTasks(
+              dedupeById(parsed.equipment || currentState.equipment),
+              currentState.equipment
+            ),
             containers: dedupeById(parsed.containers || currentState.containers),
             links: dedupeById(parsed.links || currentState.links),
             eventLogs: dedupeById(parsed.eventLogs || currentState.eventLogs).slice(0, 200),
@@ -256,7 +300,9 @@ wss.on('connection', (ws: WebSocket) => {
           currentState = {
             ...currentState,
             ...msg.state,
-            equipment: msg.state.equipment !== undefined ? dedupeById(msg.state.equipment) : currentState.equipment,
+            equipment: msg.state.equipment !== undefined 
+              ? mergeEquipmentPreservingTasks(dedupeById(msg.state.equipment), currentState.equipment)
+              : currentState.equipment,
             containers: msg.state.containers !== undefined ? dedupeById(msg.state.containers) : currentState.containers,
             links: msg.state.links !== undefined ? dedupeById(msg.state.links) : currentState.links,
             eventLogs: msg.state.eventLogs !== undefined ? dedupeById(msg.state.eventLogs).slice(0, 200) : currentState.eventLogs,
@@ -342,7 +388,9 @@ app.post('/api/state', (req, res) => {
     currentState = {
       ...currentState,
       ...incoming,
-      equipment: incoming.equipment !== undefined ? dedupeById(incoming.equipment) : currentState.equipment,
+      equipment: incoming.equipment !== undefined 
+        ? mergeEquipmentPreservingTasks(dedupeById(incoming.equipment), currentState.equipment)
+        : currentState.equipment,
       containers: incoming.containers !== undefined ? dedupeById(incoming.containers) : currentState.containers,
       links: incoming.links !== undefined ? dedupeById(incoming.links) : currentState.links,
       eventLogs: incoming.eventLogs !== undefined ? dedupeById(incoming.eventLogs).slice(0, 200) : currentState.eventLogs,

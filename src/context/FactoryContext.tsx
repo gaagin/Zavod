@@ -239,6 +239,48 @@ export function dedupeById<T extends { id: string }>(items?: T[]): T[] {
   return result;
 }
 
+export function mergeEquipmentPreservingTasks(
+  incomingEquipment: EquipmentNode[] = [],
+  fallbackEquipment: EquipmentNode[] = []
+): EquipmentNode[] {
+  if (!Array.isArray(incomingEquipment)) return fallbackEquipment || [];
+  if (!Array.isArray(fallbackEquipment) || fallbackEquipment.length === 0) return incomingEquipment;
+
+  const fallbackMap = new Map<string, EquipmentNode>();
+  for (const item of fallbackEquipment) {
+    if (item && item.id) {
+      fallbackMap.set(item.id, item);
+    }
+  }
+
+  return incomingEquipment.map(incoming => {
+    if (!incoming || !incoming.id) return incoming;
+    const fallback = fallbackMap.get(incoming.id);
+    if (!fallback) return incoming;
+
+    // Tasks: If incoming explicitly provides tasks, use them.
+    // If incoming tasks is undefined (e.g., omitted in a partial update, coordinate drag,
+    // or stripped by an older schema version), retain fallback.tasks!
+    let tasks = incoming.tasks;
+    if (tasks === undefined && fallback.tasks && fallback.tasks.length > 0) {
+      tasks = fallback.tasks;
+    }
+
+    // Element Links: retain fallback if incoming omitted them
+    let elementLinks = incoming.elementLinks;
+    if (elementLinks === undefined && fallback.elementLinks && fallback.elementLinks.length > 0) {
+      elementLinks = fallback.elementLinks;
+    }
+
+    return {
+      ...fallback,
+      ...incoming,
+      tasks,
+      elementLinks,
+    };
+  });
+}
+
 export function createEventLog(logData: Omit<FactoryEventLog, 'id' | 'timestamp'>): FactoryEventLog {
   return {
     ...logData,
@@ -263,7 +305,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return {
           ...initialFactoryState,
           ...parsed,
-          equipment: dedupeById(parsed.equipment || initialFactoryState.equipment).map((e: EquipmentNode) => ({
+          equipment: mergeEquipmentPreservingTasks(
+            dedupeById(parsed.equipment || initialFactoryState.equipment),
+            initialFactoryState.equipment
+          ).map((e: EquipmentNode) => ({
             ...e,
             isCollapsed: true, // По умолчанию при открытии проекта все оборудование в нераскрытом состоянии
             collapsedWidth: e.collapsedWidth || 180,
@@ -789,17 +834,25 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const isDifferent =
               (incomingState.version && incomingState.version !== state.version) ||
               newEqCount !== currentEqCount ||
-              JSON.stringify(incomingState.equipment.map(e => ({ id: e.id, x: e.x, y: e.y, s: e.status }))) !==
-              JSON.stringify(state.equipment.map(e => ({ id: e.id, x: e.x, y: e.y, s: e.status })));
+              JSON.stringify(incomingState.equipment.map(e => ({ id: e.id, x: e.x, y: e.y, s: e.status, tCount: (e.tasks || []).length, tIds: (e.tasks || []).map(t => t.id) }))) !==
+              JSON.stringify(state.equipment.map(e => ({ id: e.id, x: e.x, y: e.y, s: e.status, tCount: (e.tasks || []).length, tIds: (e.tasks || []).map(t => t.id) })));
 
             if (isDifferent) {
               isRemoteUpdateRef.current = true;
               latestServerVersionRef.current = incomingState.version || ((state.version || 1) + 1);
 
+              const mergedEquipment = mergeEquipmentPreservingTasks(
+                dedupeById(incomingState.equipment || state.equipment),
+                state.equipment
+              );
+
               setState(prev => ({
                 ...prev,
                 ...incomingState,
-                equipment: dedupeById(incomingState.equipment || prev.equipment),
+                equipment: mergeEquipmentPreservingTasks(
+                  dedupeById(incomingState.equipment || prev.equipment),
+                  prev.equipment
+                ),
                 containers: dedupeById(incomingState.containers || prev.containers),
                 links: dedupeById(incomingState.links || prev.links),
                 eventLogs: dedupeById(incomingState.eventLogs || prev.eventLogs),
@@ -826,11 +879,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
               // Silent sync per user request (no intrusive toast or banner)
 
-              // Broadcast to WebSocket so other connected views stay aligned
+              // Broadcast to WebSocket so other connected views stay aligned with merged tasks preserved
               if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
                 wsRef.current.send(JSON.stringify({
                   type: 'state_patch',
-                  state: incomingState,
+                  state: {
+                    ...incomingState,
+                    equipment: mergedEquipment,
+                  },
                   reason: `Синхронизация из файла папки «${filename}»`,
                   senderId: currentUser.id,
                   senderName: `${currentUser.name} (папка)`,
@@ -1094,7 +1150,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setState(prev => ({
             ...prev,
             ...evt.data.state,
-            equipment: dedupeById(evt.data.state.equipment || prev.equipment),
+            equipment: mergeEquipmentPreservingTasks(
+              dedupeById(evt.data.state.equipment || prev.equipment),
+              prev.equipment
+            ),
             containers: dedupeById(evt.data.state.containers || prev.containers),
             links: dedupeById(evt.data.state.links || prev.links),
             eventLogs: dedupeById(evt.data.state.eventLogs || prev.eventLogs),
@@ -1135,7 +1194,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               setState(prev => ({
                 ...prev,
                 ...msg.state,
-                equipment: msg.state.equipment !== undefined ? dedupeById(msg.state.equipment) : prev.equipment,
+                equipment: msg.state.equipment !== undefined 
+                  ? mergeEquipmentPreservingTasks(
+                      dedupeById(msg.state.equipment),
+                      mergeEquipmentPreservingTasks(prev.equipment, initialFactoryState.equipment)
+                    )
+                  : prev.equipment,
                 containers: (msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers).map((c: ContainerNode) => ({
                   ...c,
                   isCollapsed: true, // Все контейнеры всегда по умолчанию в свернутом виде
@@ -1164,7 +1228,9 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               setState(prev => ({
                 ...prev,
                 ...msg.state,
-                equipment: msg.state.equipment !== undefined ? dedupeById(msg.state.equipment) : prev.equipment,
+                equipment: msg.state.equipment !== undefined 
+                  ? mergeEquipmentPreservingTasks(dedupeById(msg.state.equipment), prev.equipment) 
+                  : prev.equipment,
                 containers: msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers,
                 links: msg.state.links !== undefined ? dedupeById(msg.state.links) : prev.links,
                 eventLogs: msg.state.eventLogs !== undefined ? dedupeById(msg.state.eventLogs) : prev.eventLogs,
@@ -1215,6 +1281,9 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           } else if (msg.type === 'save_ack') {
             setSaveStatus('saved');
             setLastSavedTime(msg.timestamp || Date.now());
+            if (msg.version) {
+              latestServerVersionRef.current = msg.version;
+            }
           } else if (msg.type === 'cursor') {
             if (msg.clientId && msg.cursor) {
               setUserCursors(prev => ({
@@ -1303,7 +1372,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setState(prev => ({
             ...prev,
             ...serverState,
-            equipment: dedupeById(serverState.equipment).map((e: any) => ({
+            equipment: mergeEquipmentPreservingTasks(
+              dedupeById(serverState.equipment),
+              prev.equipment
+            ).map((e: any) => ({
               ...e,
               isCollapsed: isFirstPull ? true : (e.isCollapsed !== undefined ? e.isCollapsed : true),
               collapsedWidth: e.collapsedWidth || 180,
@@ -2258,7 +2330,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const sanitized: FactoryState = {
       ...initialFactoryState,
       ...newState,
-      equipment: dedupeById(newState.equipment || initialFactoryState.equipment).map(e => ({
+      equipment: mergeEquipmentPreservingTasks(
+        dedupeById(newState.equipment || initialFactoryState.equipment),
+        state.equipment
+      ).map(e => ({
         ...e,
         isCollapsed: true, // По умолчанию при открытии проекта нераскрытое состояние
         collapsedWidth: e.collapsedWidth || 180,
