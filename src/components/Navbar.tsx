@@ -35,7 +35,8 @@ import {
   Menu,
   X,
   Activity,
-  Sliders
+  Sliders,
+  ArrowLeft
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -75,6 +76,9 @@ export const Navbar: React.FC = () => {
     canRedo,
     isMobileSummaryOpen,
     setIsMobileSummaryOpen,
+    focusedContainerId,
+    goBackOneLevel,
+    parentFocusName,
   } = useFactory();
 
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
@@ -180,6 +184,25 @@ export const Navbar: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Back Button to go one level up in hierarchy (Desktop & Mobile) */}
+        {focusedContainerId && (
+          <button
+            id="nav-back-one-level-btn"
+            type="button"
+            onClick={goBackOneLevel}
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold text-xs shadow-md shadow-blue-500/20 border border-blue-400/30 transition-all cursor-pointer shrink-0"
+            title={`Перейти на один уровень назад: к "${parentFocusName || 'предыдущему уровню'}" (Backspace или Alt+←)`}
+          >
+            <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-bold">Назад</span>
+            {parentFocusName && (
+              <span className="hidden sm:inline text-[11px] font-normal opacity-90 truncate max-w-[130px]">
+                ({parentFocusName})
+              </span>
+            )}
+          </button>
+        )}
 
         {/* Vertical divider */}
         <div className="h-5 w-px bg-slate-200 dark:bg-white/10 mx-0.5 hidden sm:block" />
@@ -849,6 +872,26 @@ export const Navbar: React.FC = () => {
 
           {/* Scrollable Content with Collapsible Sections */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {focusedContainerId && (
+              <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-500/30 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-medium text-blue-600 dark:text-blue-400">Фокусный режим активен</div>
+                  <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">К: {parentFocusName || 'Общий план'}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    goBackOneLevel();
+                    setIsMobileNavMenuOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold shadow-xs shrink-0"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Назад на уровень</span>
+                </button>
+              </div>
+            )}
+
             {/* 1. Collapsible Section: User Role Switcher & Profile */}
             <div className="border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-white/5">
               <button

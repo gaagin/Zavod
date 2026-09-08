@@ -75,6 +75,8 @@ export const InspectorPanel: React.FC = () => {
     hasClipboard,
     isMobileSummaryOpen,
     setIsMobileSummaryOpen,
+    isInspectorMobileOpen,
+    setIsInspectorMobileOpen,
     openSearch,
   } = useFactory();
 
@@ -120,21 +122,27 @@ export const InspectorPanel: React.FC = () => {
 
     return (
       <>
-        {/* Mobile backdrop overlay */}
-        <div 
-          onClick={() => {
-            setSelectedId(null);
-            setSelectedIds([]);
-          }}
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
-        />
+        {/* Mobile backdrop overlay - only if open on mobile */}
+        {isInspectorMobileOpen && (
+          <div 
+            onClick={() => setIsInspectorMobileOpen(false)}
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+          />
+        )}
         <aside 
           id="factory-inspector-multiselect"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:p-4 lg:pb-4 flex flex-col shadow-sm text-slate-700 dark:text-slate-300"
+          className={`${
+            isInspectorMobileOpen 
+              ? 'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl flex flex-col' 
+              : 'hidden'
+          } lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:p-4 lg:pb-4 lg:flex flex-col shadow-sm text-slate-700 dark:text-slate-300 select-none transition-all`}
         >
           {/* Mobile Drag Indicator */}
-          <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
-            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-white/20" />
+          <div 
+            onClick={() => setIsInspectorMobileOpen(false)}
+            className="lg:hidden flex items-center justify-center pb-2 -mt-1 cursor-pointer"
+          >
+            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 hover:bg-slate-400 dark:hover:bg-white/40 transition-colors" />
           </div>
 
           {/* Header */}
@@ -147,6 +155,7 @@ export const InspectorPanel: React.FC = () => {
             </div>
             <button
               onClick={() => {
+                setIsInspectorMobileOpen(false);
                 setSelectedId(null);
                 setSelectedIds([]);
               }}
@@ -702,18 +711,27 @@ export const InspectorPanel: React.FC = () => {
 
     return (
       <>
-        {/* Mobile backdrop overlay */}
-        <div 
-          onClick={() => setSelectedId(null)}
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
-        />
+        {/* Mobile backdrop overlay - only if open on mobile */}
+        {isInspectorMobileOpen && (
+          <div 
+            onClick={() => setIsInspectorMobileOpen(false)}
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+          />
+        )}
         <aside 
           id="equipment-inspector"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:pb-4 text-slate-700 dark:text-slate-300"
+          className={`${
+            isInspectorMobileOpen 
+              ? 'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl flex flex-col' 
+              : 'hidden'
+          } lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:p-4 lg:pb-4 lg:flex flex-col select-none transition-all text-slate-700 dark:text-slate-300`}
         >
           {/* Mobile Drag Indicator */}
-          <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
-            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-white/20" />
+          <div 
+            onClick={() => setIsInspectorMobileOpen(false)}
+            className="lg:hidden flex items-center justify-center pb-2 -mt-1 cursor-pointer"
+          >
+            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 hover:bg-slate-400 dark:hover:bg-white/40 transition-colors" />
           </div>
 
           {/* Header */}
@@ -735,7 +753,10 @@ export const InspectorPanel: React.FC = () => {
               <Share2 className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setSelectedId(null)}
+              onClick={() => {
+                setIsInspectorMobileOpen(false);
+                setSelectedId(null);
+              }}
               className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -1309,18 +1330,27 @@ export const InspectorPanel: React.FC = () => {
 
     return (
       <>
-        {/* Mobile backdrop overlay */}
-        <div 
-          onClick={() => setSelectedId(null)}
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
-        />
+        {/* Mobile backdrop overlay - only if open on mobile */}
+        {isInspectorMobileOpen && (
+          <div 
+            onClick={() => setIsInspectorMobileOpen(false)}
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+          />
+        )}
         <aside 
           id="container-inspector"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:pb-4 text-slate-700 dark:text-slate-300"
+          className={`${
+            isInspectorMobileOpen 
+              ? 'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl flex flex-col' 
+              : 'hidden'
+          } lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:p-4 lg:pb-4 lg:flex flex-col select-none transition-all text-slate-700 dark:text-slate-300`}
         >
           {/* Mobile Drag Indicator */}
-          <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
-            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-white/20" />
+          <div 
+            onClick={() => setIsInspectorMobileOpen(false)}
+            className="lg:hidden flex items-center justify-center pb-2 -mt-1 cursor-pointer"
+          >
+            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 hover:bg-slate-400 dark:hover:bg-white/40 transition-colors" />
           </div>
 
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
@@ -1344,7 +1374,10 @@ export const InspectorPanel: React.FC = () => {
               <Share2 className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setSelectedId(null)}
+              onClick={() => {
+                setIsInspectorMobileOpen(false);
+                setSelectedId(null);
+              }}
               className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -1646,18 +1679,27 @@ export const InspectorPanel: React.FC = () => {
 
     return (
       <>
-        {/* Mobile backdrop overlay */}
-        <div 
-          onClick={() => setSelectedId(null)}
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
-        />
+        {/* Mobile backdrop overlay - only if open on mobile */}
+        {isInspectorMobileOpen && (
+          <div 
+            onClick={() => setIsInspectorMobileOpen(false)}
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+          />
+        )}
         <aside 
           id="link-inspector"
-          className="fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl select-none transition-all lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:pb-4 text-slate-700 dark:text-slate-300"
+          className={`${
+            isInspectorMobileOpen 
+              ? 'fixed inset-x-0 bottom-0 z-40 max-h-[80dvh] max-h-[80vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] overflow-y-auto shadow-2xl rounded-t-3xl flex flex-col' 
+              : 'hidden'
+          } lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:p-4 lg:pb-4 lg:flex flex-col select-none transition-all text-slate-700 dark:text-slate-300`}
         >
           {/* Mobile Drag Indicator */}
-          <div className="lg:hidden flex items-center justify-center pb-2 -mt-1">
-            <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-white/20" />
+          <div 
+            onClick={() => setIsInspectorMobileOpen(false)}
+            className="lg:hidden flex items-center justify-center pb-2 -mt-1 cursor-pointer"
+          >
+            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 hover:bg-slate-400 dark:hover:bg-white/40 transition-colors" />
           </div>
 
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
@@ -1668,7 +1710,10 @@ export const InspectorPanel: React.FC = () => {
             </span>
           </div>
           <button
-            onClick={() => setSelectedId(null)}
+            onClick={() => {
+              setIsInspectorMobileOpen(false);
+              setSelectedId(null);
+            }}
             className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />

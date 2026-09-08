@@ -70,7 +70,8 @@ import {
   MousePointer,
   Undo2,
   Link2,
-  ListTodo
+  ListTodo,
+  Move
 } from 'lucide-react';
 
 export const Canvas: React.FC = () => {
@@ -123,6 +124,14 @@ export const Canvas: React.FC = () => {
     recordHistorySnapshot,
     highlightedNodeId,
     openTaskModal,
+    goBackOneLevel,
+    canGoBackOneLevel,
+    parentFocusName,
+    isInspectorMobileOpen,
+    setIsInspectorMobileOpen,
+    isMobileMoveMode,
+    setIsMobileMoveMode,
+    nudgeSelected,
   } = useFactory();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +139,51 @@ export const Canvas: React.FC = () => {
   const isMarqueeActiveRef = useRef(false);
   const selectionBoxInitialIdsRef = useRef<string[]>([]);
   const justShiftAddedRef = useRef<string | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [mobileMoveStep, setMobileMoveStep] = useState<number>(20);
+
+  // Active selected element info for Mobile HUD
+  const activeSelectedInfo = useMemo(() => {
+    if (!selectedId) return null;
+    const eq = state.equipment.find(e => e.id === selectedId);
+    if (eq) {
+      return {
+        id: eq.id,
+        type: 'equipment' as const,
+        tag: eq.tag,
+        name: eq.name,
+        color: eq.type === 'reactor' ? '#8b5cf6' : eq.type === 'sensor' ? '#10b981' : '#3b82f6',
+        x: Math.round(eq.x),
+        y: Math.round(eq.y)
+      };
+    }
+    const cont = state.containers.find(c => c.id === selectedId);
+    if (cont) {
+      return {
+        id: cont.id,
+        type: 'container' as const,
+        tag: cont.tag,
+        name: cont.name,
+        color: cont.color,
+        x: Math.round(cont.x),
+        y: Math.round(cont.y)
+      };
+    }
+    const link = state.links.find(l => l.id === selectedId);
+    if (link) {
+      return {
+        id: link.id,
+        type: 'link' as const,
+        tag: 'СВЯЗЬ',
+        name: link.label || link.type,
+        color: '#0284c7',
+        x: 0,
+        y: 0
+      };
+    }
+    return null;
+  }, [selectedId, state.equipment, state.containers, state.links]);
 
   // Interaction State
   const [isPanning, setIsPanning] = useState(false);
@@ -1340,6 +1394,13 @@ export const Canvas: React.FC = () => {
     const el = containerRef.current;
     if (!el) return;
 
+    const clearLongPress = () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    };
+
     const onTouchStart = (e: TouchEvent) => {
       const { viewport: curVp, state: curSt, activeTool: curTool } = touchStateRef.current;
       const t = touchTrackingRef.current;
@@ -1351,6 +1412,8 @@ export const Canvas: React.FC = () => {
       if (target.closest('button, input, select, textarea, a')) {
         return;
       }
+
+      clearLongPress();
 
       if (e.touches.length === 1) {
         const touch = e.touches[0];
@@ -1367,6 +1430,16 @@ export const Canvas: React.FC = () => {
           t.isPanning = false;
           t.isPinching = false;
           setTouchDraggingNodeId(id);
+
+          // Long press gesture (500ms) to directly enter focus mode on mobile
+          longPressTimerRef.current = setTimeout(() => {
+            if (!touchTrackingRef.current.hasMoved) {
+              try {
+                if (navigator.vibrate) navigator.vibrate(40);
+              } catch { /* ignore */ }
+              enterFocusMode(id);
+            }
+          }, 500);
 
           if (type === 'equipment') {
             const eq = curSt.equipment.find(item => item.id === id);
@@ -1448,6 +1521,10 @@ export const Canvas: React.FC = () => {
         const touch = e.touches[0];
         const dx = touch.clientX - t.touchStartX;
         const dy = touch.clientY - t.touchStartY;
+
+        if (Math.hypot(dx, dy) > 8) {
+          clearLongPress();
+        }
 
         if (Math.hypot(dx, dy) > 4) {
           t.hasMoved = true;
@@ -1552,6 +1629,7 @@ export const Canvas: React.FC = () => {
     };
 
     const onTouchEnd = (e: TouchEvent) => {
+      clearLongPress();
       setActiveGuides([]);
       const { activeTool: curTool, connectingSourceId: curSrc } = touchStateRef.current;
       const t = touchTrackingRef.current;
@@ -1597,6 +1675,7 @@ export const Canvas: React.FC = () => {
     };
 
     const onTouchCancel = () => {
+      clearLongPress();
       setActiveGuides([]);
       const t = touchTrackingRef.current;
       t.draggedNodeId = null;
@@ -1616,12 +1695,13 @@ export const Canvas: React.FC = () => {
     el.addEventListener('touchcancel', onTouchCancel, { passive: false });
 
     return () => {
+      clearLongPress();
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
       el.removeEventListener('touchcancel', onTouchCancel);
     };
-  }, [applyNodePositionChange, handleNodeConnectClick, setSelectedId, setConnectingSourceId, setViewport]);
+  }, [applyNodePositionChange, handleNodeConnectClick, setSelectedId, setConnectingSourceId, setViewport, enterFocusMode]);
 
   // Focus Mode context computations (Supports both Container and Equipment as focused node)
   const focusedNode = useMemo(() => {
@@ -2470,7 +2550,7 @@ export const Canvas: React.FC = () => {
                   enterFocusMode(container.id);
                 }}
                 onMouseDown={(e) => startDragNode(e, container.id, 'container', container.x, container.y)}
-                className={`absolute rounded-2xl border-2 bg-white dark:bg-[#0F0F12]/95 backdrop-blur-md shadow-lg p-3 transition-all touch-none select-none ${
+                className={`canvas-crisp-card font-sans subpixel-antialiased absolute rounded-2xl border-2 bg-white dark:bg-[#0F0F12]/95 backdrop-blur-md shadow-lg p-3 transition-all touch-none select-none ${
                   activeDropTarget?.id === container.id
                     ? 'ring-4 ring-blue-500 border-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.6)] z-40 scale-[1.02]'
                     : touchDraggingNodeId === container.id ? 'ring-4 ring-blue-400 scale-[1.02] shadow-2xl z-30' : ''
@@ -2653,7 +2733,7 @@ export const Canvas: React.FC = () => {
                 e.stopPropagation();
                 toggleFocusMode(container.id);
               }}
-              className={`absolute rounded-2xl border-2 transition-all bg-white/90 dark:bg-[#0F0F12]/30 backdrop-blur-xs shadow-md ${
+              className={`canvas-crisp-card font-sans subpixel-antialiased absolute rounded-2xl border-2 transition-all bg-white/90 dark:bg-[#0F0F12]/30 backdrop-blur-xs shadow-md ${
                 activeDropTarget?.id === container.id
                   ? 'ring-4 ring-blue-500 border-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.6)] z-40'
                   : highlightedNodeId === container.id
@@ -2887,7 +2967,7 @@ export const Canvas: React.FC = () => {
                   toggleFocusMode(equipment.id);
                 }}
                 onMouseDown={(e) => startDragNode(e, equipment.id, 'equipment', equipment.x, equipment.y)}
-                className={`absolute rounded-xl border p-2 bg-white dark:bg-[#0F0F12]/95 backdrop-blur-md shadow-md dark:shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-700 dark:text-slate-300 touch-none ${
+                className={`canvas-crisp-card font-sans subpixel-antialiased absolute rounded-xl border p-2 bg-white dark:bg-[#0F0F12]/95 backdrop-blur-md shadow-md dark:shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-800 dark:text-slate-100 touch-none ${
                   statusStyle.border
                 } ${
                   activeDropTarget?.id === equipment.id
@@ -3111,7 +3191,7 @@ export const Canvas: React.FC = () => {
                 toggleFocusMode(equipment.id);
               }}
               onMouseDown={(e) => startDragNode(e, equipment.id, 'equipment', equipment.x, equipment.y)}
-              className={`absolute rounded-xl border p-3 bg-white dark:bg-[#0F0F12] shadow-md dark:shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-700 dark:text-slate-300 touch-none ${
+              className={`canvas-crisp-card font-sans subpixel-antialiased absolute rounded-xl border p-3 bg-white dark:bg-[#0F0F12] shadow-md dark:shadow-xl transition-all flex flex-col justify-between cursor-move group select-none text-slate-800 dark:text-slate-100 touch-none ${
                 statusStyle.border
               } ${
                 activeDropTarget?.id === equipment.id
@@ -3610,15 +3690,27 @@ export const Canvas: React.FC = () => {
         >
           {/* Left: Back button & Interactive Breadcrumbs */}
           <div className="flex items-center gap-2.5 min-w-0 overflow-hidden">
+            {/* Step back one level button */}
             <button
-              id="focus-back-btn"
-              onClick={exitFocusMode}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all hover:scale-[1.02] active:scale-95 shrink-0"
-              title="Выйти к общей схеме завода (Esc)"
+              id="focus-back-one-level-btn"
+              onClick={goBackOneLevel}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold border border-blue-400/30 transition-all hover:scale-[1.02] active:scale-95 shrink-0 shadow-sm"
+              title={`Перейти на один уровень назад${parentFocusName ? `: к «${parentFocusName}»` : ' (к общему плану)'}`}
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-blue-400" />
-              <span className="hidden sm:inline">Общий план</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Назад{parentFocusName ? `: ${parentFocusName}` : ''}</span>
             </button>
+
+            {breadcrumbs.length > 1 && (
+              <button
+                id="focus-exit-to-root-btn"
+                onClick={exitFocusMode}
+                className="hidden md:flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-slate-300 hover:text-white text-xs font-medium border border-white/10 transition-colors shrink-0"
+                title="Сбросить фокус и выйти на самый верхний уровень завода (Esc)"
+              >
+                <span>Общий план</span>
+              </button>
+            )}
 
             <div className="h-4 w-[1px] bg-white/15 shrink-0 hidden sm:block" />
 
@@ -3829,6 +3921,193 @@ export const Canvas: React.FC = () => {
           ) : null}
         </div>
       </div>
+
+      {/* Mobile Floating Quick Back Button when in Focus Mode */}
+      {focusedContainerId && (
+        <button
+          id="mobile-quick-back-pill"
+          type="button"
+          onClick={goBackOneLevel}
+          className="fixed top-14 left-3 z-30 lg:hidden flex items-center gap-1.5 px-3 py-2 rounded-full bg-blue-600 text-white shadow-xl border border-blue-400/40 text-xs font-bold active:scale-95 transition-transform select-none"
+          title={`Вернуться на один уровень назад${parentFocusName ? `: к ${parentFocusName}` : ''}`}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="truncate max-w-[150px]">Назад{parentFocusName ? `: ${parentFocusName}` : ''}</span>
+        </button>
+      )}
+
+      {/* Mobile Floating Action HUD for Selected Element / Equipment / Container */}
+      {selectedId && !isInspectorMobileOpen && activeSelectedInfo && (
+        <div 
+          id="mobile-element-action-hud"
+          className="fixed bottom-4 inset-x-3 z-30 lg:hidden flex flex-col items-center gap-2 pointer-events-auto select-none animate-in fade-in slide-in-from-bottom-3 duration-200"
+        >
+          {/* Movement Mode D-Pad Controller */}
+          {isMobileMoveMode && (
+            <div className="w-full max-w-sm bg-white/95 dark:bg-[#12141A]/95 backdrop-blur-xl border border-slate-200 dark:border-white/15 rounded-2xl p-3 shadow-2xl space-y-2.5">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-2">
+                <div className="flex items-center gap-2">
+                  <Move className="w-4 h-4 text-blue-500" />
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    Режим перемещения
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10">
+                  <span>X: {activeSelectedInfo.x}</span>
+                  <span>Y: {activeSelectedInfo.y}</span>
+                </div>
+              </div>
+
+              {/* Step selector & D-Pad Controls */}
+              <div className="flex items-center justify-between gap-2">
+                {/* Step toggle */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Шаг сетки:</span>
+                  <div className="flex items-center rounded-lg bg-slate-100 dark:bg-white/5 p-0.5 border border-slate-200 dark:border-white/10 text-[10px] font-mono">
+                    {[5, 20, 50].map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setMobileMoveStep(s)}
+                        className={`px-2 py-1 rounded-md font-bold transition-colors ${
+                          mobileMoveStep === s 
+                            ? 'bg-blue-600 text-white shadow-xs' 
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        {s}px
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Micro D-Pad */}
+                <div className="grid grid-cols-3 gap-1 w-28 h-20 items-center justify-items-center">
+                  <div />
+                  <button
+                    type="button"
+                    onClick={() => nudgeSelected(0, -mobileMoveStep)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/10 hover:bg-blue-500 hover:text-white active:scale-90 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all font-bold shadow-xs border border-slate-200 dark:border-white/10"
+                    title="Сдвинуть вверх"
+                  >
+                    ↑
+                  </button>
+                  <div />
+                  <button
+                    type="button"
+                    onClick={() => nudgeSelected(-mobileMoveStep, 0)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/10 hover:bg-blue-500 hover:text-white active:scale-90 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all font-bold shadow-xs border border-slate-200 dark:border-white/10"
+                    title="Сдвинуть влево"
+                  >
+                    ←
+                  </button>
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/15 text-blue-500 flex items-center justify-center text-[10px] font-mono font-bold">
+                    {mobileMoveStep}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => nudgeSelected(mobileMoveStep, 0)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/10 hover:bg-blue-500 hover:text-white active:scale-90 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all font-bold shadow-xs border border-slate-200 dark:border-white/10"
+                    title="Сдвинуть вправо"
+                  >
+                    →
+                  </button>
+                  <div />
+                  <button
+                    type="button"
+                    onClick={() => nudgeSelected(0, mobileMoveStep)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/10 hover:bg-blue-500 hover:text-white active:scale-90 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all font-bold shadow-xs border border-slate-200 dark:border-white/10"
+                    title="Сдвинуть вниз"
+                  >
+                    ↓
+                  </button>
+                  <div />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                <span>💡 Перетягивайте пальцем или жмите стрелки</span>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMoveMode(false)}
+                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs active:scale-95 transition-all"
+                >
+                  Готово
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Floating Pill Action Bar */}
+          <div className="w-full max-w-sm bg-white/95 dark:bg-[#12141A]/95 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 rounded-2xl p-2 shadow-2xl flex items-center justify-between gap-1.5 ring-1 ring-black/5">
+            {/* Tag / Name Badge */}
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 pl-1">
+              <span 
+                className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded text-white shrink-0 shadow-xs"
+                style={{ backgroundColor: activeSelectedInfo.color }}
+              >
+                {activeSelectedInfo.tag}
+              </span>
+              <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                {activeSelectedInfo.name}
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-1 shrink-0">
+              {/* Focus Button */}
+              <button
+                id="mobile-hud-focus-btn"
+                type="button"
+                onClick={() => enterFocusMode(selectedId)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold shadow-sm transition-all"
+                title="Войти в фокусный режим этого элемента"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>Фокус</span>
+              </button>
+
+              {/* Properties Sheet Toggle */}
+              <button
+                id="mobile-hud-props-btn"
+                type="button"
+                onClick={() => setIsInspectorMobileOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-800 dark:text-slate-100 text-xs font-semibold active:scale-95 transition-all"
+                title="Открыть свойства"
+              >
+                <Sliders className="w-3.5 h-3.5 text-blue-500" />
+                <span>Свойства</span>
+              </button>
+
+              {/* Move Mode Toggle */}
+              <button
+                id="mobile-hud-move-btn"
+                type="button"
+                onClick={() => setIsMobileMoveMode(!isMobileMoveMode)}
+                className={`p-1.5 rounded-xl transition-all active:scale-95 ${
+                  isMobileMoveMode
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200'
+                }`}
+                title="Точное перемещение элемента (D-Pad)"
+              >
+                <Move className="w-4 h-4" />
+              </button>
+
+              {/* Deselect button */}
+              <button
+                id="mobile-hud-deselect-btn"
+                type="button"
+                onClick={() => setSelectedId(null)}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                title="Снять выделение"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Parenting & Shift Guide during drag */}
       {draggedNode && (

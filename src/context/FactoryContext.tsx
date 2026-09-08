@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   FactoryState, 
   EquipmentNode, 
@@ -96,6 +96,16 @@ interface FactoryContextType {
   exitFocusMode: () => void;
   toggleFocusMode: (containerId?: string) => void;
   fitContainerToScreen: (containerId?: string) => void;
+  goBackOneLevel: () => void;
+  canGoBackOneLevel: boolean;
+  parentFocusName: string | null;
+
+  // Mobile Element Management & Movement Mode
+  isInspectorMobileOpen: boolean;
+  setIsInspectorMobileOpen: (open: boolean) => void;
+  isMobileMoveMode: boolean;
+  setIsMobileMoveMode: (active: boolean) => void;
+  nudgeSelected: (dx: number, dy: number) => void;
 
   // Actions
   updateEquipment: (id: string, partial: Partial<EquipmentNode>, reason?: string, skipHistory?: boolean) => void;
@@ -344,6 +354,8 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const setSelectedId = useCallback((id: string | null) => {
     setSelectedIdState(id);
     setSelectedIdsRaw(id ? [id] : []);
+    setIsInspectorMobileOpen(false);
+    setIsMobileMoveMode(false);
   }, []);
 
   const toggleSelectId = useCallback((id: string, multi: boolean = false) => {
@@ -384,6 +396,10 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Container Focus Mode State (Selected container fills the entire working window)
   const [focusedContainerId, setFocusedContainerId] = useState<string | null>(null);
   const [isFocusFullscreen, setIsFocusFullscreen] = useState<boolean>(false);
+
+  // Mobile Inspector Sheet & Precision Movement State
+  const [isInspectorMobileOpen, setIsInspectorMobileOpen] = useState(false);
+  const [isMobileMoveMode, setIsMobileMoveMode] = useState(false);
 
   // Modals & Panels
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -2864,6 +2880,80 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [focusedContainerId, selectedId, enterFocusMode, exitFocusMode]);
 
+  // Name of parent container or workshop when focused
+  const parentFocusName = useMemo(() => {
+    if (!focusedContainerId) return null;
+    const cont = state.containers.find(c => c.id === focusedContainerId);
+    const eq = state.equipment.find(e => e.id === focusedContainerId);
+    const target = cont || eq;
+    const parentId = target?.parentId;
+    if (!parentId) return 'Общий план завода';
+    const parentCont = state.containers.find(c => c.id === parentId);
+    if (parentCont) return parentCont.name || parentCont.tag;
+    const parentEq = state.equipment.find(e => e.id === parentId);
+    if (parentEq) return parentEq.name || parentEq.tag;
+    return 'Уровень выше';
+  }, [focusedContainerId, state.containers, state.equipment]);
+
+  const canGoBackOneLevel = Boolean(focusedContainerId);
+
+  // Go Back One Level in hierarchy
+  const goBackOneLevel = useCallback(() => {
+    if (!focusedContainerId) return;
+    const cont = state.containers.find(c => c.id === focusedContainerId);
+    const eq = state.equipment.find(e => e.id === focusedContainerId);
+    const target = cont || eq;
+    const parentId = target?.parentId;
+    if (parentId) {
+      enterFocusMode(parentId);
+    } else {
+      exitFocusMode();
+    }
+  }, [focusedContainerId, state.containers, state.equipment, enterFocusMode, exitFocusMode]);
+
+  // Precision Nudge for Mobile & Touch
+  const nudgeSelected = useCallback((dx: number, dy: number) => {
+    const ids = selectedIds.length > 0 ? selectedIds : (selectedId ? [selectedId] : []);
+    if (ids.length === 0) return;
+
+    recordHistorySnapshot();
+
+    setState(prev => {
+      let changed = false;
+      const targetSet = new Set(ids);
+
+      const nextContainers = prev.containers.map(c => {
+        if (targetSet.has(c.id)) {
+          changed = true;
+          const newX = Math.max(0, c.x + dx);
+          const newY = Math.max(0, c.y + dy);
+          return { ...c, x: newX, y: newY };
+        }
+        return c;
+      });
+
+      const nextEquipment = prev.equipment.map(e => {
+        if (targetSet.has(e.id)) {
+          changed = true;
+          const newX = Math.max(0, e.x + dx);
+          const newY = Math.max(0, e.y + dy);
+          return { ...e, x: newX, y: newY };
+        }
+        return e;
+      });
+
+      if (!changed) return prev;
+
+      const nextState = {
+        ...prev,
+        containers: nextContainers,
+        equipment: nextEquipment,
+      };
+      syncStateToServer(nextState, `Смещение элементов: ${dx}px, ${dy}px`);
+      return nextState;
+    });
+  }, [selectedId, selectedIds, recordHistorySnapshot, syncStateToServer]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -2923,6 +3013,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setSelectedIds([]);
         setConnectingSourceId(null);
         setActiveTool('select');
+      } else if ((e.altKey && e.key === 'ArrowLeft') || (e.key === 'Backspace' && !selectedId && selectedIds.length === 0 && focusedContainerId)) {
+        if (focusedContainerId) {
+          e.preventDefault();
+          goBackOneLevel();
+          return;
+        }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (currentUser.role === 'admin') {
           if (selectedIds.length > 1) {
@@ -2982,6 +3078,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         exitFocusMode,
         toggleFocusMode,
         fitContainerToScreen,
+        goBackOneLevel,
+        canGoBackOneLevel,
+        parentFocusName,
+        isInspectorMobileOpen,
+        setIsInspectorMobileOpen,
+        isMobileMoveMode,
+        setIsMobileMoveMode,
+        nudgeSelected,
         updateEquipment,
         addEquipment,
         deleteEquipment,
