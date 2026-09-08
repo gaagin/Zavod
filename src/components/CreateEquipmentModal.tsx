@@ -18,7 +18,8 @@ import {
   Sparkles,
   Layers,
   Barcode,
-  Tag
+  Tag,
+  ExternalLink
 } from 'lucide-react';
 
 interface PropDraft {
@@ -53,6 +54,7 @@ export const CreateEquipmentModal: React.FC = () => {
   const [manufacturer, setManufacturer] = useState<string>('');
   const [barcode, setBarcode] = useState<string>('');
   const [stockCode, setStockCode] = useState<string>('');
+  const [linkUrl, setLinkUrl] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
   // Custom properties draft
@@ -77,6 +79,7 @@ export const CreateEquipmentModal: React.FC = () => {
       setManufacturer('');
       setBarcode('');
       setStockCode('');
+      setLinkUrl('');
       setNotes('');
       setCustomProps([]);
       setNewPropName('');
@@ -173,6 +176,8 @@ export const CreateEquipmentModal: React.FC = () => {
       barkod: barcode.trim() || undefined,
       stockCode: stockCode.trim() || undefined,
       stokKod: stockCode.trim() || undefined,
+      linkUrl: linkUrl.trim() || undefined,
+      url: linkUrl.trim() || undefined,
       notes: notes.trim() || undefined,
       properties: formattedProps,
       commissionDate: new Date().toISOString().slice(0, 10),
@@ -440,6 +445,20 @@ export const CreateEquipmentModal: React.FC = () => {
                   className="w-full px-3 py-1.5 rounded-lg bg-[#17171C] border border-white/10 text-slate-200 placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                <span>Ссылка на внешний ресурс (URL / SCADA / Документация)</span>
+              </label>
+              <input
+                type="url"
+                placeholder="https://... (документация, панель станка, SCADA)"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg bg-[#17171C] border border-white/10 text-slate-200 placeholder:text-slate-600 focus:outline-hidden focus:border-blue-500 font-mono text-xs"
+              />
             </div>
           </div>
 

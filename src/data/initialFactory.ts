@@ -19,7 +19,8 @@ export const initialFactoryState: FactoryState = {
       collapsedHeight: 110,
       color: '#0284c7', // sky-600
       description: 'Основной цех высокоточной металлообработки и роботизированной сборки узлов',
-      manager: 'Смирнов А.В., нач. цеха'
+      manager: 'Смирнов А.В., нач. цеха',
+      linkUrl: 'https://ru.wikipedia.org/wiki/АСУ_ТП'
     },
     {
       id: 'cont-line-a',
@@ -113,6 +114,7 @@ export const initialFactoryState: FactoryState = {
       stockCode: 'STK-CNC-501',
       powerKw: 22.5,
       voltageV: 380,
+      linkUrl: 'https://www.dmgmori.com',
       commissionDate: '2023-04-15',
       lastMaintenanceDate: '2026-08-10',
       nextMaintenanceDate: '2026-11-10',
@@ -551,6 +553,7 @@ export const initialFactoryState: FactoryState = {
       style: 'orthogonal',
       direction: 'bidirectional',
       label: 'PROFINET RT',
+      linkUrl: 'https://www.profibus.com',
       color: '#a855f7',
       animated: true
     },

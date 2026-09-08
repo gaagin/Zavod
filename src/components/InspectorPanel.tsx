@@ -38,11 +38,13 @@ import {
   Copy,
   CopyPlus,
   ClipboardPaste,
-  Search
+  Search,
+  ExternalLink
 } from 'lucide-react';
 import { ElementLinksSection } from './ElementLinksSection';
 import { EquipmentTasksSection } from './EquipmentTasksSection';
 import { ListTodo } from 'lucide-react';
+import { openExternalUrl } from '../utils/linkUtils';
 
 export const InspectorPanel: React.FC = () => {
   const {
@@ -1112,6 +1114,47 @@ export const InspectorPanel: React.FC = () => {
               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 resize-none text-[11px] placeholder:text-slate-400"
             />
           </div>
+
+          {/* External Link (URL / SCADA / Documentation) */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                <span>Ссылка (URL / SCADA / Документация)</span>
+              </label>
+              {(selectedEquipment.linkUrl || selectedEquipment.url) && (
+                <button
+                  type="button"
+                  onClick={(e) => openExternalUrl(selectedEquipment.linkUrl || selectedEquipment.url, e)}
+                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 flex items-center gap-1 hover:underline cursor-pointer"
+                  title="Открыть ссылку в новой вкладке"
+                >
+                  <span>Перейти</span>
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <div className="relative flex items-center">
+              <input
+                type="url"
+                disabled={!canEdit}
+                placeholder="https://... (документация, панель станка, SCADA)"
+                value={selectedEquipment.linkUrl || selectedEquipment.url || ''}
+                onChange={(e) => updateEquipment(selectedEquipment.id, { linkUrl: e.target.value, url: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-400 font-mono text-xs pr-8"
+              />
+              {(selectedEquipment.linkUrl || selectedEquipment.url) && (
+                <button
+                  type="button"
+                  onClick={(e) => openExternalUrl(selectedEquipment.linkUrl || selectedEquipment.url, e)}
+                  className="absolute right-2 p-1 text-slate-400 hover:text-blue-500 transition-colors cursor-pointer"
+                  title="Открыть ссылку"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Custom Editable Properties Section */}
@@ -1605,6 +1648,47 @@ export const InspectorPanel: React.FC = () => {
               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 resize-none text-[11px] placeholder:text-slate-400"
             />
           </div>
+
+          {/* External Link for Container (URL / SCADA / Dashboard) */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                <span>Ссылка (URL / SCADA / Дашборд цеха)</span>
+              </label>
+              {(selectedContainer.linkUrl || selectedContainer.url) && (
+                <button
+                  type="button"
+                  onClick={(e) => openExternalUrl(selectedContainer.linkUrl || selectedContainer.url, e)}
+                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 flex items-center gap-1 hover:underline cursor-pointer"
+                  title="Открыть ссылку в новой вкладке"
+                >
+                  <span>Перейти</span>
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <div className="relative flex items-center">
+              <input
+                type="url"
+                disabled={!canAdmin}
+                placeholder="https://... (дашборд цеха, регламент, SCADA)"
+                value={selectedContainer.linkUrl || selectedContainer.url || ''}
+                onChange={(e) => updateContainer(selectedContainer.id, { linkUrl: e.target.value, url: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-400 font-mono text-xs pr-8"
+              />
+              {(selectedContainer.linkUrl || selectedContainer.url) && (
+                <button
+                  type="button"
+                  onClick={(e) => openExternalUrl(selectedContainer.linkUrl || selectedContainer.url, e)}
+                  className="absolute right-2 p-1 text-slate-400 hover:text-blue-500 transition-colors cursor-pointer"
+                  title="Открыть ссылку"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Nested Elements List */}
@@ -1834,6 +1918,47 @@ export const InspectorPanel: React.FC = () => {
               <span>Анимация потока:</span>
               <span className="font-mono font-bold">{selectedLink.animated ? 'ВКЛ' : 'ВЫКЛ'}</span>
             </button>
+          </div>
+
+          {/* External Link for Connection Link (URL / Documentation / Scheme) */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                <span>Ссылка (URL / Схема трассы / Документация)</span>
+              </label>
+              {(selectedLink.linkUrl || selectedLink.url) && (
+                <button
+                  type="button"
+                  onClick={(e) => openExternalUrl(selectedLink.linkUrl || selectedLink.url, e)}
+                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 flex items-center gap-1 hover:underline cursor-pointer"
+                  title="Открыть ссылку в новой вкладке"
+                >
+                  <span>Перейти</span>
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <div className="relative flex items-center">
+              <input
+                type="url"
+                disabled={!canEdit}
+                placeholder="https://... (спецификация кабеля, гидравлическая схема, SCADA)"
+                value={selectedLink.linkUrl || selectedLink.url || ''}
+                onChange={(e) => updateLink(selectedLink.id, { linkUrl: e.target.value, url: e.target.value })}
+                className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-900 dark:text-slate-200 focus:outline-hidden focus:border-blue-500 placeholder:text-slate-400 font-mono text-xs pr-8"
+              />
+              {(selectedLink.linkUrl || selectedLink.url) && (
+                <button
+                  type="button"
+                  onClick={(e) => openExternalUrl(selectedLink.linkUrl || selectedLink.url, e)}
+                  className="absolute right-2 p-1 text-slate-400 hover:text-blue-500 transition-colors cursor-pointer"
+                  title="Открыть ссылку"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

@@ -26,6 +26,7 @@ import {
   getContainerDepth,
   calculateNodeFitViewport
 } from '../utils/geometry';
+import { openExternalUrl } from '../utils/linkUtils';
 import { 
   computeSmartAlignment, 
   BoundingBox, 
@@ -2133,8 +2134,8 @@ export const Canvas: React.FC = () => {
                   }}
                 />
 
-                {/* Link Label Tag */}
-                {link.label && (
+                {/* Link Label Tag & External URL Button */}
+                {(link.label || link.linkUrl || link.url) && (
                   <g
                     transform={`translate(${midPoint.x}, ${midPoint.y})`}
                     onClick={(e) => {
@@ -2145,24 +2146,80 @@ export const Canvas: React.FC = () => {
                         setSelectedId(link.id);
                       }
                     }}
+                    className="cursor-pointer"
                   >
-                    <rect
-                      x="-60"
-                      y="-11"
-                      width="120"
-                      height="22"
-                      rx="6"
-                      className="fill-[#0F0F12] stroke-white/20 shadow-md"
-                      strokeWidth="1"
-                    />
-                    <text
-                      x="0"
-                      y="4"
-                      textAnchor="middle"
-                      className="text-[10px] font-semibold fill-slate-300 pointer-events-none select-none"
-                    >
-                      {link.label.length > 20 ? link.label.slice(0, 18) + '...' : link.label}
-                    </text>
+                    {link.label ? (
+                      <>
+                        <rect
+                          x={(link.linkUrl || link.url) ? -74 : -60}
+                          y="-11"
+                          width={(link.linkUrl || link.url) ? 148 : 120}
+                          height="22"
+                          rx="6"
+                          className="fill-[#0F0F12] stroke-white/20 shadow-md hover:stroke-blue-400/60 transition-colors"
+                          strokeWidth="1"
+                        />
+                        <text
+                          x={(link.linkUrl || link.url) ? -10 : 0}
+                          y="4"
+                          textAnchor="middle"
+                          className="text-[10px] font-semibold fill-slate-300 pointer-events-none select-none"
+                        >
+                          {link.label.length > 18 ? link.label.slice(0, 16) + '...' : link.label}
+                        </text>
+                      </>
+                    ) : (
+                      <>
+                        <rect
+                          x="-36"
+                          y="-11"
+                          width="72"
+                          height="22"
+                          rx="6"
+                          className="fill-[#0F0F12] stroke-blue-500/40 shadow-md hover:stroke-blue-400 transition-colors"
+                          strokeWidth="1"
+                        />
+                        <text
+                          x="5"
+                          y="4"
+                          textAnchor="middle"
+                          className="text-[10px] font-semibold fill-blue-400 pointer-events-none select-none"
+                        >
+                          Ссылка
+                        </text>
+                      </>
+                    )}
+
+                    {(link.linkUrl || link.url) && (
+                      <g
+                        transform={`translate(${link.label ? 54 : -24}, -7)`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openExternalUrl(link.linkUrl || link.url, e);
+                        }}
+                        className="cursor-pointer group"
+                      >
+                        <title>{`Открыть ссылку: ${link.linkUrl || link.url}`}</title>
+                        <rect
+                          x="0"
+                          y="0"
+                          width="14"
+                          height="14"
+                          rx="3"
+                          className="fill-blue-600/40 group-hover:fill-blue-600 stroke-blue-400/60 group-hover:stroke-blue-200 transition-colors"
+                          strokeWidth="1"
+                        />
+                        <path
+                          d="M3.5 10.5 L10.5 3.5 M7 3.5 H10.5 V7"
+                          stroke="#93c5fd"
+                          strokeWidth="1.3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          className="group-hover:stroke-white transition-colors"
+                        />
+                      </g>
+                    )}
                   </g>
                 )}
               </g>
@@ -2606,16 +2663,28 @@ export const Canvas: React.FC = () => {
                     </span>
                   </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      enterFocusMode(container.id);
-                    }}
-                    className="p-1 rounded-lg hover:bg-blue-500/15 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 ml-auto transition-colors"
-                    title="Развернуть в фокусный режим на весь экран (F)"
-                  >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0 ml-auto">
+                    {(container.linkUrl || container.url) && (
+                      <button
+                        type="button"
+                        onClick={(e) => openExternalUrl(container.linkUrl || container.url, e)}
+                        className="p-1 rounded-lg hover:bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:text-blue-500 transition-colors cursor-pointer"
+                        title={`Открыть ссылку: ${container.linkUrl || container.url}`}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        enterFocusMode(container.id);
+                      }}
+                      className="p-1 rounded-lg hover:bg-blue-500/15 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
+                      title="Развернуть в фокусный режим на весь экран (F)"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Collapsed Metrics Strip */}
@@ -2814,6 +2883,16 @@ export const Canvas: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  {(container.linkUrl || container.url) && (
+                    <button
+                      type="button"
+                      onClick={(e) => openExternalUrl(container.linkUrl || container.url, e)}
+                      className="p-1.5 rounded-lg hover:bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:text-blue-500 transition-colors cursor-pointer"
+                      title={`Открыть ссылку: ${container.linkUrl || container.url}`}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -3025,6 +3104,16 @@ export const Canvas: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    {(equipment.linkUrl || equipment.url) && (
+                      <button
+                        type="button"
+                        onClick={(e) => openExternalUrl(equipment.linkUrl || equipment.url, e)}
+                        className="p-1 rounded-md hover:bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:text-blue-500 transition-colors cursor-pointer"
+                        title={`Открыть ссылку: ${equipment.linkUrl || equipment.url}`}
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -3251,6 +3340,16 @@ export const Canvas: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-1">
+                    {(equipment.linkUrl || equipment.url) && (
+                      <button
+                        type="button"
+                        onClick={(e) => openExternalUrl(equipment.linkUrl || equipment.url, e)}
+                        className="p-1 rounded-md hover:bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:text-blue-500 transition-colors cursor-pointer"
+                        title={`Открыть ссылку: ${equipment.linkUrl || equipment.url}`}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -3282,8 +3381,8 @@ export const Canvas: React.FC = () => {
                   </div>
                 )}
 
-                {/* Barcode & Stock Code Badges */}
-                {Boolean((equipment.barcode || equipment.barkod) || (equipment.stockCode || equipment.stokKod)) && (
+                {/* Barcode, Stock Code & External Link Badges */}
+                {Boolean((equipment.barcode || equipment.barkod) || (equipment.stockCode || equipment.stokKod) || (equipment.linkUrl || equipment.url)) && (
                   <div className="flex items-center gap-1.5 flex-wrap text-[9px] font-mono mt-1">
                     {(equipment.barcode || equipment.barkod) && (
                       <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-white/5 border border-slate-200/60 dark:border-white/10 text-slate-700 dark:text-slate-300 flex items-center gap-1 shrink-0" title={`Barkod: ${equipment.barcode || equipment.barkod}`}>
@@ -3295,6 +3394,17 @@ export const Canvas: React.FC = () => {
                       <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200/80 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold shrink-0" title={`Stok kod: ${equipment.stockCode || equipment.stokKod}`}>
                         {equipment.stockCode || equipment.stokKod}
                       </span>
+                    )}
+                    {(equipment.linkUrl || equipment.url) && (
+                      <button
+                        type="button"
+                        onClick={(e) => openExternalUrl(equipment.linkUrl || equipment.url, e)}
+                        className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 border border-blue-200/80 dark:border-blue-500/20 text-blue-600 dark:text-blue-400 font-semibold shrink-0 flex items-center gap-1 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors cursor-pointer"
+                        title={`Открыть ссылку: ${equipment.linkUrl || equipment.url}`}
+                      >
+                        <ExternalLink className="w-2.5 h-2.5" />
+                        <span className="truncate max-w-[80px]">Ссылка</span>
+                      </button>
                     )}
                   </div>
                 )}

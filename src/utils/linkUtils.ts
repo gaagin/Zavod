@@ -1,3 +1,4 @@
+import type React from 'react';
 import QRCode from 'qrcode';
 import { FactoryState, CanvasNode, EquipmentNode, ContainerNode } from '../types';
 
@@ -204,5 +205,32 @@ export async function generateQrCodeDataUrl(url: string): Promise<string> {
   } catch (err) {
     console.error('Failed to generate QR code', err);
     return '';
+  }
+}
+
+/**
+ * Normalizes and formats an external URL, ensuring proper protocol (http/https).
+ */
+export function formatExternalUrl(url?: string): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (/^(https?:\/\/|mailto:|tel:|ftp:\/\/)/i.test(trimmed) || trimmed.startsWith('/') || trimmed.startsWith('#')) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
+
+/**
+ * Safely opens an external link in a new browser tab.
+ */
+export function openExternalUrl(url?: string, e?: React.MouseEvent | Event): void {
+  if (e) {
+    e.stopPropagation();
+  }
+  if (!url) return;
+  const targetUrl = formatExternalUrl(url);
+  if (targetUrl) {
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
   }
 }

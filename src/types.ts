@@ -82,6 +82,8 @@ export interface EquipmentNode {
   nextMaintenanceDate?: string;
   notes?: string;
   color?: string;
+  linkUrl?: string;      // Ссылка на внешний ресурс, документацию, SCADA или веб-интерфейс
+  url?: string;          // Алиас ссылки
   elementLinks?: ElementReference[];
   tasks?: EquipmentTask[];
 }
@@ -109,6 +111,8 @@ export interface ContainerNode {
   color: string;
   description?: string;
   manager?: string;
+  linkUrl?: string;      // Ссылка на внешний ресурс, документацию цеха, SCADA или дашборд
+  url?: string;          // Алиас ссылки
   elementLinks?: ElementReference[];
 }
 
@@ -135,6 +139,8 @@ export interface ConnectionLink {
   label?: string;
   color?: string;
   animated?: boolean;
+  linkUrl?: string;      // Ссылка на документацию трассы, схему или спецификацию
+  url?: string;          // Алиас ссылки
 }
 
 export type UserRole = 'admin' | 'operator' | 'maintenance' | 'viewer';
