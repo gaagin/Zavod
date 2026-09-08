@@ -354,7 +354,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const setSelectedId = useCallback((id: string | null) => {
     setSelectedIdState(id);
     setSelectedIdsRaw(id ? [id] : []);
-    setIsInspectorMobileOpen(false);
+    setIsInspectorMobileOpen(Boolean(id));
     setIsMobileMoveMode(false);
   }, []);
 
@@ -362,11 +362,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!multi) {
       setSelectedIdState(id);
       setSelectedIdsRaw(id ? [id] : []);
+      setIsInspectorMobileOpen(true);
     } else {
       setSelectedIdsRaw(prev => {
         const exists = prev.includes(id);
         const next = exists ? prev.filter(item => item !== id) : [...prev, id];
-        setSelectedIdState(next.length > 0 ? next[next.length - 1] : null);
+        const nextActive = next.length > 0 ? next[next.length - 1] : null;
+        setSelectedIdState(nextActive);
+        if (nextActive) setIsInspectorMobileOpen(true);
         return next;
       });
     }
