@@ -50,6 +50,8 @@ export interface EquipmentTask {
   completedAt?: string;
   createdBy?: string;
   checklist?: TaskChecklistItem[];
+  linkUrl?: string; // Внешняя ссылка на регламент, тикет, документацию или внешний сервис
+  url?: string;     // Алиас внешней ссылки
 }
 
 export interface EquipmentNode {

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { 
   FactoryState, 
   EquipmentNode, 
+  EquipmentTask,
   ContainerNode, 
   ConnectionLink, 
   FactoryEventLog, 
@@ -37,6 +38,8 @@ import {
   generateElementUrl,
   copyTextToClipboard,
   parseElementFromLocation,
+  parseTaskFromLocation,
+  generateTaskUrl,
   findElementInState,
   LinkParamType
 } from '../utils/linkUtils';
@@ -1198,7 +1201,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
                   ? mergeEquipmentPreservingTasks(
                       dedupeById(msg.state.equipment),
                       mergeEquipmentPreservingTasks(prev.equipment, initialFactoryState.equipment)
-                    )
+                    ).map((e: any) => ({
+                      ...e,
+                      isCollapsed: e.isCollapsed !== undefined ? e.isCollapsed : true,
+                      collapsedWidth: e.collapsedWidth || 180,
+                      collapsedHeight: e.collapsedHeight || 64,
+                    }))
                   : prev.equipment,
                 containers: (msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers).map((c: ContainerNode) => {
                   const prevCont = prev.containers.find(pc => pc.id === c.id);
@@ -1232,7 +1240,12 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 ...prev,
                 ...msg.state,
                 equipment: msg.state.equipment !== undefined 
-                  ? mergeEquipmentPreservingTasks(dedupeById(msg.state.equipment), prev.equipment) 
+                  ? mergeEquipmentPreservingTasks(dedupeById(msg.state.equipment), prev.equipment).map((e: any) => ({
+                      ...e,
+                      isCollapsed: e.isCollapsed !== undefined ? e.isCollapsed : true,
+                      collapsedWidth: e.collapsedWidth || 180,
+                      collapsedHeight: e.collapsedHeight || 64,
+                    }))
                   : prev.equipment,
                 containers: msg.state.containers !== undefined ? dedupeById(msg.state.containers) : prev.containers,
                 links: msg.state.links !== undefined ? dedupeById(msg.state.links) : prev.links,
@@ -1526,11 +1539,17 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const addEquipment = useCallback((equipment: EquipmentNode, reason?: string) => {
     pushHistory(state);
     setState(prev => {
-      const nextEq = [...prev.equipment.filter(e => e.id !== equipment.id), equipment];
-      const logDesc = reason || `Добавлена единица оборудования: [${equipment.tag}] ${equipment.name}`;
+      const ensuredEquipment: EquipmentNode = {
+        ...equipment,
+        isCollapsed: equipment.isCollapsed !== undefined ? equipment.isCollapsed : true,
+        collapsedWidth: equipment.collapsedWidth || 180,
+        collapsedHeight: equipment.collapsedHeight || 64,
+      };
+      const nextEq = [...prev.equipment.filter(e => e.id !== ensuredEquipment.id), ensuredEquipment];
+      const logDesc = reason || `Добавлена единица оборудования: [${ensuredEquipment.tag}] ${ensuredEquipment.name}`;
       const newLog = createEventLog({
-        targetId: equipment.id,
-        targetName: equipment.name,
+        targetId: ensuredEquipment.id,
+        targetName: ensuredEquipment.name,
         targetType: 'equipment',
         eventType: 'created',
         severity: 'success',
@@ -1540,7 +1559,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
       const nextLogs = [newLog, ...prev.eventLogs.filter(l => l.id !== newLog.id)].slice(0, 200);
       const nextState = { ...prev, equipment: nextEq, eventLogs: nextLogs };
-      syncStateToServer(nextState, `Добавлено оборудование ${equipment.tag}`);
+      syncStateToServer(nextState, `Добавлено оборудование ${ensuredEquipment.tag}`);
       return nextState;
     });
   }, [state, pushHistory, currentUser]);
@@ -1601,6 +1620,9 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       y: posY,
       width: 170,
       height: 170,
+      isCollapsed: true,
+      collapsedWidth: 180,
+      collapsedHeight: 64,
       properties: [],
       model: '',
       serialNumber: '',
@@ -1826,6 +1848,9 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         parentId: newParentId,
         x: Math.round(e.x + deltaX),
         y: Math.round(e.y + deltaY),
+        isCollapsed: e.isCollapsed !== undefined ? e.isCollapsed : true,
+        collapsedWidth: e.collapsedWidth || 180,
+        collapsedHeight: e.collapsedHeight || 64,
         properties: (e.properties || []).map(p => ({
           ...p,
           id: `p_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -2740,6 +2765,41 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Check deep link URL on initial load and browser navigation
   useEffect(() => {
     const handleUrlNavigation = () => {
+      // 1. Check if URL specifies a task deep link
+      const parsedTask = parseTaskFromLocation();
+      if (parsedTask) {
+        let targetEq: EquipmentNode | undefined;
+        let targetTask: EquipmentTask | undefined;
+
+        if (parsedTask.elementId) {
+          targetEq = state.equipment.find(e => e.id === parsedTask.elementId);
+          targetTask = targetEq?.tasks?.find(t => t.id === parsedTask.taskId);
+        }
+
+        if (!targetTask) {
+          for (const eq of state.equipment) {
+            const t = eq.tasks?.find(task => task.id === parsedTask.taskId);
+            if (t) {
+              targetEq = eq;
+              targetTask = t;
+              break;
+            }
+          }
+        }
+
+        if (targetEq && targetTask) {
+          focusNode(targetEq.id);
+          openTaskModal(targetEq.id, targetTask.id);
+          showToast(
+            'Переход к задаче 📋',
+            `Открыта задача «${targetTask.title}» для [${targetEq.tag}] ${targetEq.name}`,
+            'info'
+          );
+          return;
+        }
+      }
+
+      // 2. Check if URL specifies an element deep link
       const parsed = parseElementFromLocation();
       if (!parsed) return;
       const found = findElementInState(state, parsed);
@@ -2762,7 +2822,7 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       window.removeEventListener('popstate', handleUrlNavigation);
       window.removeEventListener('hashchange', handleUrlNavigation);
     };
-  }, [state.equipment.length, state.containers.length]);
+  }, [state.equipment, state.containers, focusNode, openTaskModal, showToast]);
 
   // Helper to get exact canvas container viewport dimensions
   const getCanvasDimensions = useCallback(() => {

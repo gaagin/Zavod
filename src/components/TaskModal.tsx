@@ -27,8 +27,19 @@ import {
   ArrowRight,
   ShieldCheck,
   Check,
-  RotateCcw
+  RotateCcw,
+  Link2,
+  Share2,
+  Copy,
+  Globe,
+  Paperclip
 } from 'lucide-react';
+import { 
+  copyTextToClipboard, 
+  generateTaskUrl, 
+  formatExternalUrl, 
+  openExternalUrl 
+} from '../utils/linkUtils';
 
 const PRIORITY_CONFIG: Record<TaskPriority, { label: string; badgeClass: string; activeBtnClass: string }> = {
   urgent: { 
@@ -123,6 +134,11 @@ export const TaskModal: React.FC = () => {
   const [checklist, setChecklist] = useState<TaskChecklistItem[]>([]);
   const [newChecklistText, setNewChecklistText] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [copiedTaskLink, setCopiedTaskLink] = useState(false);
+  const [copiedExternalLink, setCopiedExternalLink] = useState(false);
+  const [isAddingLinkInline, setIsAddingLinkInline] = useState(false);
+  const [inlineLinkValue, setInlineLinkValue] = useState('');
 
   // Sync state with current task when opened
   useEffect(() => {
@@ -135,8 +151,14 @@ export const TaskModal: React.FC = () => {
       setAssignedTo(task.assignedTo || '');
       setDueDate(task.dueDate || '');
       setChecklist(task.checklist || []);
+      const currentLink = task.linkUrl || task.url || '';
+      setLinkUrl(currentLink);
+      setInlineLinkValue(currentLink);
       setIsEditing(false);
       setShowDeleteConfirm(false);
+      setIsAddingLinkInline(false);
+      setCopiedTaskLink(false);
+      setCopiedExternalLink(false);
     }
   }, [task]);
 
@@ -245,6 +267,77 @@ export const TaskModal: React.FC = () => {
     );
   };
 
+  // Copy task deep link for external services
+  const handleCopyTaskDeepLink = async (format: 'url' | 'markdown' | 'full' = 'url') => {
+    const taskUrl = generateTaskUrl(equipment.id, task.id);
+    let textToCopy = taskUrl;
+    let label = 'Прямая ссылка на задачу';
+
+    if (format === 'markdown') {
+      textToCopy = `[Задача: ${task.title} (${equipment.tag})](${taskUrl})`;
+      label = 'Markdown-ссылка';
+    } else if (format === 'full') {
+      const typeLabel = TYPE_CONFIG[task.type || 'maintenance']?.label || 'ТО';
+      const statusLabel = STATUS_CONFIG[task.status]?.label || task.status;
+      const priorityLabel = PRIORITY_CONFIG[task.priority || 'medium']?.label || 'Средний';
+      textToCopy = `📋 Задача ТО: "${task.title}"\n📍 Оборудование: [${equipment.tag}] ${equipment.name}\n🔧 Тип: ${typeLabel} | Приоритет: ${priorityLabel}\n⚡ Статус: ${statusLabel}${task.assignedTo ? `\n👤 Исполнитель: ${task.assignedTo}` : ''}${task.dueDate ? `\n📅 Срок: ${task.dueDate}` : ''}\n🔗 Ссылка: ${taskUrl}`;
+      label = 'Сводка задачи со ссылкой';
+    }
+
+    const success = await copyTextToClipboard(textToCopy);
+    if (success) {
+      setCopiedTaskLink(true);
+      showToast(
+        `${label} скопирована! 📋`,
+        'Готово для вставки в мессенджер (Telegram, WhatsApp), Jira, 1C или документ',
+        'success'
+      );
+      setTimeout(() => setCopiedTaskLink(false), 2500);
+    } else {
+      showToast('Не удалось скопировать', 'Пожалуйста, скопируйте ссылку вручную', 'error');
+    }
+  };
+
+  // Copy external resource link stored in task
+  const handleCopyExternalLink = async () => {
+    const rawUrl = task.linkUrl || task.url;
+    if (!rawUrl) return;
+    const formatted = formatExternalUrl(rawUrl);
+    const success = await copyTextToClipboard(formatted);
+    if (success) {
+      setCopiedExternalLink(true);
+      showToast('Внешняя ссылка скопирована 🔗', formatted, 'success');
+      setTimeout(() => setCopiedExternalLink(false), 2500);
+    }
+  };
+
+  // Quick inline save of external link
+  const handleSaveInlineLink = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = inlineLinkValue.trim();
+    handleSave({
+      linkUrl: trimmed || undefined,
+      url: trimmed || undefined,
+    });
+    setLinkUrl(trimmed);
+    setIsAddingLinkInline(false);
+    showToast(
+      trimmed ? 'Внешняя ссылка прикреплена к задаче' : 'Внешняя ссылка удалена',
+      `[${equipment.tag}] ${task.title}`,
+      'success'
+    );
+  };
+
+  const handleRemoveExternalLink = () => {
+    handleSave({
+      linkUrl: undefined,
+      url: undefined,
+    });
+    setLinkUrl('');
+    setInlineLinkValue('');
+    showToast('Ссылка удалена из задачи', `[${equipment.tag}] ${task.title}`, 'info');
+  };
+
   // Full form submission
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -261,6 +354,8 @@ export const TaskModal: React.FC = () => {
       type,
       assignedTo: assignedTo.trim() || undefined,
       dueDate: dueDate || undefined,
+      linkUrl: linkUrl.trim() || undefined,
+      url: linkUrl.trim() || undefined,
       checklist,
       completedAt,
     });
@@ -426,12 +521,36 @@ export const TaskModal: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Copy Task Deep Link Button */}
+            <button
+              type="button"
+              onClick={() => handleCopyTaskDeepLink('url')}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                copiedTaskLink
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700 font-bold'
+                  : 'bg-white dark:bg-white/5 hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 hover:border-blue-400'
+              }`}
+              title="Скопировать ссылку на задачу для отправки в Telegram, Jira, 1C или браузер"
+            >
+              {copiedTaskLink ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Скопировано!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="hidden sm:inline">Ссылка на задачу</span>
+                </>
+              )}
+            </button>
+
             {canEdit && !isEditing && (
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
-                className="p-2 rounded-xl hover:bg-slate-200/70 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                className="p-2 rounded-xl hover:bg-slate-200/70 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
                 title="Редактировать задачу"
               >
                 <Edit3 className="w-4 h-4" />
@@ -440,7 +559,7 @@ export const TaskModal: React.FC = () => {
             <button
               type="button"
               onClick={closeTaskModal}
-              className="p-2 rounded-xl hover:bg-slate-200/70 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="p-2 rounded-xl hover:bg-slate-200/70 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               title="Закрыть окно (Esc)"
             >
               <X className="w-5 h-5" />
@@ -533,6 +652,233 @@ export const TaskModal: React.FC = () => {
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                     {equipment.powerKw ? `${equipment.powerKw} кВт` : 'Питание подключено'}
                   </div>
+                </div>
+              </div>
+
+              {/* Task External Link (URL to regulations, Jira, tickets, docs) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <div className="flex items-center gap-1.5">
+                    <Link2 className="w-4 h-4 text-blue-500" />
+                    <span>Внешняя ссылка задачи (регламент / тикет / документация)</span>
+                  </div>
+                  {canEdit && (task.linkUrl || task.url) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInlineLinkValue(task.linkUrl || task.url || '');
+                        setIsAddingLinkInline(true);
+                      }}
+                      className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Изменить ссылку
+                    </button>
+                  )}
+                </div>
+
+                {task.linkUrl || task.url ? (
+                  <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-500/20 flex flex-wrap items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <Globe className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-500/30 text-blue-700 dark:text-blue-300 font-mono">
+                            URL
+                          </span>
+                          <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate block">
+                            {formatExternalUrl(task.linkUrl || task.url)}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          Прикрепленный внешний ресурс к задаче оборудования {equipment.tag}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleCopyExternalLink}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-colors cursor-pointer ${
+                          copiedExternalLink
+                            ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
+                            : 'bg-white dark:bg-white/10 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/20'
+                        }`}
+                        title="Скопировать внешнюю ссылку в буфер обмена"
+                      >
+                        {copiedExternalLink ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Скопировано!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Копировать URL</span>
+                          </>
+                        )}
+                      </button>
+
+                      <a
+                        href={formatExternalUrl(task.linkUrl || task.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        title="Открыть внешнюю ссылку в новой вкладке"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Перейти</span>
+                      </a>
+
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveExternalLink}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          title="Удалить внешнюю ссылку"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : isAddingLinkInline && canEdit ? (
+                  <form onSubmit={handleSaveInlineLink} className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-blue-500/40 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      <span>Прикрепить внешнюю ссылку</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingLinkInline(false)}
+                        className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Link2 className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="url"
+                          autoFocus
+                          value={inlineLinkValue}
+                          onChange={(e) => setInlineLinkValue(e.target.value)}
+                          placeholder="https://jira.company.ru/TASK-101 или https://wiki/page..."
+                          className="w-full pl-8 pr-16 py-1.5 rounded-lg bg-white dark:bg-[#181820] border border-slate-300 dark:border-white/15 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const text = await navigator.clipboard.readText();
+                              if (text) setInlineLinkValue(text.trim());
+                            } catch {
+                              // ignore
+                            }
+                          }}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-600 dark:text-slate-300 rounded font-medium transition-colors"
+                        >
+                          Вставить
+                        </button>
+                      </div>
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shrink-0 cursor-pointer"
+                      >
+                        Сохранить
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-dashed border-slate-200 dark:border-white/10 flex items-center justify-between gap-2 text-xs">
+                    <span className="text-slate-400 dark:text-slate-500 italic">
+                      Внешняя ссылка на регламент, тикет или документацию не указана.
+                    </span>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInlineLinkValue('');
+                          setIsAddingLinkInline(true);
+                        }}
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Прикрепить ссылку</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Share Task Link (Deep link to share with other services/messengers) */}
+              <div className="p-3 rounded-xl bg-purple-50/40 dark:bg-purple-950/15 border border-purple-200/70 dark:border-purple-500/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900 dark:text-purple-300">
+                    <Share2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    <span>Ссылка на задачу для других сервисов</span>
+                  </div>
+                  <span className="text-[10.5px] text-purple-600/80 dark:text-purple-400/80">
+                    Прямой переход к этой задаче
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      readOnly
+                      value={generateTaskUrl(equipment.id, task.id)}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-[#161620] border border-purple-200 dark:border-purple-500/30 text-slate-800 dark:text-slate-200 text-xs font-mono select-all focus:outline-hidden"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyTaskDeepLink('url')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                      copiedTaskLink
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-purple-600 hover:bg-purple-500 text-white shadow-xs'
+                    }`}
+                    title="Скопировать ссылку для вставки в мессенджер, тикет или письмо"
+                  >
+                    {copiedTaskLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Скопировано!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Копировать</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Additional copy formats */}
+                <div className="flex items-center gap-2 pt-1 border-t border-purple-200/50 dark:border-purple-500/10 text-[11px]">
+                  <span className="text-slate-500 dark:text-slate-400">Вставить как:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyTaskDeepLink('markdown')}
+                    className="text-purple-700 dark:text-purple-300 hover:underline font-medium cursor-pointer"
+                    title="[Задача: Название (Тег)](URL)"
+                  >
+                    Markdown-ссылка
+                  </button>
+                  <span className="text-slate-300 dark:text-white/20">•</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyTaskDeepLink('full')}
+                    className="text-purple-700 dark:text-purple-300 hover:underline font-medium cursor-pointer"
+                    title="Полный текст со статусом, исполнителем и ссылкой для Telegram / WhatsApp"
+                  >
+                    Сводка для мессенджера
+                  </button>
                 </div>
               </div>
 
@@ -733,6 +1079,56 @@ export const TaskModal: React.FC = () => {
                 </div>
               </div>
 
+              {/* External Link Input */}
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Внешняя ссылка (URL на регламент, тикет, документацию или ERP)</span>
+                  </span>
+                  <span className="text-[10.5px] text-slate-400 font-normal">Необязательно</span>
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="url"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://jira.company.ru/TASK-101 или https://wiki/page..."
+                    className="w-full pl-3 pr-24 py-2 rounded-xl bg-slate-50 dark:bg-[#181820] border border-slate-300 dark:border-white/15 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-blue-500"
+                  />
+                  <div className="absolute right-1.5 flex items-center gap-1">
+                    {linkUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setLinkUrl('')}
+                        className="px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded cursor-pointer"
+                        title="Очистить поле ссылки"
+                      >
+                        Очистить
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const text = await navigator.clipboard.readText();
+                          if (text) setLinkUrl(text.trim());
+                        } catch {
+                          // ignore clipboard permission
+                        }
+                      }}
+                      className="px-2 py-0.5 text-[10.5px] bg-slate-200/80 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-700 dark:text-slate-300 font-medium rounded-md transition-colors cursor-pointer"
+                      title="Вставить из буфера обмена"
+                    >
+                      Вставить
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10.5px] text-slate-400 dark:text-slate-500 mt-1">
+                  Прямой переход к внешнему регламенту, заявке в ServiceDesk/Jira, схеме или паспорту оборудования.
+                </p>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
                   Описание и регламентные указания
@@ -789,6 +1185,30 @@ export const TaskModal: React.FC = () => {
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span>Запись в журнал</span>
+            </button>
+
+            {/* Copy Task Link for External Services */}
+            <button
+              type="button"
+              onClick={() => handleCopyTaskDeepLink('url')}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                copiedTaskLink
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700 font-bold'
+                  : 'bg-purple-50 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/25 border border-purple-200 dark:border-purple-500/30'
+              }`}
+              title="Скопировать прямую ссылку на задачу для отправки коллегам или вставки в тикет"
+            >
+              {copiedTaskLink ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Ссылка скопирована!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Копировать ссылку</span>
+                </>
+              )}
             </button>
           </div>
 

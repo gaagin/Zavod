@@ -20,8 +20,17 @@ import {
   CheckSquare,
   Square,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Link2,
+  Share2,
+  Copy,
+  Globe
 } from 'lucide-react';
+import { 
+  copyTextToClipboard, 
+  generateTaskUrl, 
+  formatExternalUrl 
+} from '../utils/linkUtils';
 
 interface EquipmentTasksSectionProps {
   equipment: EquipmentNode;
@@ -74,7 +83,7 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
   equipment,
   canEdit,
 }) => {
-  const { updateEquipment, addEventLog, currentUser, openSearch, openTaskModal } = useFactory();
+  const { updateEquipment, addEventLog, currentUser, openSearch, openTaskModal, showToast } = useFactory();
 
   const tasks = equipment.tasks || [];
   const [isExpanded, setIsExpanded] = useState(true);
@@ -90,6 +99,8 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
   const [taskType, setTaskType] = useState<TaskType>('maintenance');
   const [taskAssignee, setTaskAssignee] = useState('');
   const [taskDueDate, setTaskDueDate] = useState('');
+  const [taskLinkUrl, setTaskLinkUrl] = useState('');
+  const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
 
   const completedCount = tasks.filter(t => t.status === 'completed').length;
   const activeTasks = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
@@ -108,6 +119,7 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
         task.title.toLowerCase().includes(q) ||
         (task.description && task.description.toLowerCase().includes(q)) ||
         (task.assignedTo && task.assignedTo.toLowerCase().includes(q)) ||
+        (task.linkUrl && task.linkUrl.toLowerCase().includes(q)) ||
         (TYPE_LABELS[task.type] && TYPE_LABELS[task.type].toLowerCase().includes(q)) ||
         (PRIORITY_CONFIG[task.priority]?.label && PRIORITY_CONFIG[task.priority].label.toLowerCase().includes(q))
       );
@@ -123,6 +135,7 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
     setTaskType('maintenance');
     setTaskAssignee('');
     setTaskDueDate('');
+    setTaskLinkUrl('');
     setIsCreating(false);
     setEditingTaskId(null);
   };
@@ -140,6 +153,7 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
     }
     setTaskDesc('');
     setTaskAssignee(currentUser.name || '');
+    setTaskLinkUrl('');
     // Default due date: tomorrow or in 3 days
     const defaultDue = new Date();
     defaultDue.setDate(defaultDue.getDate() + 3);
@@ -158,7 +172,18 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
     setTaskType(task.type || 'maintenance');
     setTaskAssignee(task.assignedTo || '');
     setTaskDueDate(task.dueDate || '');
+    setTaskLinkUrl(task.linkUrl || task.url || '');
     setIsCreating(false);
+  };
+
+  const handleCopyTaskLink = async (task: EquipmentTask) => {
+    const url = generateTaskUrl(equipment.id, task.id);
+    const success = await copyTextToClipboard(url);
+    if (success) {
+      setCopiedTaskId(task.id);
+      showToast('Ссылка на задачу скопирована 📋', `Прямая ссылка для вставки в сервисы и мессенджеры`, 'success');
+      setTimeout(() => setCopiedTaskId(null), 2500);
+    }
   };
 
   const handleSaveTask = (e: React.FormEvent) => {
@@ -178,6 +203,8 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
             type: taskType,
             assignedTo: taskAssignee.trim() || undefined,
             dueDate: taskDueDate || undefined,
+            linkUrl: taskLinkUrl.trim() || undefined,
+            url: taskLinkUrl.trim() || undefined,
           };
         }
         return t;
@@ -200,6 +227,8 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
         type: taskType,
         assignedTo: taskAssignee.trim() || undefined,
         dueDate: taskDueDate || undefined,
+        linkUrl: taskLinkUrl.trim() || undefined,
+        url: taskLinkUrl.trim() || undefined,
         createdAt: new Date().toISOString(),
         createdBy: currentUser.name || undefined,
       };
@@ -497,6 +526,40 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
                 </div>
               </div>
 
+              {/* Task Link Input */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Link2 className="w-2.5 h-2.5 text-blue-500" />
+                    <span>Внешняя ссылка (регламент, тикет, документация)</span>
+                  </span>
+                  <span className="text-[9.5px] text-slate-400 font-normal">Необязательно</span>
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    type="url"
+                    placeholder="https://jira.company.ru/TASK-101 или регламент..."
+                    value={taskLinkUrl}
+                    onChange={(e) => setTaskLinkUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.stopPropagation();
+                      }
+                    }}
+                    className="w-full pl-2.5 pr-14 py-1.5 rounded-lg bg-white dark:bg-[#17171C] border border-slate-200 dark:border-white/10 text-slate-900 dark:text-slate-100 text-xs focus:outline-hidden focus:border-blue-500"
+                  />
+                  {taskLinkUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setTaskLinkUrl('')}
+                      className="absolute right-1 px-1.5 py-0.5 text-[9.5px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded"
+                    >
+                      Очистить
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Description */}
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
@@ -705,6 +768,25 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
                       <div className="flex items-center gap-0.5 shrink-0 ml-1">
                         <button
                           type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyTaskLink(task);
+                          }}
+                          className={`p-1 rounded transition-colors ${
+                            copiedTaskId === task.id
+                              ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10'
+                              : 'text-slate-400 hover:text-purple-600 dark:hover:text-purple-400'
+                          }`}
+                          title="Скопировать ссылку на эту задачу для отправки коллегам или вставки в другие сервисы"
+                        >
+                          {copiedTaskId === task.id ? (
+                            <Check className="w-3 h-3 text-emerald-500" />
+                          ) : (
+                            <Share2 className="w-3 h-3" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => openTaskModal(equipment.id, task.id)}
                           className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded transition-colors"
                           title="Открыть карточку задачи"
@@ -788,6 +870,21 @@ export const EquipmentTasksSection: React.FC<EquipmentTasksSectionProps> = ({
                           <User className="w-2.5 h-2.5 text-slate-400" />
                           <span className="truncate">{task.assignedTo}</span>
                         </span>
+                      )}
+
+                      {/* External Link Pill */}
+                      {(task.linkUrl || task.url) && (
+                        <a
+                          href={formatExternalUrl(task.linkUrl || task.url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[9.5px] px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/20 font-medium transition-colors"
+                          title={`Внешняя ссылка: ${task.linkUrl || task.url}`}
+                        >
+                          <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate max-w-[110px]">Регламент / Ссылка</span>
+                        </a>
                       )}
 
                       {/* Completed date if done */}

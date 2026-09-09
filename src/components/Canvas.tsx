@@ -3013,7 +3013,9 @@ export const Canvas: React.FC = () => {
           const StatusIcon = statusStyle.icon;
           const childEquipment = state.equipment.filter(e => e.parentId === equipment.id);
 
-          if (equipment.isCollapsed) {
+          const isEquipmentCollapsed = equipment.isCollapsed !== false;
+
+          if (isEquipmentCollapsed) {
             const collapsedW = equipment.collapsedWidth || 200;
             const collapsedH = equipment.collapsedHeight || 64;
 

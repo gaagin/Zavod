@@ -181,6 +181,9 @@ export const CreateEquipmentModal: React.FC = () => {
       notes: notes.trim() || undefined,
       properties: formattedProps,
       commissionDate: new Date().toISOString().slice(0, 10),
+      isCollapsed: true,
+      collapsedWidth: 180,
+      collapsedHeight: 64,
     };
 
     addEquipment(newEquipment, `Создано оборудование [${finalTag}] ${newEquipment.name}`);

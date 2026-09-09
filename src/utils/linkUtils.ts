@@ -9,6 +9,23 @@ export interface ParsedElementQuery {
   value: string;
 }
 
+export interface ParsedTaskQuery {
+  taskId: string;
+  elementId?: string;
+}
+
+/**
+ * Returns full absolute URL for a specific task.
+ */
+export function generateTaskUrl(equipmentId: string, taskId: string): string {
+  const origin = window.location.origin || '';
+  const pathname = window.location.pathname || '';
+  const url = new URL(`${origin}${pathname}`);
+  url.searchParams.set('element', equipmentId);
+  url.searchParams.set('task', taskId);
+  return url.toString();
+}
+
 /**
  * Returns full absolute URL for an element.
  */
@@ -128,6 +145,43 @@ export function parseElementFromLocation(search = window.location.search, hash =
     }
   } catch (err) {
     console.warn('Error parsing element from URL', err);
+  }
+
+  return null;
+}
+
+/**
+ * Parses query params or hash for task deep link identifiers.
+ */
+export function parseTaskFromLocation(
+  search = window.location.search,
+  hash = window.location.hash
+): ParsedTaskQuery | null {
+  try {
+    const params = new URLSearchParams(search);
+    const taskId = params.get('task') || params.get('taskId') || params.get('task_id');
+    const elementId = params.get('element') || params.get('eq') || params.get('node') || params.get('id') || undefined;
+
+    if (taskId) {
+      return { taskId, elementId };
+    }
+
+    // Check hash (e.g. #task=task_123 or #element=eq_1&task=task_123 or #task_123)
+    if (hash && hash.length > 1) {
+      const cleanHash = hash.startsWith('#') ? hash.slice(1) : hash;
+      if (cleanHash.includes('=')) {
+        const hashParams = new URLSearchParams(cleanHash);
+        const hTaskId = hashParams.get('task') || hashParams.get('taskId') || hashParams.get('task_id');
+        const hElementId = hashParams.get('element') || hashParams.get('eq') || hashParams.get('id') || undefined;
+        if (hTaskId) {
+          return { taskId: hTaskId, elementId: hElementId };
+        }
+      } else if (cleanHash.startsWith('task_') || cleanHash.startsWith('task-')) {
+        return { taskId: cleanHash };
+      }
+    }
+  } catch (err) {
+    console.warn('Error parsing task from URL', err);
   }
 
   return null;

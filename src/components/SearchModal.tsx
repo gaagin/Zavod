@@ -29,8 +29,16 @@ import {
   Wrench,
   Sparkles,
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  Link2,
+  Share2,
+  Check
 } from 'lucide-react';
+import { 
+  copyTextToClipboard, 
+  generateTaskUrl, 
+  formatExternalUrl 
+} from '../utils/linkUtils';
 
 export interface EnrichedEquipmentTask extends EquipmentTask {
   equipmentId: string;
@@ -136,6 +144,7 @@ export const SearchModal: React.FC = () => {
   const [newTaskType, setNewTaskType] = useState<TaskType>('maintenance');
   const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
 
   // Sync default tab if opened specifically
   useEffect(() => {
@@ -217,6 +226,7 @@ export const SearchModal: React.FC = () => {
         task.title.toLowerCase().includes(q) ||
         (task.description && task.description.toLowerCase().includes(q)) ||
         (task.assignedTo && task.assignedTo.toLowerCase().includes(q)) ||
+        (task.linkUrl && task.linkUrl.toLowerCase().includes(q)) ||
         (task.createdBy && task.createdBy.toLowerCase().includes(q)) ||
         (task.dueDate && task.dueDate.toLowerCase().includes(q)) ||
         typeLabel.toLowerCase().includes(q) ||
@@ -317,6 +327,18 @@ export const SearchModal: React.FC = () => {
   }, [state.eventLogs, query, severityFilter]);
 
   if (!isSearchOpen) return null;
+
+  // Copy Task Deep Link
+  const handleCopyTaskLink = async (task: EnrichedEquipmentTask, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = generateTaskUrl(task.equipmentId, task.id);
+    const success = await copyTextToClipboard(url);
+    if (success) {
+      setCopiedTaskId(task.id);
+      showToast('Ссылка на задачу скопирована 📋', 'Прямой адрес скопирован в буфер обмена', 'success');
+      setTimeout(() => setCopiedTaskId(null), 2500);
+    }
+  };
 
   // Toggle Task Completion Directly From Search
   const handleToggleTask = (task: EnrichedEquipmentTask, e: React.MouseEvent) => {
@@ -1126,11 +1148,41 @@ export const SearchModal: React.FC = () => {
                                 Создана: {new Date(task.createdAt).toLocaleDateString('ru-RU')}
                               </span>
                             )}
+
+                            {(task.linkUrl || task.url) && (
+                              <a
+                                href={formatExternalUrl(task.linkUrl || task.url)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-[9.5px] px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 border border-blue-500/30 font-medium transition-colors"
+                                title={`Внешняя ссылка: ${task.linkUrl || task.url}`}
+                              >
+                                <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                                <span className="truncate max-w-[120px]">Внешняя ссылка</span>
+                              </a>
+                            )}
                           </div>
                         </div>
 
                         {/* Actions */}
                         <div className="flex items-center gap-1 shrink-0 mt-1">
+                          <button
+                            type="button"
+                            onClick={(e) => handleCopyTaskLink(task, e)}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              copiedTaskId === task.id
+                                ? 'text-emerald-400 bg-emerald-500/20'
+                                : 'text-slate-400 hover:text-purple-400 hover:bg-white/10'
+                            }`}
+                            title="Скопировать ссылку на задачу для отправки в мессенджеры и тикеты"
+                          >
+                            {copiedTaskId === task.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Share2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => {

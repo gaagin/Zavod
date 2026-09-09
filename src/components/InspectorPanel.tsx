@@ -829,9 +829,9 @@ export const InspectorPanel: React.FC = () => {
           >
             <span>Состояние оборудования:</span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] ${
-              selectedEquipment.isCollapsed ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+              selectedEquipment.isCollapsed !== false ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
             }`}>
-              {selectedEquipment.isCollapsed ? 'Свернуто (Минимизировано)' : 'Развернуто (Видны вложенные)'}
+              {selectedEquipment.isCollapsed !== false ? 'Свернуто (Минимизировано)' : 'Развернуто (Видны вложенные)'}
             </span>
           </button>
         </div>
@@ -958,10 +958,10 @@ export const InspectorPanel: React.FC = () => {
               <input
                 type="number"
                 disabled={!canEdit}
-                value={selectedEquipment.isCollapsed ? (selectedEquipment.collapsedWidth || 180) : selectedEquipment.width}
+                value={selectedEquipment.isCollapsed !== false ? (selectedEquipment.collapsedWidth || 180) : selectedEquipment.width}
                 onChange={(e) => {
                   const val = Math.max(160, Number(e.target.value));
-                  if (selectedEquipment.isCollapsed) {
+                  if (selectedEquipment.isCollapsed !== false) {
                     updateEquipment(selectedEquipment.id, { collapsedWidth: val });
                   } else {
                     updateEquipment(selectedEquipment.id, { width: val });
@@ -978,10 +978,10 @@ export const InspectorPanel: React.FC = () => {
               <input
                 type="number"
                 disabled={!canEdit}
-                value={selectedEquipment.isCollapsed ? (selectedEquipment.collapsedHeight || 64) : selectedEquipment.height}
+                value={selectedEquipment.isCollapsed !== false ? (selectedEquipment.collapsedHeight || 64) : selectedEquipment.height}
                 onChange={(e) => {
-                  const val = Math.max(selectedEquipment.isCollapsed ? 48 : 80, Number(e.target.value));
-                  if (selectedEquipment.isCollapsed) {
+                  const val = Math.max(selectedEquipment.isCollapsed !== false ? 48 : 80, Number(e.target.value));
+                  if (selectedEquipment.isCollapsed !== false) {
                     updateEquipment(selectedEquipment.id, { collapsedHeight: val });
                   } else {
                     updateEquipment(selectedEquipment.id, { height: val });

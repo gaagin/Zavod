@@ -23,7 +23,7 @@ export function getNodeRect(
 ): Rect | null {
   const eq = equipment.find(e => e.id === nodeId);
   if (eq) {
-    if (eq.isCollapsed) {
+    if (eq.isCollapsed !== false) {
       return {
         x: eq.x,
         y: eq.y,
@@ -93,7 +93,7 @@ export function isNodeHiddenByCollapsedAncestor(
         const pc = containerMap.get(ancestorId);
         if (pc && pc.isCollapsed) return true;
         const pe = eqMap ? eqMap.get(ancestorId) : null;
-        if (pe && pe.isCollapsed) return true;
+        if (pe && pe.isCollapsed !== false) return true;
       }
     }
 
@@ -118,7 +118,7 @@ export function isNodeHiddenByCollapsedAncestor(
     if (eqMap) {
       const parentEq = eqMap.get(currentId);
       if (parentEq) {
-        if (parentEq.isCollapsed) return true;
+        if (parentEq.isCollapsed !== false) return true;
         currentId = parentEq.parentId;
         continue;
       }
@@ -454,8 +454,8 @@ export function calculateNodeFitViewport(
   const availableW = Math.max(100, safeW - padding * 2);
   const availableH = Math.max(100, safeH - padding * 2);
 
-  const targetW = node.isCollapsed ? (node.collapsedWidth || 180) : node.width;
-  const targetH = node.isCollapsed ? (node.collapsedHeight || 64) : node.height;
+  const targetW = node.isCollapsed !== false ? (node.collapsedWidth || 180) : node.width;
+  const targetH = node.isCollapsed !== false ? (node.collapsedHeight || 64) : node.height;
 
   const zoomX = availableW / Math.max(1, targetW);
   const zoomY = availableH / Math.max(1, targetH);
