@@ -15,7 +15,10 @@ import {
   AutoSaveConfig,
   FolderFileChangeNotice,
   ElementReference,
-  ElementClipboardData
+  ElementClipboardData,
+  MobileInteractionMode,
+  MobileViewMode,
+  MobileSheetSnap
 } from '../types';
 import { initialFactoryState } from '../data/initialFactory';
 import { 
@@ -103,12 +106,20 @@ interface FactoryContextType {
   canGoBackOneLevel: boolean;
   parentFocusName: string | null;
 
-  // Mobile Element Management & Movement Mode
+  // Mobile Element Management & Ergonomics
   isInspectorMobileOpen: boolean;
   setIsInspectorMobileOpen: (open: boolean) => void;
   isMobileMoveMode: boolean;
   setIsMobileMoveMode: (active: boolean) => void;
   nudgeSelected: (dx: number, dy: number) => void;
+  mobileInteractionMode: MobileInteractionMode;
+  setMobileInteractionMode: (mode: MobileInteractionMode) => void;
+  toggleMobileInteractionMode: () => void;
+  mobileViewMode: MobileViewMode;
+  setMobileViewMode: (mode: MobileViewMode) => void;
+  mobileSheetSnap: MobileSheetSnap;
+  setMobileSheetSnap: (snap: MobileSheetSnap) => void;
+  triggerHaptic: (pattern?: number | number[]) => void;
 
   // Actions
   updateEquipment: (id: string, partial: Partial<EquipmentNode>, reason?: string, skipHistory?: boolean) => void;
@@ -386,6 +397,31 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [userCursors, setUserCursors] = useState<Record<string, { cursor: { x: number; y: number }; user: UserPresence }>>({});
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
 
+  // Mobile Ergonomics & State
+  const [mobileInteractionMode, setMobileInteractionMode] = useState<MobileInteractionMode>('inspect');
+  const [mobileViewMode, setMobileViewMode] = useState<MobileViewMode>('canvas');
+  const [mobileSheetSnap, setMobileSheetSnap] = useState<MobileSheetSnap>('hidden');
+
+  const triggerHaptic = useCallback((pattern: number | number[] = 20) => {
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(pattern);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const setIsInspectorMobileOpen = useCallback((open: boolean) => {
+    if (open) {
+      setMobileSheetSnap(prev => (prev === 'hidden' ? 'peek' : prev));
+    } else {
+      setMobileSheetSnap('hidden');
+    }
+  }, []);
+
+  const isInspectorMobileOpen = mobileSheetSnap !== 'hidden';
+
   // Canvas Viewport & Tools
   const [viewport, setViewport] = useState({ panX: 200, panY: 150, zoom: 0.85 });
   const [selectedId, setSelectedIdState] = useState<string | null>(null);
@@ -402,7 +438,11 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const setSelectedId = useCallback((id: string | null) => {
     setSelectedIdState(id);
     setSelectedIdsRaw(id ? [id] : []);
-    setIsInspectorMobileOpen(Boolean(id));
+    if (id) {
+      setMobileSheetSnap(prev => (prev === 'hidden' ? 'peek' : prev));
+    } else {
+      setMobileSheetSnap('hidden');
+    }
     setIsMobileMoveMode(false);
   }, []);
 
@@ -410,14 +450,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!multi) {
       setSelectedIdState(id);
       setSelectedIdsRaw(id ? [id] : []);
-      setIsInspectorMobileOpen(true);
+      setMobileSheetSnap(prev => (prev === 'hidden' ? 'peek' : prev));
     } else {
       setSelectedIdsRaw(prev => {
         const exists = prev.includes(id);
         const next = exists ? prev.filter(item => item !== id) : [...prev, id];
         const nextActive = next.length > 0 ? next[next.length - 1] : null;
         setSelectedIdState(nextActive);
-        if (nextActive) setIsInspectorMobileOpen(true);
+        if (nextActive) setMobileSheetSnap(prevSnap => (prevSnap === 'hidden' ? 'peek' : prevSnap));
         return next;
       });
     }
@@ -449,7 +489,6 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isFocusFullscreen, setIsFocusFullscreen] = useState<boolean>(false);
 
   // Mobile Inspector Sheet & Precision Movement State
-  const [isInspectorMobileOpen, setIsInspectorMobileOpen] = useState(false);
   const [isMobileMoveMode, setIsMobileMoveMode] = useState(false);
 
   // Modals & Panels
@@ -515,6 +554,21 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       dismissToast(id);
     }, 4000);
   }, [dismissToast]);
+
+  const toggleMobileInteractionMode = useCallback(() => {
+    setMobileInteractionMode(prev => {
+      const next = prev === 'inspect' ? 'edit' : 'inspect';
+      triggerHaptic(25);
+      showToast(
+        next === 'edit' ? 'Режим: Редактирование' : 'Режим: Обход и просмотр',
+        next === 'edit' 
+          ? 'Перетаскивание элементов включено. Доступны инструменты монтажа.'
+          : 'Случайные смещения заблокированы. Тап открывает инспектор, свободное панорамирование.',
+        'info'
+      );
+      return next;
+    });
+  }, [triggerHaptic, showToast]);
 
   // Undo/Redo Stacks
   const historyRef = useRef<{ past: FactoryState[]; future: FactoryState[] }>({ past: [], future: [] });
@@ -3230,6 +3284,14 @@ export const FactoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isMobileMoveMode,
         setIsMobileMoveMode,
         nudgeSelected,
+        mobileInteractionMode,
+        setMobileInteractionMode,
+        toggleMobileInteractionMode,
+        mobileViewMode,
+        setMobileViewMode,
+        mobileSheetSnap,
+        setMobileSheetSnap,
+        triggerHaptic,
         updateEquipment,
         addEquipment,
         deleteEquipment,

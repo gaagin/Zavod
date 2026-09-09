@@ -216,4 +216,8 @@ export interface FolderFileChangeNotice {
   containersCount?: number;
 }
 
+export type MobileInteractionMode = 'inspect' | 'edit';
+export type MobileViewMode = 'canvas' | 'list';
+export type MobileSheetSnap = 'hidden' | 'peek' | 'half' | 'full';
+
 

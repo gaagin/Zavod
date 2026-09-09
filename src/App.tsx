@@ -12,6 +12,8 @@ import { ShareLinkModal } from './components/ShareLinkModal';
 import { TaskModal } from './components/TaskModal';
 import { ToastContainer } from './components/ToastContainer';
 import { FolderSyncBanner } from './components/FolderSyncBanner';
+import { MobileBottomBar } from './components/MobileBottomBar';
+import { MobileListView } from './components/MobileListView';
 import { exportToJSON } from './utils/exportUtils';
 import { Upload, FileCode } from 'lucide-react';
 
@@ -49,6 +51,7 @@ const AppContent: React.FC = () => {
     copySelected,
     pasteElements,
     duplicateSelected,
+    mobileViewMode,
   } = useFactory();
 
   const [isWindowDragOver, setIsWindowDragOver] = useState(false);
@@ -298,16 +301,30 @@ const AppContent: React.FC = () => {
       {/* Top Header Navbar */}
       <Navbar />
 
-      {/* Main Workspace: Canvas + Inspector Sidebar */}
+      {/* Main Workspace: Canvas / Mobile List + Inspector Sidebar */}
       <main className="flex-1 flex overflow-hidden relative">
         <div className="flex-1 h-full relative">
           <FolderSyncBanner />
-          <Canvas />
+          {mobileViewMode === 'list' ? (
+            <>
+              <div className="lg:hidden w-full h-full">
+                <MobileListView />
+              </div>
+              <div className="hidden lg:block w-full h-full">
+                <Canvas />
+              </div>
+            </>
+          ) : (
+            <Canvas />
+          )}
           <Toolbar />
         </div>
         <InspectorPanel />
         <ProjectPanel />
       </main>
+
+      {/* Mobile Floating Bottom Navigation Dock (PWA thumb-driven bar) */}
+      <MobileBottomBar />
 
       {/* Modals & Dialogs */}
       <SearchModal />

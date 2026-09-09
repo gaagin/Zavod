@@ -133,6 +133,12 @@ export const Canvas: React.FC = () => {
     isMobileMoveMode,
     setIsMobileMoveMode,
     nudgeSelected,
+    mobileInteractionMode,
+    toggleMobileInteractionMode,
+    triggerHaptic,
+    mobileSheetSnap,
+    setMobileSheetSnap,
+    mobileViewMode,
   } = useFactory();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1335,6 +1341,7 @@ export const Canvas: React.FC = () => {
     gridSnap,
     smartGuides,
     recordHistorySnapshot,
+    mobileInteractionMode,
   });
   touchStateRef.current = {
     viewport,
@@ -1345,6 +1352,7 @@ export const Canvas: React.FC = () => {
     gridSnap,
     smartGuides,
     recordHistorySnapshot,
+    mobileInteractionMode,
   };
 
   const touchTrackingRef = useRef<{
@@ -1354,8 +1362,11 @@ export const Canvas: React.FC = () => {
     hasMoved: boolean;
     draggedNodeId: string | null;
     draggedNodeType: 'equipment' | 'container' | null;
+    potentialTapNodeId: string | null;
     initialNodeX: number;
     initialNodeY: number;
+    initialDescendantContainers: Array<{ id: string; initialX: number; initialY: number }>;
+    initialDescendantEquipment: Array<{ id: string; initialX: number; initialY: number }>;
     isPanning: boolean;
     initialPanX: number;
     initialPanY: number;
@@ -1373,6 +1384,7 @@ export const Canvas: React.FC = () => {
     hasMoved: false,
     draggedNodeId: null,
     draggedNodeType: null,
+    potentialTapNodeId: null,
     initialNodeX: 0,
     initialNodeY: 0,
     initialDescendantContainers: [] as Array<{ id: string; initialX: number; initialY: number }>,
@@ -1422,12 +1434,17 @@ export const Canvas: React.FC = () => {
         t.touchStartY = touch.clientY;
 
         const nodeEl = target.closest('[data-node-id]') as HTMLElement | null;
-        if (nodeEl && curTool !== 'pan') {
+        const currentInteractionMode = touchStateRef.current.mobileInteractionMode;
+        const isTouchScreen = window.innerWidth <= 1024 || ('ontouchstart' in window);
+        const allowNodeDragOnTouch = !isTouchScreen || currentInteractionMode === 'edit';
+
+        if (nodeEl && curTool !== 'pan' && allowNodeDragOnTouch) {
           const id = nodeEl.dataset.nodeId!;
           const type = nodeEl.dataset.nodeType as 'equipment' | 'container';
           touchStateRef.current.recordHistorySnapshot();
           t.draggedNodeId = id;
           t.draggedNodeType = type;
+          t.potentialTapNodeId = id;
           t.isPanning = false;
           t.isPinching = false;
           setTouchDraggingNodeId(id);
@@ -1463,9 +1480,20 @@ export const Canvas: React.FC = () => {
               t.initialDescendantEquipment = descEq.map(eq => ({ id: eq.id, initialX: eq.x, initialY: eq.y }));
             }
           }
+        } else if (nodeEl && curTool !== 'pan') {
+          // In Inspect mode: touching a node sets potentialTapNodeId, but movements pan freely
+          const id = nodeEl.dataset.nodeId!;
+          t.draggedNodeId = null;
+          t.draggedNodeType = null;
+          t.potentialTapNodeId = id;
+          t.isPanning = true;
+          t.isPinching = false;
+          t.initialPanX = curVp.panX;
+          t.initialPanY = curVp.panY;
         } else {
           t.draggedNodeId = null;
           t.draggedNodeType = null;
+          t.potentialTapNodeId = null;
           t.isPanning = true;
           t.isPinching = false;
           t.initialPanX = curVp.panX;
@@ -1644,11 +1672,14 @@ export const Canvas: React.FC = () => {
       if (e.touches.length === 0) {
         if (!t.hasMoved) {
           // Tap action!
-          if (t.draggedNodeId) {
+          const tappedNodeId = t.draggedNodeId || t.potentialTapNodeId;
+          if (tappedNodeId) {
+            triggerHaptic(15);
             if (curTool === 'connect') {
-              handleNodeConnectClick(t.draggedNodeId);
+              handleNodeConnectClick(tappedNodeId);
             } else {
-              setSelectedId(t.draggedNodeId);
+              setSelectedId(tappedNodeId);
+              setMobileSheetSnap('peek');
             }
           } else {
             if (curSrc) {
@@ -1656,6 +1687,7 @@ export const Canvas: React.FC = () => {
               setConnectingMousePos(null);
             } else {
               setSelectedId(null);
+              setMobileSheetSnap('hidden');
             }
           }
         }
@@ -1666,6 +1698,7 @@ export const Canvas: React.FC = () => {
 
         t.draggedNodeId = null;
         t.draggedNodeType = null;
+        t.potentialTapNodeId = null;
         t.initialDescendantContainers = [];
         t.initialDescendantEquipment = [];
         setTouchDraggingNodeId(null);

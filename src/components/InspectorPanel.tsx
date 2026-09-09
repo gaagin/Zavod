@@ -29,6 +29,7 @@ import {
   Sliders,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Maximize2,
   Minimize2,
   Focus,
@@ -79,8 +80,25 @@ export const InspectorPanel: React.FC = () => {
     setIsMobileSummaryOpen,
     isInspectorMobileOpen,
     setIsInspectorMobileOpen,
+    mobileSheetSnap,
+    setMobileSheetSnap,
+    triggerHaptic,
     openSearch,
   } = useFactory();
+
+  const getSheetSnapClass = () => {
+    if (mobileSheetSnap === 'hidden') return 'hidden';
+    if (mobileSheetSnap === 'peek') return 'fixed inset-x-0 bottom-0 z-40 max-h-[86px] h-[86px] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl shadow-2xl rounded-t-3xl flex flex-col overflow-hidden';
+    if (mobileSheetSnap === 'half') return 'fixed inset-x-0 bottom-0 z-40 max-h-[50dvh] max-h-[50vh] h-[50dvh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl shadow-2xl rounded-t-3xl flex flex-col';
+    return 'fixed inset-x-0 bottom-0 z-40 max-h-[88dvh] max-h-[88vh] h-[88dvh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl shadow-2xl rounded-t-3xl flex flex-col';
+  };
+
+  const cycleSheetSnap = () => {
+    triggerHaptic(15);
+    if (mobileSheetSnap === 'peek') setMobileSheetSnap('half');
+    else if (mobileSheetSnap === 'half') setMobileSheetSnap('full');
+    else setMobileSheetSnap('peek');
+  };
 
   const [newPropName, setNewPropName] = useState('');
   const [newPropValue, setNewPropValue] = useState('');
@@ -124,27 +142,27 @@ export const InspectorPanel: React.FC = () => {
 
     return (
       <>
-        {/* Mobile backdrop overlay - only if open on mobile */}
-        {isInspectorMobileOpen && (
+        {/* Mobile backdrop overlay - only if half or full on mobile */}
+        {mobileSheetSnap !== 'hidden' && mobileSheetSnap !== 'peek' && (
           <div 
-            onClick={() => setIsInspectorMobileOpen(false)}
-            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+            onClick={() => {
+              triggerHaptic(15);
+              setMobileSheetSnap('peek');
+            }}
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden animate-in fade-in duration-150"
           />
         )}
         <aside 
           id="factory-inspector-multiselect"
-          className={`${
-            isInspectorMobileOpen 
-              ? 'fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] max-h-[85vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl shadow-2xl rounded-t-3xl flex flex-col' 
-              : 'hidden'
-          } lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:flex lg:flex-col shrink-0 min-h-0 overflow-hidden shadow-sm text-slate-700 dark:text-slate-300 select-none transition-all`}
+          className={`${getSheetSnapClass()} lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:flex lg:flex-col shrink-0 min-h-0 overflow-hidden shadow-sm text-slate-700 dark:text-slate-300 select-none transition-all`}
         >
           {/* Mobile Drag Indicator */}
           <div 
-            onClick={() => setIsInspectorMobileOpen(false)}
-            className="lg:hidden flex items-center justify-center pt-3 pb-1 cursor-pointer shrink-0"
+            onClick={cycleSheetSnap}
+            className="lg:hidden flex items-center justify-center pt-2.5 pb-1 cursor-pointer shrink-0 touch-none active:opacity-60"
+            title="Нажмите для переключения размера панели"
           >
-            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 hover:bg-slate-400 dark:hover:bg-white/40 transition-colors" />
+            <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-white/30 hover:bg-slate-400 dark:hover:bg-white/50 transition-colors" />
           </div>
 
           {/* Header */}
@@ -152,20 +170,31 @@ export const InspectorPanel: React.FC = () => {
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-blue-500" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
-                Групповое выделение
+                Групповое выделение ({selectedIds.length})
               </h3>
             </div>
-            <button
-              onClick={() => {
-                setIsInspectorMobileOpen(false);
-                setSelectedId(null);
-                setSelectedIds([]);
-              }}
-              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
-              title="Снять выделение"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={cycleSheetSnap}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors lg:hidden"
+                title={mobileSheetSnap === 'full' ? 'Свернуть' : 'Развернуть'}
+              >
+                {mobileSheetSnap === 'full' ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={() => {
+                  triggerHaptic(15);
+                  setSelectedId(null);
+                  setSelectedIds([]);
+                  setMobileSheetSnap('hidden');
+                }}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                title="Снять выделение"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Scrollable Container */}
@@ -725,27 +754,27 @@ export const InspectorPanel: React.FC = () => {
 
     return (
       <>
-        {/* Mobile backdrop overlay - only if open on mobile */}
-        {isInspectorMobileOpen && (
+        {/* Mobile backdrop overlay - only if half or full on mobile */}
+        {mobileSheetSnap !== 'hidden' && mobileSheetSnap !== 'peek' && (
           <div 
-            onClick={() => setIsInspectorMobileOpen(false)}
-            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+            onClick={() => {
+              triggerHaptic(15);
+              setMobileSheetSnap('peek');
+            }}
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden animate-in fade-in duration-150"
           />
         )}
         <aside 
           id="equipment-inspector"
-          className={`${
-            isInspectorMobileOpen 
-              ? 'fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] max-h-[85vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl shadow-2xl rounded-t-3xl flex flex-col' 
-              : 'hidden'
-          } lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:flex lg:flex-col shrink-0 min-h-0 overflow-hidden shadow-sm select-none transition-all text-slate-700 dark:text-slate-300`}
+          className={`${getSheetSnapClass()} lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:flex lg:flex-col shrink-0 min-h-0 overflow-hidden shadow-sm select-none transition-all text-slate-700 dark:text-slate-300`}
         >
           {/* Mobile Drag Indicator */}
           <div 
-            onClick={() => setIsInspectorMobileOpen(false)}
-            className="lg:hidden flex items-center justify-center pt-3 pb-1 cursor-pointer shrink-0"
+            onClick={cycleSheetSnap}
+            className="lg:hidden flex items-center justify-center pt-2.5 pb-1 cursor-pointer shrink-0 touch-none active:opacity-60"
+            title="Нажмите для переключения размера панели"
           >
-            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 hover:bg-slate-400 dark:hover:bg-white/40 transition-colors" />
+            <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-white/30 hover:bg-slate-400 dark:hover:bg-white/50 transition-colors" />
           </div>
 
           {/* Header */}
@@ -755,10 +784,18 @@ export const InspectorPanel: React.FC = () => {
                 {selectedEquipment.tag}
               </span>
               <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                Свойства оборудования
+                {selectedEquipment.name || 'Оборудование'}
               </span>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={cycleSheetSnap}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors lg:hidden"
+                title={mobileSheetSnap === 'full' ? 'Свернуть' : 'Развернуть'}
+              >
+                {mobileSheetSnap === 'full' ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </button>
               <button
                 onClick={() => openShareModal(selectedEquipment.id)}
                 className="p-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/20 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
@@ -768,8 +805,10 @@ export const InspectorPanel: React.FC = () => {
               </button>
               <button
                 onClick={() => {
+                  triggerHaptic(15);
                   setIsInspectorMobileOpen(false);
                   setSelectedId(null);
+                  setMobileSheetSnap('hidden');
                 }}
                 className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
               >
@@ -1391,27 +1430,27 @@ export const InspectorPanel: React.FC = () => {
 
     return (
       <>
-        {/* Mobile backdrop overlay - only if open on mobile */}
-        {isInspectorMobileOpen && (
+        {/* Mobile backdrop overlay - only if half or full on mobile */}
+        {mobileSheetSnap !== 'hidden' && mobileSheetSnap !== 'peek' && (
           <div 
-            onClick={() => setIsInspectorMobileOpen(false)}
-            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+            onClick={() => {
+              triggerHaptic(15);
+              setMobileSheetSnap('peek');
+            }}
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden animate-in fade-in duration-150"
           />
         )}
         <aside 
           id="container-inspector"
-          className={`${
-            isInspectorMobileOpen 
-              ? 'fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] max-h-[85vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl shadow-2xl rounded-t-3xl flex flex-col' 
-              : 'hidden'
-          } lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:flex lg:flex-col shrink-0 min-h-0 overflow-hidden shadow-sm select-none transition-all text-slate-700 dark:text-slate-300`}
+          className={`${getSheetSnapClass()} lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:flex lg:flex-col shrink-0 min-h-0 overflow-hidden shadow-sm select-none transition-all text-slate-700 dark:text-slate-300`}
         >
           {/* Mobile Drag Indicator */}
           <div 
-            onClick={() => setIsInspectorMobileOpen(false)}
-            className="lg:hidden flex items-center justify-center pt-3 pb-1 cursor-pointer shrink-0"
+            onClick={cycleSheetSnap}
+            className="lg:hidden flex items-center justify-center pt-2.5 pb-1 cursor-pointer shrink-0 touch-none active:opacity-60"
+            title="Нажмите для переключения размера панели"
           >
-            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 hover:bg-slate-400 dark:hover:bg-white/40 transition-colors" />
+            <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-white/30 hover:bg-slate-400 dark:hover:bg-white/50 transition-colors" />
           </div>
 
           {/* Header */}
@@ -1424,10 +1463,18 @@ export const InspectorPanel: React.FC = () => {
                 {selectedContainer.tag}
               </span>
               <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                Контейнер участка/цеха
+                {selectedContainer.name || 'Цех/участок'}
               </span>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={cycleSheetSnap}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors lg:hidden"
+                title={mobileSheetSnap === 'full' ? 'Свернуть' : 'Развернуть'}
+              >
+                {mobileSheetSnap === 'full' ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </button>
               <button
                 onClick={() => openShareModal(selectedContainer.id)}
                 className="p-1 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/20 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
@@ -1437,8 +1484,10 @@ export const InspectorPanel: React.FC = () => {
               </button>
               <button
                 onClick={() => {
+                  triggerHaptic(15);
                   setIsInspectorMobileOpen(false);
                   setSelectedId(null);
+                  setMobileSheetSnap('hidden');
                 }}
                 className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
               >
@@ -1788,27 +1837,27 @@ export const InspectorPanel: React.FC = () => {
 
     return (
       <>
-        {/* Mobile backdrop overlay - only if open on mobile */}
-        {isInspectorMobileOpen && (
+        {/* Mobile backdrop overlay - only if half or full on mobile */}
+        {mobileSheetSnap !== 'hidden' && mobileSheetSnap !== 'peek' && (
           <div 
-            onClick={() => setIsInspectorMobileOpen(false)}
-            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden"
+            onClick={() => {
+              triggerHaptic(15);
+              setMobileSheetSnap('peek');
+            }}
+            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs lg:hidden animate-in fade-in duration-150"
           />
         )}
         <aside 
           id="link-inspector"
-          className={`${
-            isInspectorMobileOpen 
-              ? 'fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] max-h-[85vh] w-full border-t border-slate-200 dark:border-white/15 bg-white/95 dark:bg-[#0F0F12]/95 backdrop-blur-xl shadow-2xl rounded-t-3xl flex flex-col' 
-              : 'hidden'
-          } lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:flex lg:flex-col shrink-0 min-h-0 overflow-hidden shadow-sm select-none transition-all text-slate-700 dark:text-slate-300`}
+          className={`${getSheetSnapClass()} lg:static lg:inset-auto lg:h-full lg:max-h-none lg:w-80 lg:rounded-none lg:border-t-0 lg:border-l lg:border-slate-200 dark:lg:border-white/10 lg:bg-white dark:lg:bg-[#0F0F12] lg:flex lg:flex-col shrink-0 min-h-0 overflow-hidden shadow-sm select-none transition-all text-slate-700 dark:text-slate-300`}
         >
           {/* Mobile Drag Indicator */}
           <div 
-            onClick={() => setIsInspectorMobileOpen(false)}
-            className="lg:hidden flex items-center justify-center pt-3 pb-1 cursor-pointer shrink-0"
+            onClick={cycleSheetSnap}
+            className="lg:hidden flex items-center justify-center pt-2.5 pb-1 cursor-pointer shrink-0 touch-none active:opacity-60"
+            title="Нажмите для переключения размера панели"
           >
-            <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-white/20 hover:bg-slate-400 dark:hover:bg-white/40 transition-colors" />
+            <div className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-white/30 hover:bg-slate-400 dark:hover:bg-white/50 transition-colors" />
           </div>
 
           {/* Header */}
@@ -1819,15 +1868,27 @@ export const InspectorPanel: React.FC = () => {
                 Технологическая связь
               </span>
             </div>
-            <button
-              onClick={() => {
-                setIsInspectorMobileOpen(false);
-                setSelectedId(null);
-              }}
-              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={cycleSheetSnap}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors lg:hidden"
+                title={mobileSheetSnap === 'full' ? 'Свернуть' : 'Развернуть'}
+              >
+                {mobileSheetSnap === 'full' ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={() => {
+                  triggerHaptic(15);
+                  setIsInspectorMobileOpen(false);
+                  setSelectedId(null);
+                  setMobileSheetSnap('hidden');
+                }}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Scrollable Container for Link Properties */}
